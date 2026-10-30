@@ -251,7 +251,7 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       platform versions masked, static mounts 404. Evidence: develop 0d5c8921, data-plane
       workspace 1110 tests pass, m246 static PASS, conformance `probe` record.
   - [ ] Live m27 run per engine with the probe on (needs the flag decided on the VM).
-  - [ ] Capability flags in the descriptor.
+  - [x] Capability flags in the descriptor — the osionos bridge joins `/query/v1/capabilities` into the descriptor (closed boolean set, cached 5 min, an outage omits the field); popover "Supports" row. Evidence: osionos 85a17441 `tests/bridge/bridge-mount-descriptor.test.mjs` 7/0, `tests/canvas/live-mount-descriptor.test.ts` 10/0.
 - [x] `PATCH /databases/{id}`: rename and rotate the credential (inline DSN or vault ref;
       TLS params travel in the DSN). The id stays, so `baas:<dbId>` bindings survive.
 - [x] Same through the self-serve `/v1/tenants/me/mounts/{id}` surface (scope `write`,
