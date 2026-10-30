@@ -90,6 +90,11 @@ mongodb = "3"
 # default-https-client (hyper 1 / h2 0.4) + rt-tokio are the rest of its defaults.
 aws-sdk-dynamodb = { version = "=1.104.0", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
 aws-config = { version = "=1.8.13", features = ["behavior-version-latest"] }
+# G2 D4 (ADR 0019, devil C12): the vetting DNS resolver plugs into the SDK's
+# own connector. Both already sit in Cargo.lock at these versions under
+# aws-sdk-dynamodb; naming them directly pins the API the resolver codes to.
+aws-smithy-http-client = { version = "=1.1.13", default-features = false, features = ["rustls-aws-lc"] }
+aws-smithy-runtime-api = { version = "=1.12.3", default-features = false, features = ["client"] }
 # R7: MySQL adapter. `default-rustls` selects rustls (matches the tls posture
 # of the rest of the workspace; avoids dragging in openssl).
 mysql_async = { version = "0.37", default-features = false, features = ["minimal-rust", "rustls-tls"] }

@@ -40,6 +40,9 @@
 //!     (native idempotency). No write leaves the process until `commit()`, so a
 //!     partially-applied transaction is structurally impossible.
 
+use crate::dial_guard::scope::DialScope;
+use crate::dial_guard::DialGuardMode;
+use crate::dynamodb_dial::DynamoGuard;
 use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use aws_sdk_dynamodb::config::{Credentials, Region};
@@ -102,12 +105,23 @@ fn validate_id(id: &str) -> DataPlaneResult<()> {
 
 pub struct DynamoEngineAdapter {
     resolver: Arc<dyn MountResolver>,
+    dial_guard: DialGuardMode,
 }
 
 impl DynamoEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self { resolver }
+        Self {
+            resolver,
+            dial_guard: DialGuardMode::Off,
+        }
+    }
+
+    /// G2 (ADR 0019): guard every Tenant dial; `Off` (the default) changes nothing.
+    #[must_use]
+    pub fn with_dial_guard(mut self, mode: DialGuardMode) -> Self {
+        self.dial_guard = mode;
+        self
     }
 }
 
@@ -140,8 +154,9 @@ impl EngineAdapter for DynamoEngineAdapter {
     }
 
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
-        let dsn = self.resolver.resolve_dsn(&mount).await?;
-        let (client, tls) = build_client(&dsn).await?;
+        let resolved = self.resolver.resolve(&mount).await?;
+        let scope = DialScope::for_mount(self.dial_guard, "dynamodb", &mount, resolved.provenance);
+        let (client, tls) = build_client(&resolved.dsn, scope).await?;
         // schema_per_tenant: a per-tenant namespace prepended to the owner
         // partition key (`<namespace>:<owner>`), derived from the mount's
         // tenant_id (identity-independent), so resolved once here. `None` for
@@ -889,18 +904,20 @@ fn endpoint_posture(endpoint: Option<&str>) -> TlsPosture {
 ///
 /// This is the single seam that makes the adapter endpoint-agnostic: the same
 /// code targets AWS, DynamoDB-Local, or Scylla with only DSN changes.
-async fn build_client(dsn: &str) -> DataPlaneResult<(Client, TlsPosture)> {
+/// `scope: None` (off, or a Platform DSN) builds the client exactly as before G2.
+pub(crate) async fn build_client(
+    dsn: &str,
+    scope: Option<DialScope>,
+) -> DataPlaneResult<(Client, TlsPosture)> {
     let parsed = parse_dynamo_dsn(dsn)?;
     let tls = endpoint_posture(parsed.endpoint.as_deref());
     let max_security = crate::tls::max_security();
     crate::dynamodb_endpoint::refuse_unverified(tls, max_security)?;
-    let region = Region::new(parsed.region);
-    let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest()).region(region);
-    if let Some(endpoint) = parsed.endpoint.as_deref() {
-        loader = loader.endpoint_url(endpoint);
-    }
-    if let (Some(ak), Some(sk)) = (parsed.access_key.as_deref(), parsed.secret_key.as_deref()) {
-        loader = loader.credentials_provider(Credentials::new(ak, sk, None, None, "grobase-dsn"));
+    let mut loader = dsn_loader(&parsed);
+    if let Some(scope) = scope {
+        let guard = DynamoGuard::new(scope, parsed.endpoint.as_deref());
+        guard.precheck(static_keys(&parsed).is_some()).await?;
+        loader = loader.http_client(guard.http_client());
     }
     let conf = loader.load().await;
     let client = if max_security {
@@ -909,6 +926,26 @@ async fn build_client(dsn: &str) -> DataPlaneResult<(Client, TlsPosture)> {
         Client::new(&conf)
     };
     Ok((client, tls))
+}
+
+/// The region, `endpoint=` and static keys from the DSN; nothing else is set.
+fn dsn_loader(parsed: &DynamoDsn) -> aws_config::ConfigLoader {
+    let region = Region::new(parsed.region.clone());
+    let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest()).region(region);
+    if let Some(endpoint) = parsed.endpoint.as_deref() {
+        loader = loader.endpoint_url(endpoint);
+    }
+    if let Some((ak, sk)) = static_keys(parsed) {
+        loader = loader.credentials_provider(Credentials::new(ak, sk, None, None, "grobase-dsn"));
+    }
+    loader
+}
+
+fn static_keys(parsed: &DynamoDsn) -> Option<(&str, &str)> {
+    parsed
+        .access_key
+        .as_deref()
+        .zip(parsed.secret_key.as_deref())
 }
 
 struct DynamoDsn {

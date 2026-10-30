@@ -11,8 +11,8 @@
 #                                                                              #
 # **************************************************************************** #
 #
-# Gate (G2 slices D1/D2/D3a, ADR 0019): the data plane dials a tenant's
-# pgwire, MySQL, SQL Server or Redis host only after one classifier has vetted it, behind
+# Gate (G2 slices D1/D2/D3a/D4, ADR 0019): the data plane dials a tenant's
+# pgwire, MySQL, SQL Server, Redis or DynamoDB host only after one classifier has vetted it, behind
 # DATA_PLANE_DIAL_GUARD=off|shadow|enforce (off by default, a typo refuses
 # startup).
 #
@@ -45,7 +45,8 @@ need() {
 
 NEW_FILES="dial_guard/mod.rs dial_guard/classify.rs dial_guard/classify_tests.rs
 dial_guard/scope.rs postgres/dial.rs postgres/dial_tests.rs mysql/dial.rs mysql/dial_tests.rs
-redis/dial.rs redis/dial_tests.rs mssql/dial.rs mssql/dial_tests.rs"
+redis/dial.rs redis/dial_tests.rs mssql/dial.rs mssql/dial_tests.rs
+dynamodb_dial.rs dynamodb_dial_tests.rs"
 
 step "static: the guard's files exist, under 300 lines, with the 42 header"
 for f in ${NEW_FILES}; do
@@ -53,7 +54,7 @@ for f in ${NEW_FILES}; do
   [ "$(wc -l <"${POOL}/${f}")" -le 300 ] || fail "${f} is over 300 lines"
   need "${POOL}/${f}" 'By: dlesieur <dlesieur@student\.42\.fr>' "${f} has no 42 header"
 done
-pass "12 files"
+pass "14 files"
 
 step "static: one classifier (http calls it, its own copy is gone)"
 need "${POOL}/http/validate.rs" 'use crate::dial_guard::classify::\{classify, denied_name\}' "http does not call the shared classifier"
@@ -72,9 +73,9 @@ need "${POOL}/dial_guard/mod.rs" 'DIAL_GUARD_KEY: &str = "DATA_PLANE_DIAL_GUARD"
 need "${POOL}/dial_guard/mod.rs" '#\[default\]' "the mode has no default"
 need "${SERVER}/environment.rs" 'UnknownDialGuardMode' "no startup refusal for an unknown mode"
 need "${SERVER}/config.rs" 'return Err\(ConfigError::UnknownDialGuardMode\)' "try_from_env does not refuse a typo"
-[ "$(grep -c '\.with_dial_guard(dial_guard)' "${SERVER}/routes/state_build.rs")" = 6 ] ||
-  fail "postgres, cockroach, mysql, mariadb, redis and mssql must all take the mode"
-pass "DATA_PLANE_DIAL_GUARD wired to the six adapters"
+[ "$(grep -c '\.with_dial_guard(dial_guard)' "${SERVER}/routes/state_build.rs")" = 7 ] ||
+  fail "postgres, cockroach, mysql, mariadb, redis, dynamodb and mssql must all take the mode"
+pass "DATA_PLANE_DIAL_GUARD wired to the seven adapters"
 
 step "static: provenance comes from resolve, Platform only from DATA_PLANE_MOUNTS (C5)"
 [ "$(sed '/^mod tests/,$d' "${POOL}/resolver.rs" | grep -c 'provenance: Provenance::Platform')" = 1 ] ||
@@ -98,7 +99,11 @@ need "${POOL}/mssql/dial.rs" 'impl bb8::ManageConnection for DialManager' "mssql
 need "${POOL}/mssql/dial.rs" 'Error::Routing' "a TDS Routing redirect is not vetted (C10)"
 need "${POOL}/mssql/dial.rs" 'DenyClass::NamedInstance' "a named instance is not refused (C10)"
 need "${POOL}/mssql/adapter.rs" 'DialManager' "the mssql adapter bypasses the guard"
-pass "deadpool Connect + mysql resolved_ips + redis pinned address + mssql own manager"
+need "${POOL}/dynamodb_dial.rs" 'impl ResolveDns for VettingResolver' "dynamodb lookups are not vetted per connection (C12)"
+need "${POOL}/dynamodb_dial.rs" 'build_with_resolver' "the dynamodb connector does not use the vetting resolver"
+need "${POOL}/dynamodb_dial.rs" 'DenyClass::DefaultCredentials' "a keyless dynamodb Tenant is not refused (C12)"
+need "${POOL}/dynamodb.rs" 'loader\.http_client\(guard\.http_client\(\)\)' "the dynamodb adapter bypasses the guard"
+pass "deadpool Connect + mysql resolved_ips + redis pinned address + mssql own manager + dynamodb resolver"
 
 step "static: the tests that prove each condition exist"
 for pair in \
@@ -132,21 +137,30 @@ for pair in \
   "mssql/dial_tests.rs|fn mssql_named_instance_is_refused_under_enforce" \
   "mssql/dial_tests.rs|fn mssql_adapter_refuses_tenant_dsns_and_passes_platform" \
   "mssql/dial_tests.rs|fn mssql_refusal_never_repeats_the_password" \
+  "dynamodb_dial_tests.rs|fn dynamodb_resolver_vets_every_lookup_under_enforce" \
+  "dynamodb_dial_tests.rs|fn dynamodb_resolver_logs_and_returns_the_records_under_shadow" \
+  "dynamodb_dial_tests.rs|fn dynamodb_sdk_connection_to_a_denied_name_is_refused_under_enforce" \
+  "dynamodb_dial_tests.rs|fn dynamodb_sdk_connection_to_a_denied_name_is_logged_under_shadow" \
+  "dynamodb_dial_tests.rs|fn dynamodb_adapter_client_vets_each_connection" \
+  "dynamodb_dial_tests.rs|fn dynamodb_adapter_refuses_tenant_dsns_and_passes_platform" \
+  "dynamodb_dial_tests.rs|fn dynamodb_tenant_without_static_keys_is_logged_not_refused_under_shadow" \
+  "dynamodb_dial_tests.rs|fn dynamodb_refusal_never_repeats_the_keys" \
   "canary.rs|fn a_dial_guard_refusal_never_repeats_the_password"; do
   grep -qF -- "${pair#*|}" "${POOL}/${pair%%|*}" || fail "missing ${pair%%|*}:${pair#*|}"
 done
 need "${SERVER}/config.rs" 'Some\(ConfigError::UnknownDialGuardMode\)' "the startup refusal is untested"
-pass "31 test anchors + the config refusal"
+pass "39 test anchors + the config refusal"
 
 step "static: the approximations are named, the allowlist stays out (C13)"
-for f in dial_guard/scope.rs postgres/dial.rs mysql/dial.rs redis/dial.rs mssql/dial.rs; do
+for f in dial_guard/scope.rs postgres/dial.rs mysql/dial.rs redis/dial.rs mssql/dial.rs dynamodb_dial.rs; do
   need "${POOL}/${f}" 'Caveat:' "${f} carries no Caveat"
 done
 ! grep -rq 'DATA_PLANE_DIAL_ALLOW_CIDRS' "${CRATES}" || fail "a subnet allowlist reached the code (BLOCKED, C13)"
 need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D1' "ADR 0019 does not say what D1 delivered"
 need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D3a' "ADR 0019 does not say what D3a delivered"
 need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D2' "ADR 0019 does not say what D2 delivered"
+need "${ROOT}/docs/adr/0019-g2-dial-guard.md" '^## D4' "ADR 0019 does not say what D4 delivered"
 [ -f "${ROOT}/.out-of-scope/dial-guard-subnet-allowlist.md" ] || fail "the out-of-scope note for the allowlist is gone"
-pass "5 Caveats, no allowlist, ADR + out-of-scope present"
+pass "6 Caveats, no allowlist, ADR + out-of-scope present"
 
 printf '\033[32mm244 passed (static)\033[0m\n'

@@ -56,6 +56,10 @@ mod dial_guard;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
 #[cfg(feature = "dynamodb")]
+mod dynamodb_dial;
+#[cfg(all(test, feature = "dynamodb"))]
+mod dynamodb_dial_tests;
+#[cfg(feature = "dynamodb")]
 mod dynamodb_endpoint;
 #[cfg(feature = "http")]
 mod http;

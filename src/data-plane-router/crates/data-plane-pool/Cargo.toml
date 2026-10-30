@@ -29,7 +29,12 @@ http = ["dep:percent-encoding"]
 # 8th engine (OFF by default — NOT in `default`, so the default build never
 # fetches or compiles the AWS SDK → byte-parity): DynamoDB-compatible adapter
 # (AWS DynamoDB / DynamoDB-Local / ScyllaDB Alternator). Deps are optional.
-dynamodb = ["dep:aws-sdk-dynamodb", "dep:aws-config"]
+dynamodb = [
+    "dep:aws-sdk-dynamodb",
+    "dep:aws-config",
+    "dep:aws-smithy-http-client",
+    "dep:aws-smithy-runtime-api",
+]
 
 [dependencies]
 data-plane-core = { path = "../data-plane-core" }
@@ -55,6 +60,8 @@ mysql_async = { workspace = true, optional = true }
 # rest of the workspace; behavior_version pulled from aws-config.
 aws-sdk-dynamodb = { workspace = true, optional = true }
 aws-config = { workspace = true, optional = true }
+aws-smithy-http-client = { workspace = true, optional = true }
+aws-smithy-runtime-api = { workspace = true, optional = true }
 percent-encoding = { workspace = true, optional = true }
 redis = { workspace = true, optional = true }
 reqwest = { workspace = true }

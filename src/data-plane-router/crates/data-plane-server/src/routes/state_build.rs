@@ -77,9 +77,10 @@ pub(super) fn build_adapters(
     resolver: &Arc<EnvMountResolver>,
     dial_guard: DialGuardMode,
 ) -> Vec<Arc<dyn EngineAdapter>> {
-    // G2 D1/D2/D3a guard pgwire, MySQL, SQL Server and Redis; a build without
-    // them has nothing to guard.
+    // G2 D1/D2/D3a/D4 guard pgwire, MySQL, SQL Server, Redis and DynamoDB; a
+    // build without them has nothing to guard.
     #[cfg(not(any(
+        feature = "dynamodb",
         feature = "mssql",
         feature = "mysql",
         feature = "postgres",
@@ -122,7 +123,9 @@ pub(super) fn build_adapters(
     // / DynamoDB-Local / ScyllaDB Alternator). cfg-gated so the default
     // adapter set is byte-identical to today.
     #[cfg(feature = "dynamodb")]
-    adapters.push(Arc::new(DynamoEngineAdapter::new(resolver.clone())));
+    adapters.push(Arc::new(
+        DynamoEngineAdapter::new(resolver.clone()).with_dial_guard(dial_guard),
+    ));
     #[cfg(feature = "sqlite")]
     adapters.push(Arc::new(SqliteEngineAdapter::new(resolver.clone())));
     #[cfg(feature = "mssql")]

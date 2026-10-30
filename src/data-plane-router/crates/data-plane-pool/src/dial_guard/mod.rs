@@ -22,6 +22,7 @@
 //! [`crate::Provenance::Platform`]; everything else is `Tenant` and guarded.
 
 #[cfg(any(
+    feature = "dynamodb",
     feature = "http",
     feature = "mssql",
     feature = "mysql",
@@ -33,6 +34,7 @@ pub(crate) mod classify;
 #[cfg(any(feature = "http", feature = "postgres", feature = "mysql"))]
 mod classify_tests;
 #[cfg(any(
+    feature = "dynamodb",
     feature = "mssql",
     feature = "mysql",
     feature = "postgres",

@@ -1,7 +1,7 @@
 # 0019 — Every tenant DB dial goes through one guard that resolves, classifies and pins the IP at dial time
 
-- Status: proposed; D1 (pgwire, MySQL), D2 (SQL Server) and D3a (Redis) delivered, flag off. On 2026-10-30 the devil ruled D1, D2, D3a (Redis) and D4 PROCEED-WITH-CONDITIONS (C1–C14), D3b (Mongo, as planned) BLOCK, and enforce on the VM with a subnet-wide allowlist BLOCK.
-- D1 delivered 2026-10-30, flag default `off`: one classifier, the mode flag, provenance, and pgwire and MySQL pinning (section D1). The Rust gate and `m244` are green. D2–D4 and any VM flip are not started.
+- Status: proposed; D1 (pgwire, MySQL), D2 (SQL Server), D3a (Redis) and D4 (DynamoDB) delivered, flag off. On 2026-10-30 the devil ruled D1, D2, D3a (Redis) and D4 PROCEED-WITH-CONDITIONS (C1–C14), D3b (Mongo, as planned) BLOCK, and enforce on the VM with a subnet-wide allowlist BLOCK.
+- D1 delivered 2026-10-30, flag default `off`: one classifier, the mode flag, provenance, and pgwire and MySQL pinning (section D1). The Rust gate and `m244` are green. D2, D3a and D4 followed the same day (sections below); D3b (Mongo) stays BLOCKED and no VM flip has started.
 - Date: 2026-10-30
 - Deciders: devil (ruling). Owners of data-plane-pool and of every live mount on the VM.
 
@@ -102,3 +102,18 @@ Code lives in `data-plane-pool/src/redis/dial.rs`; the tests are `redis/dial_tes
 
 - `ConnectionManager` reconnects on its own to the pinned IP. A DNS change reaches the mount up to 30 s late.
 - Under shadow, a refused host logs once per re-vet interval, not once per connection.
+
+## D4 — DynamoDB (C12)
+
+Code lives in `data-plane-pool/src/dynamodb_dial.rs`; the tests are `dynamodb_dial_tests.rs`.
+
+- **Every connection vetted.** The SDK resolves the endpoint name for each new connection, so a check at open alone is not enough. Under a scope the client gets a connector built like the SDK default (rustls aws-lc, proxy from env, the SDK's sleep and connector settings) through `build_with_resolver`, with a resolver that vets every lookup. Enforce turns a denied record into a DNS error, so no connection opens; shadow logs `would_deny` and returns the records. TLS still checks the endpoint name.
+- **IP literals vetted at open.** hyper skips the resolver for an IP-literal endpoint, so `open_pool` vets the endpoint host once before the client exists. An `endpoint=` with no parseable host is class `unresolved`.
+- **Default credentials refused.** A Tenant mount without both `access_key` and `secret_key` would fall back to the default credential chain, whose IMDS endpoint is an IP literal the resolver never sees. Enforce refuses it as class `default_credentials`; shadow logs it.
+- **Unchanged otherwise.** `off` and Platform DSNs build the client exactly as before. The two crates the connector names (`aws-smithy-http-client`, `aws-smithy-runtime-api`) were already in `Cargo.lock` under `aws-sdk-dynamodb`; they are pinned to those versions.
+
+### Caveats D4 ships with
+
+- With `HTTPS_PROXY` set, the resolver vets the proxy's name, not the endpoint's.
+- The resolver gets no port, so every log line carries the endpoint's port.
+- A refusal after open surfaces as the SDK's dispatch failure; the `dial_guard deny` line names the class.
