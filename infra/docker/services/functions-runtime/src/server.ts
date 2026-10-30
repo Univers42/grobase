@@ -14,6 +14,7 @@ import { ensureDir } from "https://deno.land/std@0.224.0/fs/ensure_dir.ts";
 import { FUNCTION_INVOCATIONS_METRIC, UsageMeter } from "./usage-meter.ts";
 import { workerNet } from "./net-policy.ts";
 import { workerEnv } from "./worker-env.ts";
+import { secretsToken } from "./secrets-token.ts";
 
 const PORT = Number(Deno.env.get("FUNCTIONS_PORT") ?? "3060");
 const HOST = Deno.env.get("FUNCTIONS_HOST") ?? "0.0.0.0";
@@ -58,7 +59,7 @@ if (usageMeter) {
 // (spawned with `--allow-env=<keys>` and the values set in the worker's
 // Deno.env). Without the URL, no secrets are injected (env stays disabled).
 const SECRETS_URL = Deno.env.get("FUNCTION_SECRETS_URL") ?? "";
-const SECRETS_TOKEN = Deno.env.get("INTERNAL_SERVICE_TOKEN") ?? "";
+const SECRETS_TOKEN = secretsToken((key) => Deno.env.get(key));
 
 // A2 m96 — WARM POOL. DEFAULT OFF (byte-parity): when unset, every invocation
 // takes today's exact path — a fresh blob Worker spawned, used once, closed.
@@ -322,10 +323,10 @@ async function resolveSecrets(tenant: string, name: string): Promise<Record<stri
     u.searchParams.set("tenant", tenant);
     u.searchParams.set("function", name);
     const resp = await fetch(u.toString(), {
-      headers: SECRETS_TOKEN ? { "X-Internal-Service-Token": SECRETS_TOKEN } : {},
+      headers: SECRETS_TOKEN.value ? { "X-Internal-Service-Token": SECRETS_TOKEN.value } : {},
     });
     if (!resp.ok) {
-      console.error(`[functions] secret resolve failed: HTTP ${resp.status}`);
+      console.error(`[functions] secret resolve failed: HTTP ${resp.status} (token from ${SECRETS_TOKEN.source})`);
       return {};
     }
     const data = await resp.json();

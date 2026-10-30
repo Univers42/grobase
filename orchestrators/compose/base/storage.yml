@@ -73,6 +73,7 @@ services:
       # user-token signing key to the tenant-code host.
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
+      FUNCTION_SECRETS_TOKEN: ${FUNCTION_SECRETS_TOKEN:-}
       # The optional knobs pass through from .env or the shell, unset otherwise,
       # so the code's own defaults apply.
       FUNCTION_METERING:

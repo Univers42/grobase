@@ -20,7 +20,10 @@
 # names that carry the condition; the functions runtime spawns Workers with
 # env off and gets no env_file; each DATA_PLANE_KEY_* reaches exactly its one
 # holder plus the data plane; DATA_PLANE_CALLER_POLICY defaults to off; the
-# generator mints both caller keys and never a _PREV.
+# generator mints both caller keys and never a _PREV. ADR 0023 F1: the
+# secret-resolve token FUNCTION_SECRETS_TOKEN reaches exactly functions-runtime and
+# webhook-dispatcher in base and in the monolith, no overlay names it, both sides
+# treat empty as unset, and the generator mints it.
 #
 # Live (M243_LIVE=1, scratch containers): the forged-identity arms under
 # DATA_PLANE_CALLER_POLICY=enforce — m243-caller-policy-live.sh.
@@ -38,8 +41,9 @@
 # (dangerous), which is why the names carry the condition. The holder check
 # reads `  service:` lines and literal key names: a key passed by an anchor,
 # `extends` or env_file is not seen (under-reports). The runtime process itself
-# holds INTERNAL_SERVICE_TOKEN (it resolves secrets with it): a Worker sandbox
-# escape would hold it too — this gate does not cover that.
+# still holds INTERNAL_SERVICE_TOKEN beside FUNCTION_SECRETS_TOKEN until the F1
+# cutover (devil BLOCK): a Worker sandbox escape would hold it too — this gate
+# does not cover that.
 
 set -euo pipefail
 
@@ -141,10 +145,14 @@ for mod in caller_policy_tests caller_policy_router_tests caller_keys_tests; do
 done
 pass "K1 · K4 · K5 · K6 · K7 · K8 · K9 named tests, compiled"
 
-# Every `service|DATA_PLANE_KEY_*` pair the base compose files pass.
+# Every `service|KEY` pair the given compose files pass for keys matching $1
+# (default: the base files).
 key_holders() {
-  awk '/^services:/{s=1;next} /^[^ #]/{s=0} s&&/^  [a-z0-9_-]+:$/{svc=$1;sub(":","",svc)}
-    s&&/^ +DATA_PLANE_KEY_[A-Z_]+:/{k=$1;sub(":","",k);print svc"|"k}' "${COMPOSE}"/*.yml | sort -u
+  local re="$1"
+  shift
+  [ "$#" -gt 0 ] || set -- "${COMPOSE}"/*.yml
+  awk -v re="^ +${re}:" '/^services:/{s=1;next} /^[^ #]/{s=0} s&&/^  [a-z0-9_-]+:$/{svc=$1;sub(":","",svc)}
+    s&&$0~re{k=$1;sub(":","",k);print svc"|"k}' "$@" | sort -u
 }
 
 step "static: each caller key reaches its one holder and the data plane (K11)"
@@ -154,9 +162,9 @@ data-plane-router-rust|DATA_PLANE_KEY_TENANT_CONTROL
 data-plane-router-rust|DATA_PLANE_KEY_TENANT_CONTROL_PREV
 query-router|DATA_PLANE_KEY_QUERY_ROUTER
 tenant-control|DATA_PLANE_KEY_TENANT_CONTROL"
-got="$(key_holders)"
+got="$(key_holders 'DATA_PLANE_KEY_[A-Z_]+')"
 [ "${got}" = "${want}" ] || fail "caller-key holders differ: $(printf '%s' "${got}" | tr '\n' ' ')"
-! key_holders | grep -q '^functions-runtime|' || fail "functions-runtime holds a caller key"
+! key_holders 'DATA_PLANE_KEY_[A-Z_]+' | grep -q '^functions-runtime|' || fail "functions-runtime holds a caller key"
 need "${COMPOSE}/data-plane.yml" 'DATA_PLANE_CALLER_POLICY: \$\{DATA_PLANE_CALLER_POLICY:-off\}' \
   "the caller policy does not default to off"
 # devil D1-P1: tenant-control reads the same value, or its relay and the data plane
@@ -167,9 +175,33 @@ for file in "${COMPOSE}/control-plane.yml" "${ROOT}/orchestrators/compose/docker
 done
 pass "query-router QR only · tenant-control TC only · functions-runtime none · policy off on both hops"
 
-step "static: the generator mints both caller keys, never a _PREV (K9)"
+step "static: the secret-resolve token reaches its two holders only (ADR 0023 F1)"
+want="functions-runtime|FUNCTION_SECRETS_TOKEN
+webhook-dispatcher|FUNCTION_SECRETS_TOKEN"
+MONO="${ROOT}/orchestrators/compose/docker-compose.monolith.yml"
+[ "$(key_holders FUNCTION_SECRETS_TOKEN)" = "${want}" ] || fail "base holders of FUNCTION_SECRETS_TOKEN differ"
+[ "$(key_holders FUNCTION_SECRETS_TOKEN "${MONO}")" = "${want}" ] || fail "monolith holders differ"
+for overlay in prod cloud redis-acl; do
+  ! grep -q FUNCTION_SECRETS_TOKEN "${ROOT}/orchestrators/compose/docker-compose.${overlay}.yml" ||
+    fail "the ${overlay} overlay names FUNCTION_SECRETS_TOKEN"
+done
+need "${FN}/server.ts" '^const SECRETS_TOKEN = secretsToken\(\(key\) => Deno\.env\.get\(key\)\);' \
+  "the runtime does not choose its token through secretsToken"
+need "${TC}/cmd/webhook-dispatcher/setup.go" 'strings\.TrimSpace\(os\.Getenv\("FUNCTION_SECRETS_TOKEN"\)\)' \
+  "webhook-dispatcher does not trim FUNCTION_SECRETS_TOKEN"
+for pair in \
+  "${FN}/secrets-token.test.ts|an empty scoped token falls back to the shared one" \
+  "${FN}/secrets-token.test.ts|nothing set sends nothing" \
+  "${TC}/internal/funcsecrets/routes_internal_test.go|func TestResolveAuthorized" \
+  "${TC}/internal/funcsecrets/routes_internal_test.go|func TestResolveRefusesBeforeLookup" \
+  "${TC}/internal/tenants/provision_door_test.go|func TestProvisionDoorSendsOnlyTheFixedStatement"; do
+  need "${pair%%|*}" "${pair#*|}" "missing test"
+done
+pass "functions-runtime + webhook-dispatcher in base and monolith · no overlay · empty means unset · tests named"
+
+step "static: the generator mints both caller keys and the resolve token, never a _PREV (K9, F1)"
 gen="${ROOT}/scripts/env/generate-env.sh"
-for key in DATA_PLANE_KEY_QUERY_ROUTER DATA_PLANE_KEY_TENANT_CONTROL; do
+for key in DATA_PLANE_KEY_QUERY_ROUTER DATA_PLANE_KEY_TENANT_CONTROL FUNCTION_SECRETS_TOKEN; do
   need "${gen}" "^GENERATED_KEYS=\".* ${key}( |\")" "${key} is not a generated key"
   need "${gen}" "^${key}=\"\\\$\(openssl rand -hex 32\)\"$" "${key} is not minted"
 done
@@ -178,17 +210,17 @@ scratch="$(mktemp -d)"
 trap 'rm -rf "${scratch}"' EXIT
 env_file="${scratch}/secrets"
 bash "${gen}" "${env_file}" >/dev/null
-grep -vE '^DATA_PLANE_KEY_' "${env_file}" >"${scratch}/old" && cp "${scratch}/old" "${env_file}"
+grep -vE '^(DATA_PLANE_KEY_|FUNCTION_SECRETS_TOKEN=)' "${env_file}" >"${scratch}/old" && cp "${scratch}/old" "${env_file}"
 before="$(sha256sum <"${scratch}/old")"
 bash "${gen}" --topup "${env_file}" >/dev/null
-[ "$(grep -cE '^DATA_PLANE_KEY_(QUERY_ROUTER|TENANT_CONTROL)=[0-9a-f]{64}$' "${env_file}")" = 2 ] ||
-  fail "--topup did not add both caller keys"
-[ "$(grep -vE '^DATA_PLANE_KEY_' "${env_file}" | sha256sum)" = "${before}" ] ||
+[ "$(grep -cE '^(DATA_PLANE_KEY_(QUERY_ROUTER|TENANT_CONTROL)|FUNCTION_SECRETS_TOKEN)=[0-9a-f]{64}$' "${env_file}")" = 3 ] ||
+  fail "--topup did not add both caller keys and the resolve token"
+[ "$(grep -vE '^(DATA_PLANE_KEY_|FUNCTION_SECRETS_TOKEN=)' "${env_file}" | sha256sum)" = "${before}" ] ||
   fail "--topup changed an existing value"
 minted="$(sha256sum <"${env_file}")"
 bash "${gen}" --topup "${env_file}" >/dev/null
 [ "$(sha256sum <"${env_file}")" = "${minted}" ] || fail "a second --topup rotated a key"
-pass "both minted with openssl rand -hex 32; --topup adds them and rotates nothing"
+pass "all three minted with openssl rand -hex 32; --topup adds them and rotates nothing"
 
 if [ "${M243_LIVE:-0}" = 1 ]; then
   bash "$(dirname "$0")/m243-caller-policy-live.sh"

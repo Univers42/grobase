@@ -80,9 +80,9 @@ is zero.
 ## Residuals
 
 - Replay inside the skew window (ADR 0007 residual 2) is unchanged.
-- The functions-runtime process still holds the shared token. Once the policy is `enforce`,
-  that token reaches no route in the service-auth group (health, metrics, `/v1/capabilities`
-  and the API-key `/data/v1` path were never in it).
+- The functions-runtime process still holds the shared token (F1 step 4 removes it). Once the
+  policy is `enforce`, that token reaches no route in the service-auth group (health, metrics,
+  `/v1/capabilities` and the API-key `/data/v1` path were never in it).
 - query-router can act for any tenant, because the tenant it asserts is trusted. Binding that
   tenant to the end user needs a claim signed by the edge, and is out of scope here.
 
@@ -111,18 +111,48 @@ weakens `off` or `shadow`, so the code ships with the policy off.
    and logs one `admin relay: would_deny` line per request (route, arm, never the token).
    Evidence: `admin_relay_policy_test.go` and the relay legs of `m243-caller-policy-live.sh`.
 
-   **Still open: the provision door.** `POST /v1/provision` (`handler.go:83`,
-   `requireServiceToken`) calls `reconcileSchema` (`provision.go:128`), which calls
-   `ensureSchema` (`dataplane.go:62-81`). That signs `/v1/admin/migrate` as `tenant_control`
-   with the caller's `connection_string` as `inline_dsn` (`dataplane.go:76`). The statement
-   is fixed (`CREATE SCHEMA IF NOT EXISTS <sanitized schema>`), so it cannot run arbitrary
-   SQL. It can still make the data plane dial any DSN as `tenant_control`. This door needs
-   its own devil ruling before enforce. Before any VM enforce: a VM shadow window with zero
-   `would_deny` lines, then a fresh ruling together with precondition 2.
+   **Provision door ruled: recorded, not gated** (devil P0 PROCEED-WITH-CONDITIONS, 2026-10-30).
+   `POST /v1/provision` (`handler.go:85`, `requireServiceToken`) reaches `ensureSchema`, which
+   signs `/v1/admin/migrate` as `tenant_control` with the caller's `connection_string` as
+   `inline_dsn` (`dataplane.go:76`). The bound: one fixed statement (`dataplane.go:79`, schema
+   sanitized at `provision.go:25-37`), postgresql mounts only (`tenants/provision.go:117`,
+   `provision/resources_mount.go:62`). The dial is no new reach: any tenant already registers its
+   own DSN (`builder.go`, `POST /v1/tenants/me/mounts`), and the `query_router` class may carry
+   an inline DSN with any statement (`caller_policy.rs:52-59`). Gating only this door (an arm
+   split like the relay's) would leave keys, tenants and erase open to the same holder
+   (`handler.go:77-93`). `TestProvisionDoorSendsOnlyTheFixedStatement` pins the statement list.
+   **Reopen** when the door ever carries a caller-influenced statement, or tenant BYO-DSN goes
+   away.
+
+   **The token holder: F1** (devil PwC on steps 1–3, BLOCK on step 4, 2026-10-30).
+   functions-runtime, which hosts tenant code, resolves secrets with its own
+   `FUNCTION_SECRETS_TOKEN` (`src/secrets-token.ts`): minted by `generate-env.sh`, passed to the
+   runtime and webhook-dispatcher only (static check in `m243-data-plane-auth.sh`). The resolve
+   accepts it or the shared token, both by constant-time compare, and refuses when neither is
+   configured (`funcsecrets/routes_internal.go:48`). An empty value counts as unset on both
+   sides, because compose renders an unset key as `""`. Evidence: `secrets-token.test.ts`,
+   `TestResolveAuthorized`, and `m243-secrets-token-live.sh` (scoped, empty and wrong token, CI).
+   **No security gain yet**: the runtime still holds `INTERNAL_SERVICE_TOKEN` until step 4. Step
+   4 (drop the shared token from the runtime) is **blocked** until: the runtime is loud on a
+   missing key; `make up` tops up keys in an existing `.env` (it only creates a missing one,
+   `orchestrators/makes/20-stack.mk:15`); a VM window; helm scoped or a Caveat recorded (its
+   `envFrom` hands every pod the whole secret,
+   `deploy/helm/mini-baas/templates/deployment.yaml:52-58`); static and live gates; this ADR
+   records rotation. Residual after step 4: the scoped token still resolves any tenant's
+   decrypted secrets (`routes_internal.go:29`, the tenant comes from the query).
 2. **`IDENTITY_HEADER_MODE=strict` on every service that reads identity.** In compat mode,
    `src/libs/common/src/identity/request-identity.ts:41` trusts raw `x-baas-*` headers. Compat
    is the default whenever `NODE_ENV` is not `production` (`request-identity.ts:364`). A caller
    class proves nothing if the identity it carries can be forged one hop earlier.
+
+   **Measure first** (devil PwC SS1–SS24, 2026-10-30). The VM runs compat on purpose, and no
+   one has counted the callers that need the legacy rung. An additive `IDENTITY_STRICT_SHADOW`
+   flag, read only in compat, judges each legacy-rung request as strict would and logs
+   `would_reject` (service, route template, reason class; never a value), without changing the
+   decision. A third mode value was rejected (`.out-of-scope/identity-header-mode-shadow-value.md`).
+   The strict flip needs a VM shadow window of at least 24 h with zero `would_reject`, then a fresh
+   ruling, and covers `STORAGE_IDENTITY_HEADER_MODE` too. The Go services' raw-header trust is a
+   separate door.
 
 ## Evidence
 

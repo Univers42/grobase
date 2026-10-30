@@ -16,12 +16,13 @@ import (
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 // resolve is internal-only: it returns DECRYPTED secrets and must be protected
-// by the service token (the gateway also keeps /internal off the public router).
+// by a token (the gateway also keeps /internal off the public router).
 func (rt *routes) resolve(w http.ResponseWriter, r *http.Request) {
-	if rt.serviceToken != "" && r.Header.Get("X-Internal-Service-Token") != rt.serviceToken {
+	if !rt.resolveAuthorized(r) {
 		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid service token")
 		return
 	}
@@ -37,6 +38,16 @@ func (rt *routes) resolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, secrets)
+}
+
+// resolveAuthorized accepts the scoped FUNCTION_SECRETS_TOKEN, or the shared token
+// until functions-runtime stops holding it (ADR 0023 F1, devil 2026-10-30). The header
+// name stays X-Internal-Service-Token: the cloud jail relay forwards only that one.
+// SecureCompare refuses an empty want, so with both tokens unset every caller gets
+// 401; the old `!= ""` guard let any caller in.
+func (rt *routes) resolveAuthorized(r *http.Request) bool {
+	got := r.Header.Get("X-Internal-Service-Token")
+	return serviceauth.SecureCompare(got, rt.scopedToken) || serviceauth.SecureCompare(got, rt.serviceToken)
 }
 
 func requireTenant(w http.ResponseWriter, r *http.Request) (string, bool) {

@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/adapterregistry"
@@ -94,7 +95,7 @@ func mountFuncSecrets(ctx context.Context, mux *http.ServeMux, db *pg.Postgres, 
 	if err := secSvc.EnsureSchema(ctx); err != nil {
 		log.Warn("function_secrets schema check failed — run migration 037", "err", err)
 	}
-	funcsecrets.Mount(mux, secSvc, serviceToken)
+	funcsecrets.Mount(mux, secSvc, serviceToken, strings.TrimSpace(os.Getenv("FUNCTION_SECRETS_TOKEN")))
 	log.Info("function secrets surface mounted")
 }
 
