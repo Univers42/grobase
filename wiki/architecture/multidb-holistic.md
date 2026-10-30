@@ -148,9 +148,14 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `routes/inbound_auth.rs`, `ServiceAuthVerifier` in `service_auth.rs`.)*
 - [ ] Identity comes from a verified claim, never the request body; inline DSN accepted
       only from the authenticated query-router identity.
-- [ ] Query-router `POST /:dbId/schema/ddl` requires the permission engine's `ddl`
-      decision (owner/admin role, or an API key with an explicit `ddl` scope). Bypass
-      path (`bypass.rs:145`) stops treating `write` as DDL.
+- [x] Query-router `POST /:dbId/schema/ddl` is authorized before any lookup.
+      *Superseded design:* the PDP `ddl` decision and an explicit `ddl` key scope were
+      ruled out by [ADR 0009](../../docs/adr/0009-query-router-ddl-requires-api-key-write-scope.md)
+      (devil PwC C1–C14, 2026-10-29): `DECISION_OPS` has no `ddl` action, so DDL needs a
+      kong-hmac app key holding `write`/`admin`, the same rule `bypass.rs:146` applies —
+      the two routes now agree instead of the bypass changing. *(G1g 0db84bb0:
+      `query/api-key-scope.ts`, `schema.service.ts`, `api-key-scope.spec.ts`.)* A PDP
+      `ddl` action / JWT DDL is `.out-of-scope/jwt-user-schema-ddl.md`.
 - [~] Flag `DATA_PLANE_INBOUND_AUTH` (default OFF one release, then ON); compose sets it.
       *(G1c: `base/data-plane.yml` passes it, default `off`, with
       `SERVICE_AUTH_SKEW_SECS`. Default ON waits for the enforce rollout.)*
