@@ -25,17 +25,17 @@
 # Names of their own, no host port. realtime waits on postgres alone: its PG producer only
 # LISTENs, so leg D boots no db-bootstrap.
 mc_clients_file() {
-  cat >"${WORK}/clients.yml" <<'YML'
+  cat >"${WORK}/clients.yml" <<YML
 services:
   mongo-init:
-    container_name: m247-mongo-init
+    container_name: ${M247_PROJECT}-mongo-init
   mongo-api:
-    container_name: m247-mongo-api
+    container_name: ${M247_PROJECT}-mongo-api
   postgres:
-    container_name: m247-mongo-postgres
+    container_name: ${M247_PROJECT}-mongo-postgres
     ports: !reset []
   realtime:
-    container_name: m247-realtime
+    container_name: ${M247_PROJECT}-realtime
     depends_on: !override
       postgres:
         condition: service_healthy
@@ -51,10 +51,10 @@ mc_boot() {
     mongo-api realtime >"${WORK}/up.log" 2>&1 && return
   tail -5 "${WORK}/up.log" | mc_redact >&2
   local c
-  for c in mongo mongo-init mongo-api realtime; do docker logs --tail 10 "m247-${c}" 2>&1 | mc_redact >&2 || true; done
+  for c in mongo mongo-init mongo-api realtime; do docker logs --tail 10 "${M247_PROJECT}-${c}" 2>&1 | mc_redact >&2 || true; done
   fail "mongo under requireTLS and its clients did not come up"
 }
-mc_health() { docker inspect -f '{{.State.Health.Status}}' "m247-$1"; }
+mc_health() { docker inspect -f '{{.State.Health.Status}}' "${M247_PROJECT}-$1"; }
 
 mc_live_server() {
   local tls=(--tls --tlsCAFile /etc/engine-tls/ca.pem) logs
@@ -62,8 +62,8 @@ mc_live_server() {
   [[ "$(mongosh_in mongo "${tls[@]}")" == *'"mode":"requireTLS"'* ]] || fail "a verified --tls session failed"
   pass "plaintext mongosh refused; verified --tls session in, net.tls.mode = requireTLS"
   [[ "$(mc_health mongo)" == healthy ]] || fail "mongo is not healthy (the --tls healthcheck)"
-  logs="$(docker logs m247-mongo-init 2>&1)"
-  [[ "$(docker inspect -f '{{.State.ExitCode}}' m247-mongo-init)" == 0 ]] || fail "mongo-init did not exit 0"
+  logs="$(docker logs "${M247_PROJECT}-mongo-init" 2>&1)"
+  [[ "$(docker inspect -f '{{.State.ExitCode}}' "${M247_PROJECT}-mongo-init")" == 0 ]] || fail "mongo-init did not exit 0"
   grep -qF 'Node is PRIMARY' <<<"${logs}" || fail "mongo-init did not reach PRIMARY over --tls"
   pass "mongo healthy (--tls healthcheck); mongo-init exit 0, Node is PRIMARY over --tls"
 }
@@ -74,14 +74,14 @@ mc_live_clients() {
   # The Rust producer degrades instead of exiting: a broken DSN is healthy at 20 s and
   # unhealthy past its 30 s server selection (devil probe, 2026-10-30), hence 45 s.
   local started now logs
-  started="$(date -d "$(docker inspect -f '{{.State.StartedAt}}' m247-realtime)" +%s)"
+  started="$(date -d "$(docker inspect -f '{{.State.StartedAt}}' "${M247_PROJECT}-realtime")" +%s)"
   now="$(date +%s)"
   ((now >= started + 45)) || sleep $((started + 45 - now))
-  logs="$(docker logs m247-realtime 2>&1)"
+  logs="$(docker logs "${M247_PROJECT}-realtime" 2>&1)"
   grep -qF 'MongoDB change stream started' <<<"${logs}" || fail "realtime did not open its mongo change stream"
   ! grep -qE 'Failed to open change stream|Change stream (error|ended)|MongoDB connect failed' <<<"${logs}" ||
     fail "realtime's mongo change stream failed or ended"
-  docker exec m247-realtime /app/realtime-server --healthcheck >/dev/null 2>&1 || fail "realtime is unhealthy at 45 s"
+  docker exec "${M247_PROJECT}-realtime" /app/realtime-server --healthcheck >/dev/null 2>&1 || fail "realtime is unhealthy at 45 s"
   [[ "$(mc_health realtime)" == healthy ]] || fail "realtime is not healthy at 45 s"
   pass "realtime (Rust driver): MongoDB change stream started, healthy 45 s after start"
 }
@@ -100,7 +100,7 @@ mc_go_probe() {
   mc_orchestrator_uri
   image="$(sed -n 's/^FROM \(golang:[^ ]*\) AS builder$/\1/p' "${cp}/Dockerfile")"
   want="$(awk '$1 == "go.mongodb.org/mongo-driver" {sub(/^v/, "", $2); print $2}' "${cp}/go.mod")"
-  out="$(URI_OK="${MC_URI}" URI_SAN="${MC_URI/@mongo:27017/@m247-mongo:27017}" timeout 600 docker run --rm \
+  out="$(URI_OK="${MC_URI}" URI_SAN="${MC_URI/@mongo:27017/@${M247_PROJECT}-mongo:27017}" timeout 600 docker run --rm \
     --network "${NETWORK}" -e URI_OK -e URI_SAN -e GOTOOLCHAIN=local -e CGO_ENABLED=0 -e GOFLAGS=-mod=mod \
     ${M247_GOMODCACHE:+-v "${M247_GOMODCACHE}:/go/pkg/mod"} -v "${cp}/go.mod:/src/go.mod:ro" \
     -v "${cp}/go.sum:/src/go.sum:ro" -v "${ROOT}/scripts/verify/fixtures/m247-mongo-go-probe.go:/src/probe/main.go:ro" \
@@ -118,7 +118,7 @@ mc_go_probe() {
 # $1 the eval, verified: the database leg D round-trips.
 mc_eval() { MONGO_EVAL="$1" mongosh_in mongo --tls --tlsCAFile /etc/engine-tls/ca.pem; }
 mc_backup() { # $1 dump|restore
-  (cd "${ROOT}" && env -u BACKUP_AGE_RECIPIENTS ENGINE_BACKUP_PREFIX=m247 timeout 300 \
+  (cd "${ROOT}" && env -u BACKUP_AGE_RECIPIENTS ENGINE_BACKUP_PREFIX="${M247_PROJECT}" timeout 300 \
     bash scripts/ops/engine-backup.sh "$1" mongo "${WORK}/rt.archive" --db m247rt) >"${WORK}/backup.log" 2>&1 || {
     tail -n 5 "${WORK}/backup.log" | mc_redact >&2
     fail "engine-backup $1 failed under requireTLS (M9)"
