@@ -651,6 +651,19 @@ mod tests {
     }
 
     #[test]
+    fn mysql_ddl_create_table_forces_primary_key_not_null() {
+        let mut create = ddl(SchemaDdlOp::CreateTable, "orders");
+        create.columns = Some(vec![
+            col("id", NormalizedType::Integer),
+            col("label", NormalizedType::Text),
+        ]);
+        create.primary_key = Some(vec!["id".into()]);
+        let sql = build_mysql_ddl(&create).unwrap();
+        assert!(sql.contains("`id` BIGINT NOT NULL"), "{sql}");
+        assert!(sql.contains("`label` TEXT NULL"), "{sql}");
+    }
+
+    #[test]
     fn mysql_ddl_rejects_injection_and_unsafe_defaults() {
         assert!(matches!(
             build_mysql_ddl(&ddl(SchemaDdlOp::DropTable, "orders`; DROP TABLE x")).unwrap_err(),

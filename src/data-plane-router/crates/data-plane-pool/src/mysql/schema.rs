@@ -121,7 +121,8 @@ pub(super) fn mysql_sql_type(def: &DdlColumnDef, in_primary_key: bool) -> DataPl
 /// One full column clause: `` `name` TYPE NULL|NOT NULL [DEFAULT expr] ``.
 /// Nullability is ALWAYS rendered (`NULL` explicitly) because `MODIFY COLUMN`
 /// resets every attribute — the caller sends the full target def precisely so
-/// nothing is silently lost.
+/// nothing is silently lost. A primary-key column is NOT NULL whatever the def
+/// says: Oracle MySQL refuses a nullable one (ERROR 1171), MariaDB coerces it.
 pub(super) fn mysql_column_clause(
     def: &DdlColumnDef,
     in_primary_key: bool,
@@ -130,7 +131,11 @@ pub(super) fn mysql_column_clause(
     let ty = mysql_sql_type(def, in_primary_key)?;
     let mut clause = format!(
         "{col} {ty} {}",
-        if def.nullable { "NULL" } else { "NOT NULL" }
+        if def.nullable && !in_primary_key {
+            "NULL"
+        } else {
+            "NOT NULL"
+        }
     );
     if let Some(default) = def.default.as_deref() {
         validate_default_expr(default)?;
