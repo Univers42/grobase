@@ -158,7 +158,11 @@ jobs:
           M247_LIVE: "1"
           M247_ENGINE: redis
           M247_IMAGE: m247-local/grobase-redis:ci
+        # compose interpolates the whole file, so the .env and localhost cert the
+        # conformance job makes first are needed here too.
         run: |
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
           docker build -q -t "$M247_IMAGE" infra/docker/services/redis
           bash scripts/verify/m247-engine-tls.sh
 
