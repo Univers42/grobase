@@ -215,6 +215,41 @@
       ],
       "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
     },
+    "DATA_PLANE_FEATURES": {
+      "category": "CONFIG",
+      "format": "opaque",
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Extra cargo features for the Rust router build arg (orchestrators/compose/base/data-plane.yml). Empty = the default engines; \"--features dynamodb\" adds DynamoDB. Set together with DATA_PLANE_IMAGE_SUFFIX=-dynamodb, or compose serves the pulled default image instead.",
+      "consumers": []
+    },
+    "DATA_PLANE_IMAGE_SUFFIX": {
+      "category": "CONFIG",
+      "format": "enum",
+      "allowed": [
+        "",
+        "-dynamodb"
+      ],
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Router image tag suffix: -dynamodb pulls ghcr .../grobase-data-plane-router:latest-dynamodb (CI publishes it). Pairs with DATA_PLANE_FEATURES and DYNAMODB_ENGINE_ENABLED=1.",
+      "consumers": []
+    },
+    "DYNAMODB_ENGINE_ENABLED": {
+      "category": "CONFIG",
+      "format": "enum",
+      "allowed": [
+        "0",
+        "1"
+      ],
+      "required_in": [],
+      "compose_required": false,
+      "$comment": "Default 0 (compose `:-0`). Lets the control plane register dynamodb mounts (src/control-plane/internal/adapterregistry/models.go). Turn on only with a dynamodb router image (DATA_PLANE_FEATURES + DATA_PLANE_IMAGE_SUFFIX) and a reachable dynamodb-local; otherwise every such mount 501s. The b2b VM and deploy/fly/boot.sh run it on.",
+      "consumers": [
+        "adapter-registry-go",
+        "webhook-dispatcher"
+      ]
+    },
     "FORTYTWO_CLIENT_ID": {
       "category": "PUBLIC",
       "format": "opaque",
