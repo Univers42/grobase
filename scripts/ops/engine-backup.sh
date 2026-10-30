@@ -187,6 +187,12 @@ archive_id() {
 
 # ── mongo ─────────────────────────────────────────────────────────────────────
 mongo_auth='-u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin'
+# The mongo engine-TLS overlay installs ca.pem here (ADR 0025). requireTLS refuses a
+# plaintext mongodump, so the tools dial localhost, one of the cert's SANs, verified.
+mongo_tls() {
+  docker exec "$C" test -s /run/engine-tls/ca.pem || return 0
+  printf ' --ssl --sslCAFile /run/engine-tls/ca.pem --host localhost'
+}
 mongo_dump() {
   docker exec "$C" sh -c 'command -v mongodump >/dev/null' ||
     die "no mongodump in $C: the image predates mongodb-database-tools (rebuild the mongo image)"
@@ -196,7 +202,7 @@ mongo_dump() {
   local sel=""
   [ "${#DBS[@]}" -le 1 ] || die "mongo: one --db per dump (mongodump archives a single database)"
   [ "${#DBS[@]}" -eq 0 ] || sel=" --db=${DBS[0]}"
-  docker exec "$C" sh -c "mongodump --quiet --archive --gzip $mongo_auth$sel"
+  docker exec "$C" sh -c "mongodump --quiet --archive --gzip $mongo_auth$(mongo_tls)$sel"
 }
 mongo_restore() {
   docker exec "$C" sh -c 'command -v mongorestore >/dev/null' ||
@@ -204,7 +210,7 @@ mongo_restore() {
   local sel="" dry=""
   [ "${#DBS[@]}" -eq 0 ] || sel=$(printf -- ' --nsInclude=%s.*' "${DBS[@]}")
   [ "$DRY" = 0 ] || dry=" --dryRun"
-  docker exec -i "$C" sh -c "mongorestore --quiet --archive --gzip --drop$dry $mongo_auth$sel" <"$FILE"
+  docker exec -i "$C" sh -c "mongorestore --quiet --archive --gzip --drop$dry $mongo_auth$(mongo_tls)$sel" <"$FILE"
 }
 
 # ── cockroach ─────────────────────────────────────────────────────────────────
