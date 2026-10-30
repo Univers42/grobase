@@ -157,6 +157,14 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       overclaimed and broke provisioning.)*
 - [ ] VM: `DATA_PLANE_CALLER_POLICY` shadow → enforce, after G1 enforce, with zero
       `would_deny` over its own window (human go).
+- [ ] D1 enforce precondition 1 ([ADR 0023](../../docs/adr/0023-data-plane-per-caller-keys.md#enforce-preconditions)):
+      tenant-control's admin relay drops its `service_token` arm while
+      `DATA_PLANE_CALLER_POLICY` is on, or gets its own key. Until then, functions-runtime
+      (which holds `INTERNAL_SERVICE_TOKEN`) can drive `/v1/admin/migrate` as tenant_control
+      with any `inline_dsn` under enforce (`admin_relay.go:51,69`). Needs its own devil ruling.
+- [ ] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
+      the default outside `NODE_ENV=production`, trusts raw `x-baas-*` headers
+      (`request-identity.ts:41,364`).
 - [x] Query-router `POST /:dbId/schema/ddl` is authorized before any lookup.
       *Superseded design:* the PDP `ddl` decision and an explicit `ddl` key scope were
       ruled out by [ADR 0009](../../docs/adr/0009-query-router-ddl-requires-api-key-write-scope.md)
