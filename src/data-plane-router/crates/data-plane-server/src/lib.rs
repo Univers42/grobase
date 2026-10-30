@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:33:02 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:33:03 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 08:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,6 +50,8 @@ pub mod outbox;
 pub mod pb;
 pub mod quota;
 pub mod ratelimit;
+#[cfg(feature = "ratelimit-redis")]
+mod redis_link;
 pub mod routes;
 pub mod server;
 pub mod signal;
