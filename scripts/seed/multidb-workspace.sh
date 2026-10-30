@@ -129,7 +129,9 @@ urlenc() { MDW_V="$1" python3 -c 'import os, urllib.parse; print(urllib.parse.qu
 
 # ── apply-only plumbing (functions; nothing below runs in plan mode) ─────────
 pg() { docker exec -i mini-baas-postgres psql -U "${PG_USER}" -v ON_ERROR_STOP=1 -q "$@"; }
-crdb() { docker exec -i mini-baas-cockroach cockroach sql --insecure --host=localhost "$@"; }
+# shellcheck source=../lib/lib-crdb-client.sh
+source "${SCRIPT_DIR}/../lib/lib-crdb-client.sh"
+crdb() { docker exec -i mini-baas-cockroach cockroach sql "$(crdb_auth mini-baas-cockroach)" --host=localhost "$@"; }
 # my CONTAINER CLIENT ROOT_PASS_VAR SQL-ARGS… — root client; the password rides env.
 my() {
   local c="$1" bin="$2" var="$3"

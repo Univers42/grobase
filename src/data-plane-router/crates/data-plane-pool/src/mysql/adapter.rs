@@ -216,7 +216,7 @@ impl EngineAdapter for MysqlEngineAdapter {
         let pool_opts = PoolOpts::new().with_constraints(constraints);
 
         let ca_pem = match base_opts.ssl_opts() {
-            Some(_) => super::tls::tls_ca_pem()?,
+            Some(_) => crate::tls::tls_ca_pem()?,
             None => None,
         };
         let ssl_opts =

@@ -146,8 +146,25 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       service token already used for outbound `verify_key` / `resolve_mount` — reuse,
       do not add a second scheme). Health + metrics stay open. *(G1a:
       `routes/inbound_auth.rs`, `ServiceAuthVerifier` in `service_auth.rs`.)*
-- [ ] Identity comes from a verified claim, never the request body; inline DSN accepted
-      only from the authenticated query-router identity.
+- [x] Caller class verified; tenant asserted by query-router is trusted. Each caller
+      signs with its own key (`DATA_PLANE_KEY_QUERY_ROUTER`, `DATA_PLANE_KEY_TENANT_CONTROL`,
+      each with `_PREV`); the verifying key is the class, one route × class table decides
+      the route and where `inline_dsn` is allowed (query-router's routes, tenant-control
+      migrate/rotate), and identity and mount must name one tenant — behind
+      `DATA_PLANE_CALLER_POLICY` (default `off`). *(D1, [ADR 0023](../../docs/adr/0023-data-plane-per-caller-keys.md),
+      devil PwC K1–K14: `routes/caller_policy.rs`, `caller_keys.rs` + their tests; the
+      first wording, "identity from a verified claim, inline DSN only from query-router",
+      overclaimed and broke provisioning.)*
+- [ ] VM: `DATA_PLANE_CALLER_POLICY` shadow → enforce, after G1 enforce, with zero
+      `would_deny` over its own window (human go).
+- [ ] D1 enforce precondition 1 ([ADR 0023](../../docs/adr/0023-data-plane-per-caller-keys.md#enforce-preconditions)):
+      tenant-control's admin relay drops its `service_token` arm while
+      `DATA_PLANE_CALLER_POLICY` is on, or gets its own key. Until then, functions-runtime
+      (which holds `INTERNAL_SERVICE_TOKEN`) can drive `/v1/admin/migrate` as tenant_control
+      with any `inline_dsn` under enforce (`admin_relay.go:51,69`). Needs its own devil ruling.
+- [ ] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
+      the default outside `NODE_ENV=production`, trusts raw `x-baas-*` headers
+      (`request-identity.ts:41,364`).
 - [x] Query-router `POST /:dbId/schema/ddl` is authorized before any lookup.
       *Superseded design:* the PDP `ddl` decision and an explicit `ddl` key scope were
       ruled out by [ADR 0009](../../docs/adr/0009-query-router-ddl-requires-api-key-write-scope.md)
@@ -159,15 +176,19 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [~] Flag `DATA_PLANE_INBOUND_AUTH` (default OFF one release, then ON); compose sets it.
       *(G1c: `base/data-plane.yml` passes it, default `off`, with
       `SERVICE_AUTH_SKEW_SECS`. Default ON waits for the enforce rollout.)*
-- [~] m243: unauthenticated `/v1/admin/raw` → 401; forged body identity → 403;
+- [x] m243: unauthenticated `/v1/admin/raw` → 401; forged body identity → 403;
       read-scoped key DDL → 403; owner DDL → 200; an edge function POSTing unsigned to
       `/v1/admin/raw` → 401 and cannot read `INTERNAL_SERVICE_TOKEN`.
       *(`scripts/verify/m243-data-plane-auth.sh` in CI, 6/6 mutants killed. Done: the 4
       admin routes on the real `router()` answer 401 unsigned and to a plain token or a
       signature for another body (`routes/admin_auth_tests.rs`); read-key DDL 403 and
       write-key DDL apply (`schema.service.spec.ts`, G1g); Workers spawn with env off
-      (`worker-env.test.ts`). Open: forged body identity → 403 waits on the identity item
-      above. Residual: the runtime process itself holds the token.)*
+      (`worker-env.test.ts`). Forged body identity → 403 (D1): `M243_LIVE=1` runs the
+      arms against scratch containers under enforce — shared token, wrong class,
+      query-router on admin routes, tenant mismatch and a refused inline DSN get 403 with
+      0 postgres connects; tenant-control migrate, the Kong relay and query-router query
+      get 200 (local 2026-10-30, nightly). Residual: the runtime process itself holds the
+      shared token; under enforce it reaches no service-auth route.)*
 - [x] No Kong Lua signer (sandbox allows only `cjson.safe`, and it would sign client
       bodies): `/admin/v1/{migrate,rotate}` move to a tenant-control route that builds the
       identity and signs via `postAdmin`; SDK `admin.ts:114-122` keeps working (test).
@@ -321,7 +342,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       actor fix: probe 2026-10-30 11:30Z wrote 3 rows with distinct UUIDv5 ids; key-only →
       NULL actor, key + JWT → sub, self-read shows only the user's row, anon reads 0 rows
       (HTTP 200 `[]`, RLS), nested password stored `[REDACTED]`, 0 insert errors.
-- [ ] Pool max 2 drops rows under a burst (200 of the 231) — grobase#81.
+- [~] Pool max 2 drops rows under a burst (200 of the 231) — grobase#81. Batch writer
+      (ADR 0021) live on the VM query-router 2026-10-30 13:42Z (sha-7550ab1b, `:pre-audit-batch-7550ab1b`):
+      probes P1–P6 unchanged, `audit_log_dropped_total 0`. The other 6 services follow after
+      24 h with dropped 0 (A11, ≥ 2026-10-31 13:42Z).
 
 ### Phase 1 — say what a database is bound to
 
@@ -373,8 +397,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         `MSSQL_TLS_*` env (no mssql.conf write), forceencryption 0, root → setpriv uid 999;
         m247 mssql A/B/C green locally 2026-10-30, m27 mssql under the overlay 9 passed /
         3 skipped / 0 failed; CI mssql leg twice.
-  - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
-        consumers); today plaintext.
+  - [ ] Clients verify mongo's certs (mongosh, mongo-init, mongo-api); today plaintext.
+  - [x] D3 — the Rust redis clients verify redis's cert: the pool engine and the server's
+        limiter/quota/metering link dial `rediss://` through rustls with the system store plus
+        `DATA_PLANE_TLS_CA_FILE` (ADR 0024). m260 green locally 2026-10-30 on the G5b overlay:
+        the CA verifies, a wrong CA and a name outside the SANs are refused, an empty store
+        fails closed, plaintext 6379 unchanged, honor-set refresh over rediss. Compose defaults
+        stay `redis://…:6379` (opt-in by DSN). realtime-gateway presence stays plaintext (R12).
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
@@ -486,7 +515,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       emitted by TS and Rust in lockstep with a parity test.
 - [ ] Automation targets come only from the stored rule, never from row data
       (`outbox.service.ts:202-211` reads `target_engine` from writable columns).
-- [ ] Route for the live automations client, so osionos stops calling a dead path.
+- [x] Route for the live automations client, so osionos stops calling a dead path.
+      Done 2026-10-30: osionos 05a11cbb9 (bridge `GET|PUT /api/databases/:dbId/automations`,
+      mount ACL, client repointed); live bridge in-container → 401 unsigned vs 404 unknown path.
 
 **G11b · Cross-mount automation actions** — BLOCKED
 - [ ] `write_mount`, `run_function` (scoped data client), run history + DLQ. Lifts when

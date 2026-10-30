@@ -10,11 +10,11 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-//! G2 dial guard for Redis (ADR 0019). redis 0.27.6 has no TLS feature, so
-//! `rediss://` fails at parse and there is no SNI concern. Under a scope a unix
-//! socket (C11) or `TcpTls` address is refused; a TCP host is resolved, vetted,
-//! then dialled as `ConnectionAddr::Tcp(<vetted ip>, port)` with parsed db,
-//! username, password and protocol unchanged. There is no per-connection hook,
+//! G2 dial guard for Redis (ADR 0019). Under a scope a unix socket (C11) or a
+//! `rediss://` (`TcpTls`) address is refused: the crate dials TLS by name and uses
+//! it as SNI, so there is no pin-the-IP-verify-the-name hook (ADR 0024, R4). A TCP
+//! host is resolved, vetted, then dialled as `ConnectionAddr::Tcp(<vetted ip>,
+//! port)` with parsed db, username, password and protocol unchanged. There is no per-connection hook,
 //! so the guard re-vets at checkout at most every `REVET_AFTER` and rebuilds on
 //! a changed IP.
 //! Caveat: a reconnect reuses the pinned IP; a DNS change is up to `REVET_AFTER`
@@ -74,7 +74,7 @@ impl DialManager {
             Err(_) => None,
         };
         let manager = match ip.filter(|_| scope.enforcing()) {
-            Some(ip) => connect_info(pinned_info(&info, ip)).await?,
+            Some(ip) => connect_info(pinned_info(&info, ip)?).await?,
             None => connect_dsn(dsn).await?,
         };
         let guard = Guard::new(scope, info, ip, revet_after);
@@ -110,7 +110,7 @@ impl DialManager {
         let Some(ip) = guard.next_pin().await? else {
             return Ok(());
         };
-        let fresh = connect_info(pinned_info(&guard.info, ip)).await?;
+        let fresh = connect_info(pinned_info(&guard.info, ip)?).await?;
         *self.manager.lock().expect("redis dial manager") = fresh;
         guard.pinned.lock().expect("redis dial pin").ip = Some(ip);
         Ok(())
@@ -216,23 +216,26 @@ async fn vet(scope: &DialScope, info: &ConnectionInfo) -> Result<IpAddr, Refusal
 }
 
 /// The parsed settings (db, username, password, protocol) with the address
-/// replaced by the vetted IP: the driver never resolves the name again.
-pub(super) fn pinned_info(info: &ConnectionInfo, ip: IpAddr) -> ConnectionInfo {
-    let port = match &info.addr {
-        ConnectionAddr::Tcp(_, port) | ConnectionAddr::TcpTls { port, .. } => *port,
-        ConnectionAddr::Unix(_) => 0,
+/// replaced by the vetted IP: the driver never resolves the name again. Only a
+/// plain TCP address pins: rewriting a `TcpTls` one to `Tcp` would send the
+/// password in clear to a mount that asked for TLS, so it is an error.
+pub(super) fn pinned_info(info: &ConnectionInfo, ip: IpAddr) -> DataPlaneResult<ConnectionInfo> {
+    let ConnectionAddr::Tcp(_, port) = &info.addr else {
+        return Err(DataPlaneError::Backend {
+            message: "dial guard: only a plain TCP redis address can be pinned".into(),
+        });
     };
-    ConnectionInfo {
-        addr: ConnectionAddr::Tcp(ip.to_string(), port),
+    Ok(ConnectionInfo {
+        addr: ConnectionAddr::Tcp(ip.to_string(), *port),
         redis: info.redis.clone(),
-    }
+    })
 }
 
 #[cfg(test)]
 pub(super) async fn plan(
     scope: &DialScope,
     info: &ConnectionInfo,
-) -> Result<ConnectionInfo, Refusal> {
+) -> Result<DataPlaneResult<ConnectionInfo>, Refusal> {
     vet(scope, info).await.map(|ip| pinned_info(info, ip))
 }
 
@@ -244,8 +247,8 @@ fn parse_info(dsn: &str) -> DataPlaneResult<ConnectionInfo> {
 }
 
 pub(super) async fn connect_dsn(dsn: &str) -> DataPlaneResult<ConnectionManager> {
-    let client = Client::open(dsn).map_err(|e| DataPlaneError::Backend {
-        message: format!("invalid redis URL: {e}"),
+    let client = crate::redis_tls::redis_client(dsn).map_err(|e| DataPlaneError::Backend {
+        message: format!("redis client setup failed: {e}"),
     })?;
     connect_client(client).await
 }

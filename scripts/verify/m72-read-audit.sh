@@ -82,6 +82,12 @@ TABLE="m72_audit_probe"
 TENANT="m72-tenant-$$"
 # Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
 SVC_TOKEN="$(openssl rand -hex 24)"
+# D1 (ADR 0023): the probe signs its /v1 calls as the query-router with a
+# throwaway key the scratch data plane also gets; DATA_PLANE_CALLER_POLICY=enforce
+# runs it under the caller policy (default off).
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
+svc_scratch_caller_keys
 ROWS=5 # exact seeded row count → returned_rows
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
@@ -106,7 +112,7 @@ payload() { # $1=op  $2=mask-json(or null)  -> stdout
 # POST a query to a router on 127.0.0.1:$port; echo the HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
-    -H "X-Service-Token: ${SVC_TOKEN}" \
+    -H "X-Service-Token: ${DATA_PLANE_KEY_QUERY_ROUTER}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -184,6 +190,7 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_AUDIT_READS=true \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_ON}" "${PORT_ON}" || fail "POSITIVE router not ready (line: wait_ready DPR_ON)"
@@ -215,6 +222,7 @@ docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_OFF}" "${PORT_OFF}" || fail "PARITY router not ready (line: wait_ready DPR_OFF)"

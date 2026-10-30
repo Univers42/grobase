@@ -1,0 +1,61 @@
+# docker-compose.engine-tls-cockroach.yml — CockroachDB in secure mode with the CA-signed engine
+# cert, plaintext still accepted (G5, docs/adr/0029-g5-cockroach-secure-mode.md). Opt-in:
+# ENGINE_TLS_ENGINES lists cockroach (env, or an ENGINE_TLS_ENGINES= line in .env.local;
+# orchestrators/makes/00-config.mk). ENGINE_TLS=1 alone never composes this file.
+#
+# Secure mode refuses passwordless root, even over --accept-sql-without-tls (measured, devil
+# g5-cockroach). So the healthcheck sets root's password from COCKROACH_PASSWORD (a compose
+# secret, never the env) with the root client cert, and every client dials root:<password>.
+# Drop this overlay and the node restarts --insecure on the same store; it ignores the password.
+#
+# Caveat: the HTTP port (8080, admin UI and /health) still answers plain HTTP in secure mode
+# (measured). This overlay secures SQL on 26257 only; 8080 stays bound to ENGINE_BIND_ADDR.
+# Caveat: this proves cockroach CAN serve a verifiable cert, not that any client checks it:
+# --accept-sql-without-tls keeps sslmode=disable DSNs working until each one asks for verify-full.
+services:
+  cockroach:
+    user: "0"
+    entrypoint: ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh", "cockroach"]
+    # Restated without --insecure; --accept-sql-without-tls is what keeps plaintext (CR2).
+    command: >
+      start-single-node --certs-dir=/run/engine-tls/certs --accept-sql-without-tls
+      --advertise-addr=cockroach --cache=128MiB --max-sql-memory=128MiB --http-addr=0.0.0.0:8080
+    environment:
+      ENGINE_TLS_NAME: cockroach
+      # The image's cockroach user and group (infra/docker/services/cockroach/Dockerfile).
+      ENGINE_TLS_UID: "1001"
+      ENGINE_TLS_GID: "1001"
+    secrets:
+      - source: cockroach_password
+        mode: 0400
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_COCKROACH_CERT_DIR:-./certs/engine-tls/cockroach}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      # The root client cert: this engine's own container only, never an application's.
+      - type: bind
+        source: ${ENGINE_TLS_COCKROACH_CLIENT_CERT_DIR:-./certs/engine-tls/cockroach-client}
+        target: /etc/engine-tls-client
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+      - type: bind
+        source: ./infra/docker/services/engine-tls/cockroach-health.sh
+        target: /usr/local/bin/engine-tls-cockroach-health.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700
+    # The default healthcheck dials --insecure, which a secure node refuses (CR7).
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/usr/local/bin/engine-tls-cockroach-health.sh"]
+
+secrets:
+  cockroach_password:
+    environment: COCKROACH_PASSWORD

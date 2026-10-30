@@ -86,6 +86,12 @@ OWNER_B="m98-owner-b-$$"
 PROBE_TABLE="m98_probe"
 # Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
 SVC_TOKEN="$(openssl rand -hex 24)"
+# D1 (ADR 0023): the probe signs its /v1 calls as the query-router with a
+# throwaway key the scratch data plane also gets; DATA_PLANE_CALLER_POLICY=enforce
+# runs it under the caller policy (default off).
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
+svc_scratch_caller_keys
 # In-network DSNs. Direct → postgres:5432 as app_user; pooled → pgbouncer:6432.
 DB_DIRECT="postgres://${APP_USER}:${APP_PW}@${PG}:5432/postgres"
 POOLER_URL="postgres://${APP_USER}:${APP_PW}@${PGB}:6432/postgres"
@@ -118,7 +124,7 @@ payload() {
 # POST a /v1/query; echo HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
-    -H "X-Service-Token: ${SVC_TOKEN}" \
+    -H "X-Service-Token: ${DATA_PLANE_KEY_QUERY_ROUTER}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -257,6 +263,7 @@ docker run -d --name "${DPR_DIRECT}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DIRECT}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_DIRECT}" "${PORT_DIRECT}" || fail "DIRECT router not ready (line: wait_ready DIRECT)"
@@ -311,6 +318,7 @@ docker run -d --name "${DPR_POOLED}" --network "${NET}" \
   -e DATA_PLANE_STATEMENT_CACHE=off \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_POOLED}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_POOLED}" "${PORT_POOLED}" || fail "POOLED router not ready (line: wait_ready POOLED)"

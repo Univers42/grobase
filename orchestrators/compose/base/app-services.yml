@@ -84,6 +84,9 @@ services:
       GOTRUE_JWT_ISSUER: ${GOTRUE_JWT_ISSUER:-${API_EXTERNAL_URL:-http://localhost:8000/auth/v1}}
       ADAPTER_REGISTRY_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       ADAPTER_REGISTRY_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
+      # D1 (ADR 0023): this caller's own data-plane key; empty falls back to the
+      # shared token above. Only query-router holds it.
+      DATA_PLANE_KEY_QUERY_ROUTER: ${DATA_PLANE_KEY_QUERY_ROUTER:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # ── Rust data-plane cutover (parity proven via parity-probe.sh) ──
       # All five R2/R3/R7/R8 engines now forward to the Rust pool registry

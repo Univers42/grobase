@@ -7,8 +7,10 @@
 # publish and stays plaintext. The cert comes from `scripts/certs/generate-engine-cert.sh
 # redis`, in a directory of its own (G5b-C5).
 #
-# Caveat: this proves redis CAN serve TLS, not that any client uses it. Every consumer still
-# dials redis://…:6379, and the pool's redis crate cannot dial rediss:// at all (G5b-C9).
+# Caveat: this proves redis CAN serve TLS, not that a client uses it. The pool and the server's
+# limiter/quota/metering link can dial rediss://redis:6380 verified (ADR 0024, m260), but every
+# compose default still dials redis://…:6379, so nothing switches until a DSN says rediss://.
+# realtime-gateway's shared presence (its own workspace and lockfile) stays plaintext (D3-R12).
 services:
   redis:
     user: "0"

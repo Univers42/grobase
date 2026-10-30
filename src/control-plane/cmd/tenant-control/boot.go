@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:37:20 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:37:21 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 16:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -44,6 +44,17 @@ type bootCtx struct {
 	mux         *http.ServeMux
 }
 
+// dataPlaneSigningKey is tenant-control's own data-plane key when set (D1,
+// ADR 0023: the data plane tells callers apart by the key that verifies), else
+// the shared service token it signed with before. Only the data-plane client
+// takes it; every other seam keeps the shared token.
+func dataPlaneSigningKey(shared string) string {
+	if key := os.Getenv("DATA_PLANE_KEY_TENANT_CONTROL"); key != "" {
+		return key
+	}
+	return shared
+}
+
 // setupClients wires the optional adapter-registry, data-plane, and
 // permission-engine seams, then builds the declarative reconciler — verbatim the
 // behavior of the corresponding main() blocks.
@@ -55,7 +66,7 @@ func (b *bootCtx) setupClients(ctx context.Context) {
 		b.log.Warn("ADAPTER_REGISTRY_URL not set — /v1/provision will not register mounts")
 	}
 	if dpURL := os.Getenv("RUST_DATA_PLANE_URL"); dpURL != "" {
-		b.svc.SetDataPlane(tenants.NewDataPlane(dpURL, b.cfg.ServiceToken))
+		b.svc.SetDataPlane(tenants.NewDataPlane(dpURL, dataPlaneSigningKey(b.cfg.ServiceToken)))
 		b.log.Info("data-plane client enabled", "url", dpURL)
 	}
 	permURL := os.Getenv("PERMISSION_ENGINE_URL")

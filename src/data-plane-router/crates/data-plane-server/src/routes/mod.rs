@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:32:22 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/29 21:11:50 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 16:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,14 @@ mod admin;
 mod admin_auth_tests;
 mod bypass;
 mod bypass_auth;
+mod caller_keys;
+#[cfg(test)]
+mod caller_keys_tests;
+mod caller_policy;
+#[cfg(test)]
+mod caller_policy_router_tests;
+#[cfg(test)]
+mod caller_policy_tests;
 mod health;
 mod helpers;
 mod inbound_auth;
@@ -46,6 +54,8 @@ mod txregistry;
 pub use state::AppState;
 // Always-present facade: used by the (ungated) graph module.
 pub(crate) use bypass::{bypass_ratelimit, bypass_verify, require_scope, scope_denied};
+pub(crate) use caller_keys::CALLER_POLICY_KEY;
+pub use caller_keys::{CallerClass, CallerPolicy, CallerPolicyMode};
 pub(crate) use helpers::api_err;
 pub(crate) use inbound_auth::INBOUND_AUTH_KEY;
 pub use inbound_auth::{InboundAuth, InboundAuthMode};

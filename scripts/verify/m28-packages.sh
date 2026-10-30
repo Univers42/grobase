@@ -32,6 +32,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# D1 (ADR 0023): live data-plane calls sign as the query-router.
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
 
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
@@ -95,7 +98,7 @@ payload() { # $1=op $2=overrides $3=tenant
   printf '{"identity":{"tenant_id":"%s","user_id":"%s","roles":["service_role"],"scopes":["admin"],"source":"test"},"mount":{"id":"m28","tenant_id":"%s","engine":"postgresql","name":"probe","credential_ref":{"provider":"inline","reference":"-","version":"1"},"capability_overrides":%s,"inline_dsn":"%s","isolation":"shared_rls"},"operation":{"op":"%s","resource":"m28_tier_probe"}}' \
     "$3" "$3" "$3" "$2" "${DSN}" "$1"
 }
-code() { curl -s -o /tmp/m28_body -w "%{http_code}" -X POST "${RUST}/v1/query" -H 'Content-Type: application/json' -d "$1"; }
+code() { svc_curl_as query_router -s -o /tmp/m28_body -w "%{http_code}" -X POST "${RUST}/v1/query" -H 'Content-Type: application/json' -d "$1"; }
 
 step "data plane: a CRUD-only mask (basic) 403s a capability the engine HAS (aggregate)"
 c="$(code "$(payload aggregate "${BASIC_MASK}" m28-tenant)")"

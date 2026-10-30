@@ -76,6 +76,11 @@ MONGO_INITDB_ROOT_PASSWORD="$(gen_alnum 24)"
 # Inter-plane service token — DISTINCT from JWT_SECRET (audit O1/O2): a leak of the
 # user-auth JWT secret must not also compromise service auth. Minted ONCE here.
 ADAPTER_REGISTRY_SERVICE_TOKEN="$(openssl rand -hex 32)"
+# D1 (ADR 0023): one data-plane key per caller, each independent of the shared
+# token above (no derivation from it). The _PREV slots stay unset until a
+# rotation moves the current value there; this script never writes them.
+DATA_PLANE_KEY_QUERY_ROUTER="$(openssl rand -hex 32)"
+DATA_PLANE_KEY_TENANT_CONTROL="$(openssl rand -hex 32)"
 # Identity-envelope HMAC key (kid:secret) — signs the x-baas-* identity headers the
 # api-key middleware stamps after key verify; the downstream verifier accepts any
 # configured key. WITHOUT this, api-key tenant auth fails 500 identity_unavailable.
@@ -91,6 +96,9 @@ MYSQL_PASSWORD="$(gen_alnum 24)"
 MARIADB_ROOT_PASSWORD="$(gen_alnum 24)"
 MARIADB_PASSWORD="$(gen_alnum 24)"
 MSSQL_SA_PASSWORD="$(gen_alnum 20)aA1%"
+# CockroachDB root, read only by the opt-in secure-mode overlay (ADR 0029). Hex: its
+# healthcheck splices it into ALTER USER, and refuses anything else rather than quote it.
+COCKROACH_PASSWORD="$(openssl rand -hex 24)"
 # supavisor's Phoenix cookie (pooler / scale / prod overlays). Was a literal default.
 SECRET_KEY_BASE="$(openssl rand -hex 32)"
 ANON_KEY="$(jwt_hs256 "$JWT_SECRET" "anon")"
@@ -101,7 +109,7 @@ PGRST_DB_URI="postgres://authenticator:${AUTHENTICATOR_PASSWORD}@postgres:5432/$
 # The generated key set, on ONE line so scripts/env/assemble-env.sh can read it
 # with a single grep (the secrets migration lifts exactly this list — a hand-kept
 # copy there re-minted passwords an initialized database volume already has).
-GENERATED_KEYS="POSTGRES_PASSWORD AUTHENTICATOR_PASSWORD JWT_SECRET VAULT_ENC_KEY MINIO_ROOT_PASSWORD MONGO_INITDB_ROOT_PASSWORD ADAPTER_REGISTRY_SERVICE_TOKEN INTERNAL_IDENTITY_HMAC_KEYS LOG_STREAM_TOKEN ANON_KEY SERVICE_ROLE_KEY KONG_PUBLIC_API_KEY KONG_SERVICE_API_KEY DATABASE_URL PGRST_DB_URI ADAPTER_REGISTRY_DATABASE_URL MYSQL_ROOT_PASSWORD MYSQL_PASSWORD MARIADB_ROOT_PASSWORD MARIADB_PASSWORD MSSQL_SA_PASSWORD SECRET_KEY_BASE"
+GENERATED_KEYS="POSTGRES_PASSWORD AUTHENTICATOR_PASSWORD JWT_SECRET VAULT_ENC_KEY MINIO_ROOT_PASSWORD MONGO_INITDB_ROOT_PASSWORD ADAPTER_REGISTRY_SERVICE_TOKEN DATA_PLANE_KEY_QUERY_ROUTER DATA_PLANE_KEY_TENANT_CONTROL INTERNAL_IDENTITY_HMAC_KEYS LOG_STREAM_TOKEN ANON_KEY SERVICE_ROLE_KEY KONG_PUBLIC_API_KEY KONG_SERVICE_API_KEY DATABASE_URL PGRST_DB_URI ADAPTER_REGISTRY_DATABASE_URL MYSQL_ROOT_PASSWORD MYSQL_PASSWORD MARIADB_ROOT_PASSWORD MARIADB_PASSWORD MSSQL_SA_PASSWORD COCKROACH_PASSWORD SECRET_KEY_BASE"
 
 # top_up appends only the keys ABSENT from an existing secrets file and rotates
 # nothing already there. This is the upgrade path: a checkout whose .env.secrets
@@ -152,6 +160,8 @@ ADAPTER_REGISTRY_DATABASE_URL=${DATABASE_URL}
 # Auth / inter-plane
 JWT_SECRET=${JWT_SECRET}
 ADAPTER_REGISTRY_SERVICE_TOKEN=${ADAPTER_REGISTRY_SERVICE_TOKEN}
+DATA_PLANE_KEY_QUERY_ROUTER=${DATA_PLANE_KEY_QUERY_ROUTER}
+DATA_PLANE_KEY_TENANT_CONTROL=${DATA_PLANE_KEY_TENANT_CONTROL}
 INTERNAL_IDENTITY_HMAC_KEYS=${INTERNAL_IDENTITY_HMAC_KEYS}
 ANON_KEY=${ANON_KEY}
 SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
@@ -172,6 +182,7 @@ MYSQL_PASSWORD=${MYSQL_PASSWORD}
 MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
 MARIADB_PASSWORD=${MARIADB_PASSWORD}
 MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+COCKROACH_PASSWORD=${COCKROACH_PASSWORD}
 
 # Connection pooler (supavisor) — pooler/scale/prod overlays require it.
 SECRET_KEY_BASE=${SECRET_KEY_BASE}

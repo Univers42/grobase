@@ -31,6 +31,10 @@ type fakeRepo struct {
 	withdrawn      int
 	lastSetConsent bool
 	lastUpdateType string
+	calls          []string // audit_test.go: the order of webhook/erase/update
+	eraseErr       error
+	erasedID       string  // the id eraseAuditActor received
+	purgeRows      []int64 // one per batch, consumed in order
 }
 
 func (f *fakeRepo) bootstrap(context.Context) error { return nil }
@@ -92,6 +96,7 @@ func (f *fakeRepo) getRequest(context.Context, string) (*DeletionRequest, error)
 }
 
 func (f *fakeRepo) updateRequest(_ context.Context, _, status, _ string, _ *string) (*DeletionRequest, error) {
+	f.calls = append(f.calls, "update")
 	return &DeletionRequest{ID: 1, Status: status}, nil
 }
 
