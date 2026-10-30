@@ -21,13 +21,14 @@ use data_plane_core::{
     EngineCapabilities, EngineHealth, EnginePool,
 };
 use deadpool_sqlite::{Config as SqliteConfig, Hook, HookError, Pool, Runtime};
+use rusqlite::OpenFlags;
 use std::sync::Arc;
 
 use crate::resolver::MountResolver;
 
 use super::harden::{harden, refuse_unsafe_path, tune};
 use super::pool::SqlitePool;
-use super::writer::writer_loop;
+use super::writer::{enable_wal, writer_loop};
 
 pub struct SqliteEngineAdapter {
     resolver: Arc<dyn MountResolver>,
@@ -58,6 +59,7 @@ impl EngineAdapter for SqliteEngineAdapter {
         let dsn = self.resolver.resolve_dsn(&mount).await?;
         let path = sqlite_path(&dsn);
         refuse_unsafe_path(&path)?;
+        enable_wal(&path, OpenFlags::default()).await?;
         let pool = reader_pool(&path)?;
 
         // Dedicated writer thread (single-writer + GROUP COMMIT): one OS
@@ -270,6 +272,22 @@ mod tests {
             .unwrap();
         assert_eq!(rows.rows.len(), 1);
         assert!(!dir.join("other.db").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn a_fresh_file_survives_its_first_read_and_write_racing() {
+        let dir = scratch("race");
+        for i in 0..20 {
+            let dsn = format!("sqlite://{}/m{i}.db", dir.display());
+            let pool = adapter().open_pool(mount(&dsn)).await.unwrap();
+            let (read, write) = tokio::join!(
+                pool.execute_raw(raw("SELECT 1", true), identity()),
+                pool.execute_raw(raw("CREATE TABLE t (id INTEGER)", false), identity()),
+            );
+            read.unwrap();
+            write.unwrap();
+        }
         let _ = std::fs::remove_dir_all(dir);
     }
 

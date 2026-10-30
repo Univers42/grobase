@@ -53,7 +53,8 @@ const SERVER_FILES: &[&str] = &["nano_meta.db", "pb_meta.db", "pb_logs.db"];
 const SIDECARS: &[&str] = &["", "-wal", "-shm", "-journal"];
 
 /// The adapter's own pragmas. They run BEFORE [`harden`], whose authorizer
-/// would refuse the `journal_mode` write.
+/// would refuse the `journal_mode` write. On an existing WAL file the
+/// `journal_mode` write is a no-op; [`super::writer::enable_wal`] makes it so.
 pub(super) fn tune(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     // The standard WAL pairing (and what PocketBase ships): NORMAL skips the
