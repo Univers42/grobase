@@ -1,6 +1,6 @@
 # 0029 — CockroachDB runs in secure mode with the CA-signed engine cert, plaintext still accepted, behind its own opt-in
 
-- Status: accepted. devil ruled PROCEED-WITH-CONDITIONS on 2026-10-30, conditions CR1–CR12. Code on branch `feat/g5-cockroach-secure`. CR8 (CI leg green twice) stays open until the branch is pushed.
+- Status: accepted. devil ruled PROCEED-WITH-CONDITIONS on 2026-10-30, conditions CR1–CR12. On develop (4d83e748). CR8 met: the `cockroachdb over TLS` CI leg is green on develop runs 41080324791, 41086854436 and 41089119419.
 - Date: 2026-10-30
 - Deciders: devil (ruling). Whoever composes `ENGINE_TLS_ENGINES=cockroach` lives with the outcome.
 

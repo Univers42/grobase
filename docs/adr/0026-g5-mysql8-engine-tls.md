@@ -1,6 +1,6 @@
 # 0026 — Oracle MySQL 8.4 (mysql8) accepts TLS with the CA-signed engine cert, behind its own opt-in
 
-- Status: accepted. devil ruled PROCEED-WITH-CONDITIONS on 2026-10-30, conditions M1–M7 (answers G5b-C14). Code on branch `feat/g5-mysql8-mssql-verify`. M5 (CI leg green twice) is open until the branch is pushed.
+- Status: accepted. devil ruled PROCEED-WITH-CONDITIONS on 2026-10-30, conditions M1–M7 (answers G5b-C14). On develop (f9605fb5). M5 met: the `mysql8 over TLS` CI leg is green on develop runs 41080324791, 41086854436 and 41089119419.
 - Date: 2026-10-30
 - Deciders: devil (ruling). Whoever composes `ENGINE_TLS_ENGINES=mysql8` lives with the outcome.
 
