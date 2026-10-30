@@ -103,7 +103,7 @@ impl fmt::Display for ConfigError {
             ),
             Self::CallerKey { key, problem } => write!(
                 f,
-                "{key} {} (DATA_PLANE_CALLER_POLICY is shadow or enforce)",
+                "{key} {} (ADR 0023 caller key, K8 startup check)",
                 problem.describe()
             ),
             Self::MissingSecrets { environment, keys } => write!(
@@ -123,6 +123,8 @@ impl std::error::Error for ConfigError {}
 pub enum CallerKeyProblem {
     Unset,
     TooShort,
+    /// Leading or trailing whitespace, including a value that is only spaces.
+    Padded,
     /// Equal to the named variable's value, so the two callers share a class.
     SameAs(&'static str),
 }
@@ -132,6 +134,7 @@ impl CallerKeyProblem {
         match self {
             Self::Unset => "is unset or empty".to_string(),
             Self::TooShort => "is shorter than 32 bytes".to_string(),
+            Self::Padded => "has leading or trailing whitespace".to_string(),
             Self::SameAs(other) => format!("equals {other}"),
         }
     }
