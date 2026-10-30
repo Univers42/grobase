@@ -36,3 +36,4 @@ export * from './pipes/validation.pipe';
 export * from './pipes/safe-parse-int.pipe';
 export * from './dto/pagination.dto';
 export * from './config/env.validation';
+export * from './config/redis-url';

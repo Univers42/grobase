@@ -12,6 +12,7 @@
 
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { redisUrlFrom } from '@mini-baas/common';
 import { MongoService, PostgresService } from '@mini-baas/database';
 import type { PoolClient, QueryResultRow } from 'pg';
 import Redis from 'ioredis';
@@ -88,11 +89,14 @@ export class OutboxRelayService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    this.redis = new Redis(this.config.get<string>('REDIS_URL', 'redis://redis:6379'), {
-      lazyConnect: true,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-    });
+    this.redis = new Redis(
+      redisUrlFrom((name) => this.config.get<string>(name), 'REDIS_URL', 'OUTBOX_REDIS_URL'),
+      {
+        lazyConnect: true,
+        enableOfflineQueue: false,
+        maxRetriesPerRequest: 1,
+      },
+    );
     await this.redis.connect();
     // Mongo is a soft dependency (lean tiers run without the container): the
     // relay's core job — pg outbox → Redis streams + realtime fan-out — must
