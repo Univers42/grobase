@@ -13,6 +13,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable, tap } from 'rxjs';
+import { auditActor } from './actor';
 import { AuditService } from './audit.service';
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
@@ -24,8 +25,8 @@ const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
  *
  * Depends on:
  *  - `CorrelationIdInterceptor` having populated `req.requestId`
- *  - `AuthGuard` having populated `req.user` (optional — anonymous mutations
- *    are still recorded with `actor_id = NULL`)
+ *  - `AuthGuard` having populated `req.identity` (optional — anonymous
+ *    mutations are still recorded with `actor_id = NULL`; see `auditActor`)
  *
  * Register globally per-service via the {@link AuditModule}.
  */
@@ -52,8 +53,7 @@ export class AuditInterceptor implements NestInterceptor {
         // Fire-and-forget: never block the response on the audit write.
         void this.audit.record({
           requestId,
-          actorId: req.user?.id ?? null,
-          actorRole: req.user?.role ?? null,
+          ...auditActor(req.identity),
           action: req.method,
           resource: req.originalUrl || req.url,
           payload: this.summarizeBody(req.body),
