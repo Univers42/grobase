@@ -1,6 +1,6 @@
 # 0019 — Every tenant DB dial goes through one guard that resolves, classifies and pins the IP at dial time
 
-- Status: proposed; D1 (pgwire, MySQL) and D3a (Redis) delivered, flag off. On 2026-10-30 the devil ruled D1, D2, D3a (Redis) and D4 PROCEED-WITH-CONDITIONS (C1–C14), D3b (Mongo, as planned) BLOCK, and enforce on the VM with a subnet-wide allowlist BLOCK.
+- Status: proposed; D1 (pgwire, MySQL), D2 (SQL Server) and D3a (Redis) delivered, flag off. On 2026-10-30 the devil ruled D1, D2, D3a (Redis) and D4 PROCEED-WITH-CONDITIONS (C1–C14), D3b (Mongo, as planned) BLOCK, and enforce on the VM with a subnet-wide allowlist BLOCK.
 - D1 delivered 2026-10-30, flag default `off`: one classifier, the mode flag, provenance, and pgwire and MySQL pinning (section D1). The Rust gate and `m244` are green. D2–D4 and any VM flip are not started.
 - Date: 2026-10-30
 - Deciders: devil (ruling). Owners of data-plane-pool and of every live mount on the VM.
@@ -73,6 +73,21 @@ The classifier the http engine calls now refuses more. Everything the pre-G2 cla
 - MySQL re-vets every 30 s, at checkout, rather than at each connect. A DNS change reaches the pool up to 30 s late, and every connection still goes to a vetted address.
 - `system_lookup` returns what the system resolver says at that moment. The pin closes rebinding between the check and the connect, but not a resolver that is itself compromised.
 - Under enforce, the pgwire per-dial refusal surfaces as a generic tokio-postgres config error, because tokio-postgres has no public error constructor. The `dial_guard deny` log line names the class. The open-time refusal names it in the error too.
+
+## D2 — SQL Server (C10)
+
+Code lives in `data-plane-pool/src/mssql/dial.rs`; the tests are `mssql/dial_tests.rs`.
+
+- **Own manager.** bb8-tiberius dials `config.get_addr()` itself and follows a TDS `Routing` redirect with no hook, so the pool now runs on `DialManager`, which implements `bb8::ManageConnection`. `off` and Platform DSNs delegate to bb8-tiberius unchanged; `is_valid` and `has_broken` always delegate.
+- **Every hop vetted.** Under enforce the DSN host and then at most one `Routing` host are resolved, vetted and dialled by IP. The TLS server name still comes from `config.host`, so certificate checks see the name. A second redirect comes back as the `Routing` error, as before.
+- **Named instance refused.** A `host\instance` needs SQL Browser (UDP 1434) and tiberius is built without `sql-browser`, so it never connected; enforce now refuses it as class `named_instance`.
+- **Refused at open.** bb8 builds the pool without dialling, so enforce vets the DSN host once before the pool exists and returns the refusal from `open_pool`.
+
+### Caveats D2 ships with
+
+- Each hop pins its first vetted record, so a name with several A records loses failover across them, as pgwire does.
+- A name that moves to a denied address after open is refused at the next physical dial; the caller sees bb8's 5 s checkout timeout, and the `dial_guard deny` line names the class.
+- Under shadow nothing is logged at open; the first physical dial logs one `would_deny` per hop.
 
 ## D3a — Redis (C11)
 

@@ -13,18 +13,32 @@
 //! EngineAdapter for SQL Server: pool construction + the tiberius `Config`/TLS
 //! posture that backs it.
 
+use super::dial::DialManager;
 use super::pool::MssqlPool;
 use super::*;
+use crate::dial_guard::scope::DialScope;
+use crate::dial_guard::DialGuardMode;
 use data_plane_core::TlsPosture;
 
 pub struct MssqlEngineAdapter {
     resolver: Arc<dyn MountResolver>,
+    dial_guard: DialGuardMode,
 }
 
 impl MssqlEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self { resolver }
+        Self {
+            resolver,
+            dial_guard: DialGuardMode::Off,
+        }
+    }
+
+    /// G2 (ADR 0019): guard every Tenant dial; `Off` (the default) changes nothing.
+    #[must_use]
+    pub fn with_dial_guard(mut self, mode: DialGuardMode) -> Self {
+        self.dial_guard = mode;
+        self
     }
 }
 
@@ -42,12 +56,14 @@ impl EngineAdapter for MssqlEngineAdapter {
         SUPPORTED_OPS
     }
 
-    // ponytail: linear pool-construction sequence (DSN → config → bb8 build) —
-    //   one straight-line setup, nothing to factor.
+    // ponytail: linear pool-construction sequence (DSN → config → guard → bb8
+    //   build) — one straight-line setup, nothing to factor.
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
-        let dsn = self.resolver.resolve_dsn(&mount).await?;
-        let (config, tls) = mssql_config(&dsn)?;
-        let manager = ConnectionManager::new(config);
+        let resolved = self.resolver.resolve(&mount).await?;
+        let (config, tls) = mssql_config(&resolved.dsn)?;
+        let scope = DialScope::for_mount(self.dial_guard, "mssql", &mount, resolved.provenance);
+        let manager = DialManager::new(config, scope);
+        manager.precheck().await?;
         let pool = Pool::builder()
             .max_size(mount.pool_policy.max.max(1))
             .connection_timeout(CHECKOUT_TIMEOUT)
