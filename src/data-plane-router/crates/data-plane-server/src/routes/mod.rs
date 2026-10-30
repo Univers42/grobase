@@ -19,6 +19,8 @@
 //! small facade re-exported at the bottom.
 
 mod admin;
+#[cfg(test)]
+mod admin_auth_tests;
 mod bypass;
 mod bypass_auth;
 mod health;

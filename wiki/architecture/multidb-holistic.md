@@ -159,9 +159,15 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [~] Flag `DATA_PLANE_INBOUND_AUTH` (default OFF one release, then ON); compose sets it.
       *(G1c: `base/data-plane.yml` passes it, default `off`, with
       `SERVICE_AUTH_SKEW_SECS`. Default ON waits for the enforce rollout.)*
-- [ ] m243: unauthenticated `/v1/admin/raw` → 401; forged body identity → 403;
+- [~] m243: unauthenticated `/v1/admin/raw` → 401; forged body identity → 403;
       read-scoped key DDL → 403; owner DDL → 200; an edge function POSTing unsigned to
       `/v1/admin/raw` → 401 and cannot read `INTERNAL_SERVICE_TOKEN`.
+      *(`scripts/verify/m243-data-plane-auth.sh` in CI, 6/6 mutants killed. Done: the 4
+      admin routes on the real `router()` answer 401 unsigned and to a plain token or a
+      signature for another body (`routes/admin_auth_tests.rs`); read-key DDL 403 and
+      write-key DDL apply (`schema.service.spec.ts`, G1g); Workers spawn with env off
+      (`worker-env.test.ts`). Open: forged body identity → 403 waits on the identity item
+      above. Residual: the runtime process itself holds the token.)*
 - [x] No Kong Lua signer (sandbox allows only `cjson.safe`, and it would sign client
       bodies): `/admin/v1/{migrate,rotate}` move to a tenant-control route that builds the
       identity and signs via `postAdmin`; SDK `admin.ts:114-122` keeps working (test).
