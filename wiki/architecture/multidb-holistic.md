@@ -206,11 +206,14 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       AWS credential chain.
   - [x] D1 pgwire + MySQL (devil PwC C1–C9, ADR 0019, 29d12fb6): one classifier, per-dial
         IP pin, `DATA_PLANE_DIAL_GUARD=off|shadow|enforce` default `off`, a typo refuses
-        startup, provenance from the resolver only. Gate m244 in CI. D2 MSSQL (C10) and
-        D4 DynamoDB (C12) open; D3b Mongo SDAM and subnet enforce BLOCKED.
+        startup, provenance from the resolver only. Gate m244 in CI. D4 DynamoDB (C12)
+        open; D3b Mongo SDAM and subnet enforce BLOCKED.
   - [x] D3a Redis (C11, 5b84a367): dials `Tcp(<vetted ip>, port)` with db/user/protocol
         kept, unix and TLS addresses refused, 30 s checkout re-vet swaps the manager only
         when the pin leaves the vetted set. Flag off.
+  - [x] D2 SQL Server (C10, 71a0a8f8): own bb8 manager vets the DSN host and the one TDS
+        Routing hop, dials each by its first vetted IP (TLS keeps the name), refuses
+        `host\instance`, prechecks at open. Flag off.
 - [x] HTTP redirects stay on the mount's origin (G2-H1, devil PwC H1–H4). The SSRF pin
       covered only the base host, and reqwest followed any 3xx, so a public upstream could
       redirect into 169.254.169.254. `http/redirect.rs` follows only same scheme, host and port
@@ -293,8 +296,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [x] `requestIdUuid` (bare UUID kept, anything else → UUIDv5 of the whole string) in
       `AuditService.record` and all four outbox inserts; the devil's BLOCK on stripping
       `#counter` lifted (conditions 1–7). jest 686/686; the strip mutation fails the spec.
-- [ ] VM query-router swap in a confirmed window (`:pre-` tag, VM `kong.yml` untouched); probe:
-      a POST's row `request_id` = `requestIdUuid(X-Request-ID)`, two POSTs → two ids.
+- [x] VM query-router swap (`:pre-audit-75407848`, VM `kong.yml` untouched), with the ADR 0020
+      actor fix: probe 2026-10-30 11:30Z wrote 3 rows with distinct UUIDv5 ids; key-only →
+      NULL actor, key + JWT → sub, self-read shows only the user's row, anon reads 0 rows
+      (HTTP 200 `[]`, RLS), nested password stored `[REDACTED]`, 0 insert errors.
 - [ ] Pool max 2 drops rows under a burst (200 of the 231) — grobase#81.
 
 ### Phase 1 — say what a database is bound to
