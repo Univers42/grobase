@@ -19,6 +19,10 @@ if [ ! -s "$src/engine.pem" ] || [ ! -s "$src/engine-key.pem" ]; then
   echo "$name TLS is on but no engine cert in $src: run scripts/certs/generate-engine-cert.sh $name" >&2
   exit 1
 fi
+if ! setpriv --help 2>&1 | grep -q -- --reuid; then
+  echo "$name TLS: this image's setpriv cannot drop root (BusyBox?); rebuild the image" >&2
+  exit 1
+fi
 if [ "$(id -u)" != 0 ]; then
   echo "$name TLS: the overlay must start this as user 0 to hand the key over" >&2
   exit 1
@@ -37,6 +41,11 @@ mongo)
   chown "$uid:$gid" "$dst/server.pem"
   set -- "$@" --tlsMode allowTLS --tlsCertificateKeyFile "$dst/server.pem" \
     --tlsCAFile "$dst/ca.pem" --tlsAllowConnectionsWithoutCertificates
+  ;;
+redis)
+  # TLS on its own port; 6379 stays plaintext for the ~20 consumers that dial it.
+  set -- "$@" --tls-port 6380 --tls-cert-file "$dst/server.crt" --tls-key-file "$dst/server.key" \
+    --tls-ca-cert-file "$dst/ca.pem" --tls-auth-clients no
   ;;
 *)
   echo "engine TLS: no flag set for $name" >&2

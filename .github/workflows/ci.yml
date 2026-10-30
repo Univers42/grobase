@@ -150,6 +150,17 @@ jobs:
       # the CA key, and nothing that runs on every host mints the engine cert (ADR 0011).
       - name: engine TLS opt-in (m247)
         run: bash scripts/verify/m247-engine-tls.sh
+      # Live, docker only: redis has no engine-conformance leg (G5b-C11), so its three boots
+      # run here, on the image built from this commit. The published :latest lacks the
+      # setpriv the TLS wrapper needs until a main push republishes it (ADR 0012).
+      - name: redis engine TLS live boots (m247)
+        env:
+          M247_LIVE: "1"
+          M247_ENGINE: redis
+          M247_IMAGE: m247-local/grobase-redis:ci
+        run: |
+          docker build -q -t "$M247_IMAGE" infra/docker/services/redis
+          bash scripts/verify/m247-engine-tls.sh
 
       # Static legs, no stack (their live legs SKIP here and run against a stack):
       # schema introspection + DDL contract, OLTP batch/aggregate arms and the
