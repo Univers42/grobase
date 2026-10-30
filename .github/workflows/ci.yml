@@ -1556,6 +1556,9 @@ jobs:
           # `build` uses this commit's image: the published :latest has no util-linux setpriv.
           - { engine: mariadb, services: mariadb, profile: engines-extra, tls: mariadb, build: mariadb }
           - { engine: cockroachdb, services: cockroach, profile: engines-extra }
+          # ENGINE_TLS_ENGINES=cockroach (ADR 0029): secure mode with plaintext still accepted;
+          # the pool dials root:<password> over verify-full and m247 adds the rollback leg D.
+          - { engine: cockroachdb, services: cockroach, profile: engines-extra, tls: cockroach }
           - { engine: mssql, services: mssql, profile: engines-extra }
           # ENGINE_TLS_ENGINES=mssql: sqlservr serves the CA-signed cert from MSSQL_TLS_* env;
           # the published image already ships setpriv, so no build. m27 runs the pool with the
@@ -1595,7 +1598,7 @@ jobs:
       - name: m27 battery
         env:
           ENGINE: ${{ matrix.engine }}
-          M27_PG_TLS_CA: ${{ matrix.tls == 'postgres' && format('{0}/certs/engines/ca.pem', github.workspace) || '' }}
+          M27_PG_TLS_CA: ${{ matrix.tls == 'postgres' && format('{0}/certs/engines/ca.pem', github.workspace) || matrix.tls == 'cockroach' && format('{0}/certs/engine-tls/cockroach/ca.pem', github.workspace) || '' }}
           M27_MSSQL_TLS_CA: ${{ matrix.tls == 'mssql' && format('{0}/certs/engine-tls/mssql/ca.pem', github.workspace) || '' }}
         run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m27-conformance.sh "$ENGINE"
       # ADR 0027 D5: with the escape off, the pool refuses the default self-signed mssql cert.
