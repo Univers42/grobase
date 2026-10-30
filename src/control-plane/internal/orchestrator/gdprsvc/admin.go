@@ -32,8 +32,10 @@ func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
 }
 
 // adminProcessDeletion advances a deletion request to the admin-chosen status.
-// On a "completed" transition it fires the app erasure webhook BEFORE marking
-// the request done (parity with the Node ordering).
+// On a "completed" transition it fires the app erasure webhook, then anonymises
+// the user's audit_log rows (so rows written up to the app's delete are caught),
+// then marks the request done. An erase error is a 5xx and the status stays as
+// it was; both steps are idempotent, so the admin retries (ADR 0022).
 func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 	adminID, ok := requireAdminUser(w, r)
 	if !ok {
@@ -48,14 +50,21 @@ func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if status == "completed" {
-		s.doDeletion(r.Context(), req.UserID)
+	if status == "completed" && !s.eraseUser(w, r, req.UserID) {
+		return
 	}
 	updated, err := s.store.updateRequest(r.Context(), id, status, adminID, optional(note))
 	if s.fail(w, err) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, updated)
+}
+
+// eraseUser fires the app webhook, then anonymises the audit rows; false means
+// the erase failed and a 5xx was already written.
+func (s *Service) eraseUser(w http.ResponseWriter, r *http.Request, userID string) bool {
+	s.doDeletion(r.Context(), userID)
+	return !s.fail(w, s.eraseAudit(r.Context(), userID))
 }
 
 // decodeProcess parses the admin process body, validating the status; ok==false

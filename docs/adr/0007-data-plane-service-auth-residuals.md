@@ -32,12 +32,20 @@ Before G1, `data-plane-server` trusted every `/v1/*` request: the body declared 
    orchestrators/compose docker-compose*.yml | wc -l`, develop 2026-10-29). Every holder can
    sign a body asserting any tenant and any role: the signature proves "a platform service sent
    this", not "this service may act for this tenant".
+   *Since [ADR 0023](0023-data-plane-per-caller-keys.md), under `DATA_PLANE_CALLER_POLICY=enforce`:
+   caller class verified; tenant asserted by query-router is trusted.* Each caller signs with its
+   own key, the verifying key decides which routes it may reach, and identity and mount must name
+   one tenant. Which tenant query-router asserts is still not proven. With the policy `off` (the
+   default), this residual stands as written.
 2. **Replay inside the skew.** A captured request replays verbatim for `SERVICE_AUTH_SKEW_SECS`
    (default 120, `service_auth.rs:83-92`, `serviceauth.go:75-79`). There is no nonce cache.
    Exposure is limited to someone already reading compose-network traffic.
 3. **Inline DSN from any token holder.** `inline_dsn` / `replica_inline_dsn` are still accepted
    from any signed body, so a token holder can point the data plane at an arbitrary DSN. G2's
    dial guard bounds where it can connect; it does not bound who may ask.
+   *Since ADR 0023, under enforce: caller class verified; tenant asserted by query-router is
+   trusted.* An inline DSN is admitted only on query-router's routes and on tenant-control's
+   migrate and rotate. Anywhere else it is refused before resolve or dial.
 
 ## Reopen when
 

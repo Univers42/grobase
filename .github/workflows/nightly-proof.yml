@@ -227,7 +227,7 @@ jobs:
   # read-audit line per read with DATA_PLANE_AUDIT_READS, none without. m73: a
   # max_rows mask clamps a list, no mask returns every row.
   vault-credref:
-    name: Scratch data-plane gates (m121, m72, m73)
+    name: Scratch data-plane gates (m121, m72, m73, m243 live)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -262,6 +262,22 @@ jobs:
         env:
           M73_DPR_IMAGE: dpr-nightly:scratch
         run: bash scripts/verify/m73-rows-cap.sh
+
+      # D1 (ADR 0023): the same probe with the caller policy enforced; it signs as
+      # the query-router, so enforce must change nothing it observes.
+      - name: Rows-per-query cap under DATA_PLANE_CALLER_POLICY=enforce (m73, D1)
+        env:
+          M73_DPR_IMAGE: dpr-nightly:scratch
+          DATA_PLANE_CALLER_POLICY: enforce
+        run: bash scripts/verify/m73-rows-cap.sh
+
+      # D1: forged identities and wrong callers 401/403 with zero dials; each
+      # caller's own routes and the Kong relay 200 (tenant-control built here).
+      - name: Caller-class policy, live arms (m243, D1)
+        env:
+          M243_LIVE: "1"
+          M243_DPR_IMAGE: dpr-nightly:scratch
+        run: bash scripts/verify/m243-data-plane-auth.sh
 
   # ─── Job 2b: Load baseline — the "fast" regression guard ─────────────────────
   # m38: a 60 s k6 run of the canonical CRUD mix through Kong at the essential

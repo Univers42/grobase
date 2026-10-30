@@ -129,6 +129,12 @@ DATABASE_URL_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres?sslmode=disa
 # scratch-only value satisfies the guard (the metering consumer mounts no
 # token-protected routes, so any strong value works for this isolated gate).
 SVC_TOKEN="m75-scratch-service-token-$$-$(date +%s)"
+# D1 (ADR 0023): the probe signs its /v1 calls as the query-router with a
+# throwaway key the scratch data plane also gets; DATA_PLANE_CALLER_POLICY=enforce
+# runs it under the caller policy (default off).
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
+svc_scratch_caller_keys
 BODY_TMP="$(mktemp)"
 
 cleanup() {
@@ -167,7 +173,7 @@ batch_data() { # $1=table
 # POST a query to a router on 127.0.0.1:$port; echo HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
-    -H "X-Service-Token: ${SVC_TOKEN}" \
+    -H "X-Service-Token: ${DATA_PLANE_KEY_QUERY_ROUTER}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -336,6 +342,7 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_METERING_REDIS_URL="${REDIS_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${DPR_IMG}" >/dev/null
 wait_http "${DPR_ON}" "${PORT_ON}" "/v1/capabilities" || fail "POSITIVE router not ready (line: wait_http DPR_ON)"
@@ -481,6 +488,7 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_METERING_REDIS_URL="${REDIS_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${DPR_IMG}" >/dev/null
 wait_http "${DPR_ON}" "${PORT_ON}" "/v1/capabilities" || fail "(C1) producer not ready (line: C1 wait_http)"
@@ -515,6 +523,7 @@ docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_METERING_REDIS_URL="${REDIS_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${DPR_IMG}" >/dev/null
 wait_http "${DPR_OFF}" "${PORT_OFF}" "/v1/capabilities" || fail "(C2) PARITY router not ready (line: C2 wait_http)"

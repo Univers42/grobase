@@ -87,8 +87,21 @@ pub(super) fn build_adapters(
         feature = "redis"
     )))]
     let _ = dial_guard;
+    #[cfg(not(any(
+        feature = "dynamodb",
+        feature = "http",
+        feature = "mongodb",
+        feature = "mssql",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "redis",
+        feature = "sqlite"
+    )))]
+    let _ = resolver;
     #[allow(unused_mut)]
-    let mut adapters: Vec<Arc<dyn EngineAdapter>> = Vec::new();
+    // Sized for the full set (pg, cockroach, mongo, mysql, mariadb, redis, dynamo,
+    // sqlite, mssql, http), so a lean build's lone push is not a fresh-Vec push.
+    let mut adapters: Vec<Arc<dyn EngineAdapter>> = Vec::with_capacity(10);
     #[cfg(feature = "postgres")]
     {
         adapters.push(Arc::new(

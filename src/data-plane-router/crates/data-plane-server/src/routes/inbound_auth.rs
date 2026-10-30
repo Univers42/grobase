@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/29 21:11:50 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/29 21:11:50 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 16:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,13 +22,16 @@
 
 use axum::body::Body;
 use axum::extract::{MatchedPath, Request, State};
+use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
 use data_plane_pool::service_auth::{
-    hmac_mode, prev_service_token, service_auth_skew, ServiceAuthVerifier, SignedRequest,
+    hmac_mode, prev_service_token, service_auth_skew, ServiceAuthDenial, SignedRequest,
 };
 
+use super::caller_keys::{CallerClass, CallerPolicyMode};
+use super::caller_policy;
 use super::helpers::api_err;
 use super::state::AppState;
 
@@ -94,14 +97,16 @@ impl std::fmt::Debug for InboundAuth {
     }
 }
 
-fn unix_now() -> i64 {
+pub(super) fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
-/// Logs carry the route template and the denial class only — never the body,
-/// the signature or a token.
+/// One verification serves both rollouts: G1a asks "did any service key
+/// verify", D1 (`caller_policy.rs`) asks "which class, on which route". With
+/// both off the body is never buffered. Logs carry the route template, the
+/// class and the denial reason only — never the body, the signature or a key.
 ///
 /// Caveat: a body that fails to read for another reason (client hang-up, a
 /// broken chunked stream) is also answered 413, in every mode but `off`.
@@ -110,8 +115,8 @@ pub(super) async fn require_service_auth(
     request: Request,
     next: Next,
 ) -> Response {
-    let auth = &state.config.inbound_auth;
-    if auth.mode == InboundAuthMode::Off {
+    let (auth, policy) = (&state.config.inbound_auth, &state.config.caller_policy);
+    if auth.mode == InboundAuthMode::Off && policy.mode == CallerPolicyMode::Off {
         return next.run(request).await;
     }
     let (parts, body) = request.into_parts();
@@ -122,35 +127,54 @@ pub(super) async fn require_service_auth(
             "request body exceeds 2 MiB",
         );
     };
-    let verifier = ServiceAuthVerifier {
-        current: &state.config.internal_service_token,
-        prev: &auth.prev_token,
-        hmac: auth.hmac,
-        skew_secs: auth.skew_secs,
-    };
-    let signed = SignedRequest {
-        method: parts.method.as_str(),
-        path: parts.uri.path(),
-        body: &bytes,
-    };
-    let header = |name: &str| parts.headers.get(name).and_then(|v| v.to_str().ok());
-    if let Err(denial) = verifier.verify(header, &signed, unix_now()) {
-        let route = parts
-            .extensions
-            .get::<MatchedPath>()
-            .map_or("unmatched", MatchedPath::as_str);
-        if auth.mode == InboundAuthMode::Enforce {
-            tracing::warn!(target: "inbound_auth", route, outcome = "deny", reason = denial.as_str());
-            return api_err(
-                StatusCode::UNAUTHORIZED,
-                "service_auth_required",
-                "this route accepts signed service calls only",
-            );
-        }
-        tracing::warn!(target: "inbound_auth", route, outcome = "would_deny", reason = denial.as_str());
+    if let Some(refused) = refusal(&state, &parts, &bytes) {
+        return refused;
     }
     next.run(Request::from_parts(parts, Body::from(bytes)))
         .await
+}
+
+/// The class is identified once and judged by both rollouts, G1a first.
+fn refusal(state: &AppState, parts: &Parts, body: &[u8]) -> Option<Response> {
+    let (auth, policy) = (&state.config.inbound_auth, &state.config.caller_policy);
+    let signed = SignedRequest {
+        method: parts.method.as_str(),
+        path: parts.uri.path(),
+        body,
+    };
+    let header = |name: &str| parts.headers.get(name).and_then(|v| v.to_str().ok());
+    let class = policy.identify(&state.config.internal_service_token, auth, header, &signed);
+    let route = parts
+        .extensions
+        .get::<MatchedPath>()
+        .map_or("unmatched", MatchedPath::as_str);
+    inbound_verdict(auth.mode, route, &class)
+        .or_else(|| caller_policy::verdict(policy.mode, route, &class, body))
+}
+
+/// G1a: any key verifying is enough; `Some(401)` only under enforce.
+fn inbound_verdict(
+    mode: InboundAuthMode,
+    route: &str,
+    class: &Result<CallerClass, ServiceAuthDenial>,
+) -> Option<Response> {
+    let Err(denial) = class else { return None };
+    let reason = denial.as_str();
+    match mode {
+        InboundAuthMode::Off => None,
+        InboundAuthMode::Shadow => {
+            tracing::warn!(target: "inbound_auth", route, outcome = "would_deny", reason);
+            None
+        }
+        InboundAuthMode::Enforce => {
+            tracing::warn!(target: "inbound_auth", route, outcome = "deny", reason);
+            Some(api_err(
+                StatusCode::UNAUTHORIZED,
+                "service_auth_required",
+                "this route accepts signed service calls only",
+            ))
+        }
+    }
 }
 
 #[cfg(test)]

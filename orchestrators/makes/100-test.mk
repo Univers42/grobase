@@ -61,6 +61,11 @@ test-lint-rust: _rust-toolchain ## Lint Rust — cargo clippy -D warnings, BOTH 
 	@$(CARGO_DPR) sh -c 'for f in postgres mysql mssql redis sqlite mongodb http dynamodb; do \
 		cargo clippy -p data-plane-pool --no-default-features --features $$f --all-targets -- -D warnings || exit 1; done' \
 		&& echo -e "$(_G)✓ rust clippy data-plane-pool per engine (zero warnings)$(_0)"
+	@# The lean server SKUs (nano, one) and the limiter alone: the workspace run
+	@# never builds them, so five of their lints sat red unseen until 2026-10-30.
+	@$(CARGO_DPR) sh -c 'for f in ratelimit-redis nano one; do \
+		cargo clippy -p data-plane-server --no-default-features --features $$f --all-targets -- -D warnings || exit 1; done' \
+		&& echo -e "$(_G)✓ rust clippy data-plane-server per SKU (zero warnings)$(_0)"
 	@$(CARGO_REALTIME) sh -c 'rustup component add clippy >/dev/null 2>&1 || true; cargo clippy --workspace --all-targets -- -D warnings' \
 		&& echo -e "$(_G)✓ rust clippy realtime (zero warnings)$(_0)"
 

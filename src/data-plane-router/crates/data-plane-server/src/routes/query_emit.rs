@@ -121,10 +121,12 @@ async fn fan_out_mutation(
     pool: &dyn EnginePool,
     result: &DataResult,
 ) {
-    let _ = (state, ctx, pool, result); // all consumers are feature-gated below
-                                        // Phase 7d: on the bypass write path, emit the row-change event the query-
-                                        // router would have. No-op for reads, the internal path (emit_outbox=false),
-                                        // and when the outbox DSN is unset.
+    // All consumers are feature-gated below; a build with none of them still reads
+    // `emit_outbox` here so the field is not dead code.
+    let _ = (state, ctx.emit_outbox, pool, result);
+    // Phase 7d: on the bypass write path, emit the row-change event the query-
+    // router would have. No-op for reads, the internal path (emit_outbox=false),
+    // and when the outbox DSN is unset.
     #[cfg(feature = "control-pg")]
     if ctx.emit_outbox && ctx.is_mutation {
         if let Some(ob) = state.outbox.as_ref() {

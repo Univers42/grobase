@@ -43,7 +43,7 @@ control-pg = ["dep:deadpool-postgres", "dep:tokio-postgres", "data-plane-pool/ht
 # B4-limiter: authoritative cross-replica rate limiting via a Redis Lua token
 # bucket. OFF by default — the in-process bucket stays the single-node fast path
 # and is byte-parity; activate with the feature + DATA_PLANE_RATELIMIT_BACKEND=redis.
-ratelimit-redis = ["dep:redis-rl"]
+ratelimit-redis = ["dep:redis-rl", "data-plane-pool/redis-tls"]
 # Nano edition (single binary, PocketBase-class): embedded SQLite + a local
 # key store (rusqlite) + uuid v4 for key material. High-entropy keys are
 # stored as SHA-256 digests (sha2 is already in-tree via service_auth) —
@@ -73,8 +73,9 @@ data-plane-pool = { path = "../data-plane-pool", default-features = false }
 # B4-limiter Redis backend. Renamed (package = "redis") so it does NOT collide
 # with the existing `redis` FEATURE (the Redis engine adapter). Pinned to the
 # same 0.27 as the workspace `redis`; optional → compiled only under
-# `ratelimit-redis`.
-redis-rl = { package = "redis", version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"], optional = true }
+# `ratelimit-redis`. Same TLS feature as the workspace edge (D3, ADR 0024): a
+# `rediss://` limiter URL dials TLS with the pool's trust bundle.
+redis-rl = { package = "redis", version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager", "tokio-rustls-comp"], optional = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 # Phase 7 bypass: Rust-native API-key verification (tenant-control) + mount

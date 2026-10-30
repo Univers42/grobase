@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:33:06 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:33:07 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 14:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,6 +27,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_target(true)
         .init();
+
+    // Before any TLS dial: a `--features dynamodb` build links ring and aws-lc-rs,
+    // which leaves rustls no default, and a driver that builds its own config
+    // (redis on `rediss://`, mysql_async) would panic on the first connect (R5).
+    data_plane_pool::ensure_crypto_provider();
 
     let config = ServerConfig::try_from_env()?;
 
