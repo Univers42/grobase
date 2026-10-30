@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:31:58 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:32:01 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,9 +17,9 @@
 //! parameter smuggled into a mount DSN (mongo `tlsInsecure=true`, mysql
 //! `verify_ca=false`; mysql checks its parsed options, `mysql::tls`). Under
 //! `SECURITY_MODE=max` such a mount must be REFUSED, not silently downgraded —
-//! the max-mode guarantee the per-engine `open_pool` paths call. Postgres/MSSQL
-//! have their own dedicated posture (`postgres::effective_tls_mode`,
-//! `mssql::apply_mssql_tls`).
+//! the max-mode guarantee the per-engine `open_pool` paths call. Postgres, MSSQL
+//! and DynamoDB have their own dedicated posture (`postgres::effective_tls_mode`,
+//! `mssql::apply_mssql_tls`, `dynamodb::endpoint_posture`; ADR 0017).
 //!
 //! The `redis` crate is built with no TLS feature (workspace Cargo.toml), so a
 //! `rediss://` mount fails to connect at all: pool Redis speaks plaintext only.
@@ -30,7 +30,13 @@ use data_plane_core::{DataPlaneError, DataPlaneResult};
 
 /// `true` when the data plane runs under `SECURITY_MODE=max`.
 #[cfg_attr(
-    not(any(feature = "mongodb", feature = "redis", feature = "mysql")),
+    not(any(
+        feature = "mongodb",
+        feature = "redis",
+        feature = "mysql",
+        feature = "postgres",
+        feature = "dynamodb"
+    )),
     allow(dead_code)
 )]
 pub(crate) fn max_security() -> bool {

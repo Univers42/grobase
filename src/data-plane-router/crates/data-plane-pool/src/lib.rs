@@ -54,6 +54,8 @@ mod capability_honesty;
 mod credential;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
+#[cfg(feature = "dynamodb")]
+mod dynamodb_endpoint;
 #[cfg(feature = "http")]
 mod http;
 mod ident;

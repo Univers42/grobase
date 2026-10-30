@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:28:55 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:28:56 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -159,15 +159,13 @@ impl EngineAdapter for PostgresEngineAdapter {
             None => dsn,
         };
 
-        // Phase 6: the effective TLS posture. `require` keeps libpq parity
-        // (encrypt, don't verify); `verify-*` (or `require` under
-        // SECURITY_MODE=max) verifies the chain + hostname. None → NoTls (local).
-        let max_security = std::env::var("SECURITY_MODE")
-            .map(|v| v.eq_ignore_ascii_case("max"))
-            .unwrap_or(false);
-        let tls_mode = conn::effective_tls_mode(&dsn, max_security);
+        // Phase 6 + ADR 0017: the effective TLS posture (`conn::effective_tls_mode`).
+        // Baseline follows the DSN; SECURITY_MODE=max verifies every mount or
+        // refuses it here, before any pool exists.
+        let tls_mode = conn::effective_tls_mode(&dsn, crate::tls::max_security())?;
         let mut cfg = DeadpoolConfig::new();
         cfg.url = Some(conn::wire_dsn(&dsn));
+        conn::pin_tls(&mut cfg, tls_mode);
         cfg.pool = Some(PoolConfig::new(mount.pool_policy.max.max(1) as usize));
         // Track C / C1: under a transaction-mode pooler, client-side
         // prepared-statement/session reuse across pooled checkouts is unsafe (a
@@ -186,9 +184,9 @@ impl EngineAdapter for PostgresEngineAdapter {
             });
         }
 
-        // External mounts (a client's Supabase project) REQUIRE TLS; the DSN
-        // opts in via sslmode=require/verify-*. Everything else keeps the
-        // NoTls path byte-identical (the local stack's postgres).
+        // A TLS mode (sslmode=require/verify-*, or any mount under max) dials
+        // through rustls with the handshake pinned by `pin_tls`. Baseline mounts
+        // without one keep the NoTls path byte-identical (the local stack's postgres).
         let pool = match tls_mode {
             Some(mode) => {
                 let ca_file = std::env::var("DATA_PLANE_TLS_CA_FILE").unwrap_or_default();

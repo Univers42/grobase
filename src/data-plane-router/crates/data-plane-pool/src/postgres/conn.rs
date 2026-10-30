@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:28:57 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/30 09:00:00 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,20 +31,40 @@ pub(super) enum TlsMode {
     Verify,
 }
 
-/// Parse the strictest TLS verification a DSN asks for. Then apply the security
-/// posture: under `SECURITY_MODE=max`, a bare `require` is UPGRADED to verify
-/// (no more accept-any-cert — closes the MITM hole), unless the operator pins a
-/// lower floor. Returns `None` for a non-TLS DSN (the local NoTls parity path).
-pub(super) fn effective_tls_mode(dsn: &str, max_security: bool) -> Option<TlsMode> {
-    let asked = match sslmode::sslmode(dsn).as_deref() {
-        Some("verify-full" | "verify-ca") => Some(TlsMode::Verify),
-        Some("require") => Some(TlsMode::Require),
-        _ => None,
+/// The TLS mode a mount connects with. Baseline follows the DSN: `require`
+/// encrypts, `verify-*` verifies, anything else is `None` (the local NoTls
+/// path). `SECURITY_MODE=max` verifies every mount (ADR 0017, T2): `require`,
+/// `prefer` and no sslmode are upgraded, while `disable` and `allow` are refused.
+/// `disable` states intent max forbids, and tokio-postgres rejects `allow` anyway.
+pub(super) fn effective_tls_mode(
+    dsn: &str,
+    max_security: bool,
+) -> DataPlaneResult<Option<TlsMode>> {
+    let asked = sslmode::sslmode(dsn);
+    let mode = match (asked.as_deref(), max_security) {
+        (Some("verify-full" | "verify-ca"), _) => Some(TlsMode::Verify),
+        (Some("require"), false) => Some(TlsMode::Require),
+        (Some(refused @ ("disable" | "allow")), true) => {
+            return Err(DataPlaneError::Backend {
+                message: format!(
+                    "SECURITY_MODE=max refuses a Postgres mount with sslmode={refused}"
+                ),
+            })
+        }
+        (_, true) => Some(TlsMode::Verify),
+        (_, false) => None,
     };
-    match (asked, max_security) {
-        // Max mode: `require` is upgraded to real verification.
-        (Some(TlsMode::Require), true) => Some(TlsMode::Verify),
-        (other, _) => other,
+    Ok(mode)
+}
+
+/// Make the handshake mandatory whenever a TLS connector is used (ADR 0017, T1).
+/// tokio-postgres defaults to `Prefer`, which falls back to plaintext when the
+/// server answers `N`, so a connector alone would label a plaintext channel
+/// `Verified`. deadpool applies this after parsing the URL, so it also overrides
+/// a DSN's `sslmode=prefer`.
+pub(super) fn pin_tls(cfg: &mut deadpool_postgres::Config, mode: Option<TlsMode>) {
+    if mode.is_some() {
+        cfg.ssl_mode = Some(deadpool_postgres::SslMode::Require);
     }
 }
 
@@ -323,46 +343,97 @@ mod tests {
             );
             let cfg = tokio_postgres::Config::from_str(&wire_dsn(dsn)).expect(dsn);
             assert_eq!(cfg.get_ssl_mode(), tokio_postgres::config::SslMode::Require);
-            assert_eq!(effective_tls_mode(dsn, false), Some(TlsMode::Verify));
+            assert_eq!(
+                effective_tls_mode(dsn, false).unwrap(),
+                Some(TlsMode::Verify)
+            );
         }
         let plain = "postgres://u:p@postgres:5432/db?sslmode=prefer";
         assert_eq!(wire_dsn(plain), plain);
     }
 
     #[test]
-    fn tls_mode_matches_sslmode_and_max_upgrade() {
+    fn baseline_tls_mode_follows_the_dsn() {
         use super::{effective_tls_mode, TlsMode};
-        // Baseline: require encrypts but doesn't verify; verify-* verifies;
-        // prefer/unset stays NoTls (local parity).
-        assert_eq!(
-            effective_tls_mode(
+        for (dsn, want) in [
+            (
                 "postgres://u:p@db.x.supabase.co:5432/db?sslmode=require",
-                false
+                Some(TlsMode::Require),
             ),
-            Some(TlsMode::Require)
-        );
-        assert_eq!(
-            effective_tls_mode("host=db.x.supabase.co sslmode=verify-full user=u", false),
-            Some(TlsMode::Verify)
-        );
-        assert_eq!(
-            effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", false),
-            None
-        );
-        assert_eq!(
-            effective_tls_mode("postgres://u:p@h:5432/db?sslmode=prefer", false),
-            None
-        );
-        // Phase 6: SECURITY_MODE=max UPGRADES `require` to real verification
-        // (closes the accept-any-cert MITM hole) — but never weakens a NoTls DSN.
-        assert_eq!(
-            effective_tls_mode("postgres://u:p@h:5432/db?sslmode=require", true),
-            Some(TlsMode::Verify)
-        );
-        assert_eq!(
-            effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", true),
-            None
-        );
+            (
+                "host=db.x.supabase.co sslmode=verify-full user=u",
+                Some(TlsMode::Verify),
+            ),
+            ("postgres://postgres:pw@postgres:5432/commerce", None),
+            ("postgres://u:p@h:5432/db?sslmode=prefer", None),
+            ("postgres://u:p@h:5432/db?sslmode=disable", None),
+            ("postgres://u:p@h:5432/db?sslmode=allow", None),
+        ] {
+            assert_eq!(effective_tls_mode(dsn, false).unwrap(), want, "{dsn}");
+        }
+    }
+
+    // ADR 0017 T2/T5: max verifies every mount or refuses it; a CockroachDB DSN
+    // (same adapter, often `--insecure`) gets the same decision.
+    #[test]
+    fn max_tls_mode_verifies_or_refuses() {
+        use super::{effective_tls_mode, TlsMode};
+        for dsn in [
+            "postgres://u:p@h:5432/db?sslmode=require",
+            "postgres://u:p@h:5432/db?sslmode=prefer",
+            "postgres://postgres:pw@postgres:5432/commerce",
+            "host=h user=u sslmode=verify-ca",
+            "postgresql://root@crdb:26257/defaultdb",
+        ] {
+            assert_eq!(
+                effective_tls_mode(dsn, true).unwrap(),
+                Some(TlsMode::Verify),
+                "{dsn}"
+            );
+        }
+        for (dsn, mode) in [
+            ("postgres://u:secret@h:5432/db?sslmode=disable", "disable"),
+            ("host=h user=u password=secret sslmode=allow", "allow"),
+            (
+                "postgresql://root@crdb:26257/defaultdb?sslmode=disable",
+                "disable",
+            ),
+        ] {
+            let err = effective_tls_mode(dsn, true).unwrap_err().to_string();
+            assert!(err.contains(&format!("sslmode={mode}")), "{err}");
+            assert!(err.contains("SECURITY_MODE=max"), "{err}");
+            assert!(
+                !err.contains("secret") && !err.contains("@h"),
+                "error leaks the DSN: {err}"
+            );
+        }
+    }
+
+    // ADR 0017 T1: every TLS mode reaches tokio-postgres as `Require`, so a server
+    // answering `N` fails the dial instead of falling back to plaintext.
+    #[test]
+    fn tls_modes_pin_the_handshake() {
+        use super::{effective_tls_mode, pin_tls, wire_dsn};
+        use tokio_postgres::config::SslMode;
+        for (dsn, max) in [
+            ("postgres://u:p@h:5432/db", true),
+            ("postgres://u:p@h:5432/db?sslmode=prefer", true),
+            ("postgres://u:p@h:5432/db?sslmode=require", true),
+            ("postgres://u:p@h:5432/db?sslmode=verify-full", true),
+            ("postgres://u:p@h:5432/db?sslmode=require", false),
+            ("postgres://u:p@h:5432/db?sslmode=verify-ca", false),
+        ] {
+            let mode = effective_tls_mode(dsn, max).unwrap();
+            let mut cfg = deadpool_postgres::Config::new();
+            cfg.url = Some(wire_dsn(dsn));
+            pin_tls(&mut cfg, mode);
+            let got = cfg.get_pg_config().expect(dsn).get_ssl_mode();
+            assert_eq!(got, SslMode::Require, "{dsn} max={max}");
+        }
+        // Baseline NoTls stays untouched (T3).
+        let mut cfg = deadpool_postgres::Config::new();
+        pin_tls(&mut cfg, None);
+        assert!(cfg.ssl_mode.is_none());
     }
 
     #[test]
@@ -381,12 +452,17 @@ mod tests {
         // The label composes with the mode open_pool would connect with:
         // SECURITY_MODE=max upgrades `require` → the probe says Verified.
         assert_eq!(
-            tls_posture(effective_tls_mode("postgres://h/d?sslmode=require", true)),
+            tls_posture(effective_tls_mode("postgres://h/d?sslmode=require", true).unwrap()),
+            TlsPosture::Verified
+        );
+        // Max upgrades a bare DSN too → Verified (T11).
+        assert_eq!(
+            tls_posture(effective_tls_mode("postgres://h/d", true).unwrap()),
             TlsPosture::Verified
         );
         // Baseline `require` encrypts without verifying → Encrypted.
         assert_eq!(
-            tls_posture(effective_tls_mode("postgres://h/d?sslmode=require", false)),
+            tls_posture(effective_tls_mode("postgres://h/d?sslmode=require", false).unwrap()),
             TlsPosture::Encrypted
         );
     }

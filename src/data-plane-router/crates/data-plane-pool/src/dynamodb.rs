@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:31:31 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:31:32 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:30:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -855,6 +855,11 @@ impl TxHandle for DynamoTxHandle {
 
 // ── client construction (endpoint-agnostic) ──────────────────────────────────
 
+/// Caveat: outside `SECURITY_MODE=max` this reads the DSN only, but
+/// `AWS_ENDPOINT_URL_DYNAMODB` / `AWS_ENDPOINT_URL` or a profile `endpoint_url`
+/// can still redirect the dial, so the label can say `Verified` over an `http://`
+/// dial. Under max the dial is pinned to the DSN (`dynamodb_endpoint`) and the
+/// label is exact.
 fn endpoint_posture(endpoint: Option<&str>) -> TlsPosture {
     let Some(endpoint) = endpoint else {
         return TlsPosture::Verified;
@@ -887,6 +892,8 @@ fn endpoint_posture(endpoint: Option<&str>) -> TlsPosture {
 async fn build_client(dsn: &str) -> DataPlaneResult<(Client, TlsPosture)> {
     let parsed = parse_dynamo_dsn(dsn)?;
     let tls = endpoint_posture(parsed.endpoint.as_deref());
+    let max_security = crate::tls::max_security();
+    crate::dynamodb_endpoint::refuse_unverified(tls, max_security)?;
     let region = Region::new(parsed.region);
     let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest()).region(region);
     if let Some(endpoint) = parsed.endpoint.as_deref() {
@@ -896,7 +903,12 @@ async fn build_client(dsn: &str) -> DataPlaneResult<(Client, TlsPosture)> {
         loader = loader.credentials_provider(Credentials::new(ak, sk, None, None, "grobase-dsn"));
     }
     let conf = loader.load().await;
-    Ok((Client::new(&conf), tls))
+    let client = if max_security {
+        Client::from_conf(crate::dynamodb_endpoint::pinned_builder(&conf, parsed.endpoint).build())
+    } else {
+        Client::new(&conf)
+    };
+    Ok((client, tls))
 }
 
 struct DynamoDsn {
