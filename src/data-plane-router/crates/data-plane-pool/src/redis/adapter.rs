@@ -14,27 +14,38 @@
 //! advertises the engine's capabilities + supported operation set.
 
 use super::convert::resolve_namespace;
+use super::dial::DialManager;
 use super::pool::RedisPool;
 use super::SUPPORTED_OPS;
+use crate::dial_guard::scope::DialScope;
+use crate::dial_guard::DialGuardMode;
 use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
-    DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
-    EngineCapabilities, EngineHealth, EnginePool,
+    DataOperationKind, DataPlaneResult, DatabaseMount, EngineAdapter, EngineCapabilities,
+    EngineHealth, EnginePool,
 };
-use redis::aio::{ConnectionManager, ConnectionManagerConfig};
-use redis::Client;
 use std::sync::Arc;
-use std::time::Duration;
 
 pub struct RedisEngineAdapter {
     resolver: Arc<dyn MountResolver>,
+    dial_guard: DialGuardMode,
 }
 
 impl RedisEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self { resolver }
+        Self {
+            resolver,
+            dial_guard: DialGuardMode::Off,
+        }
+    }
+
+    /// G2 (ADR 0019): guard every Tenant dial; `Off` (the default) changes nothing.
+    #[must_use]
+    pub fn with_dial_guard(mut self, mode: DialGuardMode) -> Self {
+        self.dial_guard = mode;
+        self
     }
 }
 
@@ -53,17 +64,12 @@ impl EngineAdapter for RedisEngineAdapter {
     }
 
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
-        let dsn = self.resolver.resolve_dsn(&mount).await?;
+        let resolved = self.resolver.resolve(&mount).await?;
         // Phase B: refuse the redis `rediss://…#insecure` cert-skip under max.
-        crate::tls::reject_insecure_tls(&dsn, crate::tls::max_security(), &["#insecure"])?;
-        let client = Client::open(dsn.as_str()).map_err(|e| DataPlaneError::Backend {
-            message: format!("invalid redis URL: {e}"),
-        })?;
-        let manager = ConnectionManager::new_with_config(client, manager_config())
-            .await
-            .map_err(|e| DataPlaneError::Backend {
-                message: format!("redis connection manager init failed: {e}"),
-            })?;
+        crate::tls::reject_insecure_tls(&resolved.dsn, crate::tls::max_security(), &["#insecure"])?;
+        // G2: Off or a Platform DSN → no scope, the manager is built as before.
+        let scope = DialScope::for_mount(self.dial_guard, "redis", &mount, resolved.provenance);
+        let manager = DialManager::open(&resolved.dsn, scope).await?;
         // schema_per_tenant: a per-tenant namespace segment prepended to every
         // key (`<namespace>:<owner>:<resource>:<id>`). Derived from the mount's
         // tenant_id (identity-independent) so resolved once here; `None` for
@@ -83,17 +89,4 @@ impl EngineAdapter for RedisEngineAdapter {
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
         Ok(EngineHealth::unknown("redis", pool.mount_id()))
     }
-}
-
-/// redis-rs 0.27 hands `factor` (100) to backon as a multiplier on its 1 s base, so
-/// the default retry delays climb to backon's 60 s cap: a refused port held
-/// `open_pool` over 120 s (measured, `canary.rs`). Bounded to 3 retries of ≤ 0.5 s.
-///
-/// Caveat: a host that accepts TCP and never answers still holds `open_pool` for
-/// about 4 × 5 s; the same bound applies to background reconnects after a drop.
-fn manager_config() -> ConnectionManagerConfig {
-    ConnectionManagerConfig::new()
-        .set_connection_timeout(Duration::from_secs(5))
-        .set_max_delay(500)
-        .set_number_of_retries(3)
 }

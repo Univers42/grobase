@@ -1,6 +1,6 @@
 # 0019 — Every tenant DB dial goes through one guard that resolves, classifies and pins the IP at dial time
 
-- Status: proposed. On 2026-10-30 the devil ruled D1, D2, D3a (Redis) and D4 PROCEED-WITH-CONDITIONS (C1–C14), D3b (Mongo, as planned) BLOCK, and enforce on the VM with a subnet-wide allowlist BLOCK.
+- Status: proposed; D1 (pgwire, MySQL) and D3a (Redis) delivered, flag off. On 2026-10-30 the devil ruled D1, D2, D3a (Redis) and D4 PROCEED-WITH-CONDITIONS (C1–C14), D3b (Mongo, as planned) BLOCK, and enforce on the VM with a subnet-wide allowlist BLOCK.
 - D1 delivered 2026-10-30, flag default `off`: one classifier, the mode flag, provenance, and pgwire and MySQL pinning (section D1). The Rust gate and `m244` are green. D2–D4 and any VM flip are not started.
 - Date: 2026-10-30
 - Deciders: devil (ruling). Owners of data-plane-pool and of every live mount on the VM.
@@ -73,3 +73,17 @@ The classifier the http engine calls now refuses more. Everything the pre-G2 cla
 - MySQL re-vets every 30 s, at checkout, rather than at each connect. A DNS change reaches the pool up to 30 s late, and every connection still goes to a vetted address.
 - `system_lookup` returns what the system resolver says at that moment. The pin closes rebinding between the check and the connect, but not a resolver that is itself compromised.
 - Under enforce, the pgwire per-dial refusal surfaces as a generic tokio-postgres config error, because tokio-postgres has no public error constructor. The `dial_guard deny` log line names the class. The open-time refusal names it in the error too.
+
+## D3a — Redis (C11)
+
+Code lives in `data-plane-pool/src/redis/dial.rs`; the tests are `redis/dial_tests.rs`.
+
+- **No TLS caveat.** The `redis` dependency has no TLS feature, so `rediss://` fails at parse and there is no SNI to keep. A `TcpTls` address is still refused, rather than trusting that.
+- **Unix refused.** A `redis+unix://` DSN is refused under enforce and logged as `would_deny` (class `unix_socket`) under shadow, like MySQL's `socket=`.
+- **Pinned.** Under enforce the guard dials `ConnectionAddr::Tcp(<vetted ip>, port)` with the parsed db, username, password and protocol unchanged; the driver never resolves the name. `off` and Platform DSNs open exactly as before.
+- **Re-vet.** `ConnectionManager` has no per-connection hook. At checkout, at most every 30 s, the guard re-vets; it builds a new manager only when the pinned IP is no longer in the vetted set, then swaps it in. A failed connect keeps the old manager and the old pin.
+
+### Caveats D3a ships with
+
+- `ConnectionManager` reconnects on its own to the pinned IP. A DNS change reaches the mount up to 30 s late.
+- Under shadow, a refused host logs once per re-vet interval, not once per connection.

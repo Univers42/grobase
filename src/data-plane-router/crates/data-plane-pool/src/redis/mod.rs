@@ -29,6 +29,9 @@
 
 mod adapter;
 mod convert;
+mod dial;
+#[cfg(test)]
+mod dial_tests;
 mod pool;
 mod query;
 mod validate;

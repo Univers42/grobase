@@ -77,8 +77,8 @@ pub(super) fn build_adapters(
     resolver: &Arc<EnvMountResolver>,
     dial_guard: DialGuardMode,
 ) -> Vec<Arc<dyn EngineAdapter>> {
-    // G2 D1 guards pgwire and MySQL only; a build without both has nothing to guard.
-    #[cfg(not(any(feature = "postgres", feature = "mysql")))]
+    // G2 D1/D3a guards pgwire, MySQL and Redis; a build without them has nothing to guard.
+    #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "redis")))]
     let _ = dial_guard;
     #[allow(unused_mut)]
     let mut adapters: Vec<Arc<dyn EngineAdapter>> = Vec::new();
@@ -109,7 +109,9 @@ pub(super) fn build_adapters(
         ));
     }
     #[cfg(feature = "redis")]
-    adapters.push(Arc::new(RedisEngineAdapter::new(resolver.clone())));
+    adapters.push(Arc::new(
+        RedisEngineAdapter::new(resolver.clone()).with_dial_guard(dial_guard),
+    ));
     // 8th adapter (OFF by default): DynamoDB-compatible engine (AWS DynamoDB
     // / DynamoDB-Local / ScyllaDB Alternator). cfg-gated so the default
     // adapter set is byte-identical to today.

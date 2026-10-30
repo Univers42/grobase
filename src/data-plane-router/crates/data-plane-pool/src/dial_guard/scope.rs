@@ -100,7 +100,7 @@ pub(crate) fn fixed_lookup(
 
 /// Accepts on `listener`, reports `label` per connection, drops the socket
 /// (tests only).
-#[cfg(test)]
+#[cfg(all(test, any(feature = "postgres", feature = "mysql")))]
 pub(crate) fn count_accepts(
     listener: tokio::net::TcpListener,
     label: &'static str,

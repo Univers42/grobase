@@ -28,15 +28,17 @@ pub(crate) enum DenyClass {
     Private,
     // Only the engine dials (scope.rs) refuse by name, socket or lookup;
     // http reports its own messages for those.
-    #[cfg(any(feature = "postgres", feature = "mysql"))]
+    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
     InternalName,
-    #[cfg(any(feature = "postgres", feature = "mysql"))]
+    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
     UnixSocket,
-    #[cfg(any(feature = "postgres", feature = "mysql"))]
+    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
+    Tls,
+    #[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
     Unresolved,
 }
 
-#[cfg(any(feature = "postgres", feature = "mysql"))]
+#[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
 impl DenyClass {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
@@ -48,6 +50,7 @@ impl DenyClass {
             Self::Private => "private",
             Self::InternalName => "internal_name",
             Self::UnixSocket => "unix_socket",
+            Self::Tls => "tls",
             Self::Unresolved => "unresolved",
         }
     }
