@@ -1718,6 +1718,32 @@ jobs:
           docker build -q -t "$M262_IMAGE" infra/docker/services/minio
           bash scripts/ci/retry-on-429.sh bash scripts/verify/m262-minio-https.sh
 
+  # ─── Data-plane TLS, accept-mode overlay (G5, ADR 0031) ────────
+  # ENGINE_TLS_ENGINES=data-plane adds :4012 beside plaintext :4011 and moves the two signing
+  # callers to it; the default renders stay byte-identical (DT8). Static legs, then throwaway
+  # boots: s_client refusals, uid 65532 on a 0400 key, both tenant-control clients and
+  # query-router's Node with their trust knob and without it.
+  data-plane-tls:
+    name: Data-plane TLS overlay (m263)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # M263_*_IMAGE unset: the router and tenant-control images are built from this commit,
+      # so the main-built :latest (no TLS listener) cannot stand in.
+      - name: data-plane TLS overlay (m263)
+        env:
+          M263_LIVE: "1"
+        run: |
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          bash scripts/ci/retry-on-429.sh bash scripts/verify/m263-data-plane-tls.sh
+
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
   # plane, so the realtime workspace drifted red unnoticed (issue #19). Both

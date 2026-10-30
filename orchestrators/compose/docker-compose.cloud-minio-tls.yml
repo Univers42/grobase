@@ -4,7 +4,9 @@
 # https:// lives here rather than in docker-compose.engine-tls-minio.yml, where it would turn
 # that store on for every stack.
 # Go reads SSL_CERT_DIR on top of its default bundle; SSL_CERT_FILE would replace the bundle
-# and break the control-plane's public HTTPS calls (JWKS, webhooks, CMEK).
+# and break the control-plane's public HTTPS calls (JWKS, webhooks, CMEK). The list keeps
+# docker-compose.engine-tls-data-plane.yml's CA directory, which this file overrides when both
+# are composed; Go skips a directory that does not exist (ADR 0031 DT14).
 services:
   tenant-control:
     volumes:
@@ -16,4 +18,4 @@ services:
           create_host_path: false
     environment:
       MINIO_ENDPOINT: ${TENANT_BACKUP_MINIO_ENDPOINT:-https://minio:9000}
-      SSL_CERT_DIR: /etc/minio-ca:/etc/ssl/certs
+      SSL_CERT_DIR: /etc/minio-ca:/etc/data-plane-ca:/etc/ssl/certs

@@ -1,0 +1,56 @@
+# docker-compose.engine-tls-data-plane.yml — the data plane's TLS port (G5, docs/adr/0031-g5-data-plane-tls-accept-mode.md).
+# Opt-in: ENGINE_TLS_ENGINES lists data-plane (env, or an ENGINE_TLS_ENGINES= line in .env.local;
+# orchestrators/makes/00-config.mk). Without it nothing here is composed (DT8).
+#
+# Accept mode, like G5a: the router keeps its plaintext :4011 (Kong's hop and the probes stay
+# on it) and adds TLS on :4012 with the same routes. query-router and tenant-control, the two
+# callers that sign their requests, switch to https:// here, each with only the public ca.pem.
+# 4012 is never published to the host. The cert comes from
+# `scripts/certs/generate-engine-cert.sh data-plane`, which gives the key to uid 65532 (DT1).
+#
+# Caveat: a host or .env RUST_DATA_PLANE_URL overrides the https:// default below for both
+# callers, so an operator's http:// value silently keeps them on plaintext; m263 checks the
+# rendered default only. engine.pem lasts 397 days and both callers verify it: renew, then
+# recreate data-plane-router-rust.
+x-data-plane-ca: &data-plane-ca
+  type: bind
+  source: ${ENGINE_TLS_DATA_PLANE_CERT_DIR:-./certs/engine-tls/data-plane}/ca.pem
+  target: /etc/data-plane-ca/ca.pem
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  data-plane-router-rust:
+    # The pulled :latest predates the TLS listener until main publishes it; its healthcheck
+    # would then fail on the unbound port (DT11) rather than serve plaintext only.
+    pull_policy: build
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_DATA_PLANE_CERT_DIR:-./certs/engine-tls/data-plane}
+        target: /etc/data-plane-tls
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      DATA_PLANE_ROUTER_TLS_CERT_FILE: /etc/data-plane-tls/engine.pem
+      DATA_PLANE_ROUTER_TLS_KEY_FILE: /etc/data-plane-tls/engine-key.pem
+      DATA_PLANE_ROUTER_TLS_PORT: "4012"
+
+  query-router:
+    volumes:
+      - *data-plane-ca
+    environment:
+      RUST_DATA_PLANE_URL: ${RUST_DATA_PLANE_URL:-https://data-plane-router-rust:4012}
+      # Added to the bundled roots, so public HTTPS keeps working; NODE_OPTIONS is untouched.
+      NODE_EXTRA_CA_CERTS: /etc/data-plane-ca/ca.pem
+
+  # Go reads SSL_CERT_DIR on top of its default bundle; SSL_CERT_FILE would replace it and
+  # break the public HTTPS calls (JWKS, webhooks). docker-compose.cloud-minio-tls.yml, composed
+  # later, keeps this directory in its own list (DT14).
+  tenant-control:
+    volumes:
+      - *data-plane-ca
+    environment:
+      RUST_DATA_PLANE_URL: ${RUST_DATA_PLANE_URL:-https://data-plane-router-rust:4012}
+      SSL_CERT_DIR: /etc/data-plane-ca:/etc/ssl/certs
