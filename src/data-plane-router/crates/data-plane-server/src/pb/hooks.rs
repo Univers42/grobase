@@ -186,7 +186,7 @@ fn cron_field_matches(field: &str, value: u32) -> bool {
     if let Some(step) = field.strip_prefix("*/") {
         return step
             .parse::<u32>()
-            .map(|s| s > 0 && value % s == 0)
+            .map(|s| s > 0 && value.is_multiple_of(s))
             .unwrap_or(false);
     }
     field
