@@ -389,6 +389,7 @@ services:
         required: false
     environment:
       <<: *go-env
+      AUDIT_LOG_RETENTION_DAYS:
       BILLING_PERIOD:
       BILLING_REPORT_LOOKBACK_MS:
       BILLING_SEND_WINDOW_TIMESTAMP:

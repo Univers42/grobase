@@ -14,7 +14,9 @@
 //
 // It ports all three NestJS modules: consent (CRUD over gdpr.user_consent),
 // deletion-requests (right-to-be-forgotten lifecycle + admin processing), and
-// export (GDPR data portability). Domain-specific data export/erasure is
+// export (GDPR data portability). It also owns audit_log retention and the
+// erasure of a completed request's audit rows (audit.go, ADR 0022): rolling back
+// to the legacy-node gdpr-service loses both. Domain-specific data export/erasure is
 // delegated to consuming-app webhooks (GDPR_EXPORT_WEBHOOK_URL /
 // GDPR_DELETION_WEBHOOK_URL) via seams that are byte-faithful to the Node fetch
 // calls and fakeable in tests. Running it inside the orchestrator binary instead
@@ -49,6 +51,8 @@ type repo interface {
 	allRequests(ctx context.Context, status string) ([]DeletionRequest, error)
 	getRequest(ctx context.Context, id string) (*DeletionRequest, error)
 	updateRequest(ctx context.Context, id, status, adminID string, note *string) (*DeletionRequest, error)
+	eraseAuditActor(ctx context.Context, userID string) (int64, error)
+	purgeAuditLog(ctx context.Context, days, batch int) (int64, error)
 }
 
 // exportFn fetches an app's domain data for a user (GDPR_EXPORT_WEBHOOK_URL).
@@ -59,21 +63,26 @@ type deletionFn func(ctx context.Context, userID string)
 
 // Service is the gdpr sub-service.
 type Service struct {
-	log        *slog.Logger
-	store      repo
-	doExport   exportFn
-	doDeletion deletionFn
+	log           *slog.Logger
+	store         repo
+	doExport      exportFn
+	doDeletion    deletionFn
+	retentionDays int   // audit_log retention; 0 = disabled (audit.go)
+	retentionErr  error // why a set AUDIT_LOG_RETENTION_DAYS was refused
 }
 
 // New builds the service from env, wiring the webhook seams to their default
 // HTTP implementations.
 func New(log *slog.Logger, pg *pg.Postgres) *Service {
 	client := &http.Client{Timeout: 10 * time.Second}
+	days, err := parseRetentionDays(os.Getenv("AUDIT_LOG_RETENTION_DAYS"))
 	return &Service{
-		log:        log,
-		store:      &store{pg: pg},
-		doExport:   httpExport(client, os.Getenv("GDPR_EXPORT_WEBHOOK_URL"), log),
-		doDeletion: httpDeletion(client, os.Getenv("GDPR_DELETION_WEBHOOK_URL"), log),
+		log:           log,
+		store:         &store{pg: pg},
+		doExport:      httpExport(client, os.Getenv("GDPR_EXPORT_WEBHOOK_URL"), log),
+		doDeletion:    httpDeletion(client, os.Getenv("GDPR_DELETION_WEBHOOK_URL"), log),
+		retentionDays: days,
+		retentionErr:  err,
 	}
 }
 
@@ -103,6 +112,3 @@ func (s *Service) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /deletion-requests/admin", s.adminListDeletions)
 	mux.HandleFunc("POST /deletion-requests/admin/{id}/process", s.adminProcessDeletion)
 }
-
-// Run has no background loop; it parks until shutdown.
-func (s *Service) Run(ctx context.Context) { <-ctx.Done() }
