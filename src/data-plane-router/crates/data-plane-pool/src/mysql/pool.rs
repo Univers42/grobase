@@ -39,7 +39,8 @@ pub struct MysqlPool {
     /// isolation — `self.tenant_id` has no single value to assert). See
     /// `crate::pools_shared` and the postgres adapter.
     pub(super) shared_pool: bool,
-    pub(super) pool: Pool,
+    /// The driver pool, behind the G2 dial guard when one applies.
+    pub(super) pool: super::dial::DialPool,
     /// `Some("tenant_<id>")` for `schema_per_tenant` mounts: the per-tenant
     /// database selected via `USE` on every checkout. `None` (shared_rls /
     /// db_per_tenant) means no `USE` — the DSN-default database, as before G5.
@@ -189,10 +190,10 @@ impl EnginePool for MysqlPool {
     }
 
     async fn close(&self) -> DataPlaneResult<()> {
-        // `mysql_async::Pool::disconnect` consumes the pool but Pool is a cheap
-        // Arc so cloning is fine; outstanding connections drop independently.
-        let pool = self.pool.clone();
-        pool.disconnect()
+        // `DialPool::disconnect` closes a clone of the current driver pool (a
+        // cheap Arc); outstanding connections drop independently.
+        self.pool
+            .disconnect()
             .await
             .map_err(|e| DataPlaneError::Backend {
                 message: format!("mysql pool disconnect failed: {e}"),

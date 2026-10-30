@@ -20,6 +20,7 @@
 //! dispatch, same error classification, same RLS context.
 //!
 //! - [`conn`] — TLS posture + connection-pooler DSN repoint (pure helpers).
+//! - [`dial`] — the G2 dial guard: classify and pin every physical connect.
 //! - [`adapter`] — `PgDialect`, the `EngineAdapter` impl (`open_pool`), and the
 //!   `PostgresPool` struct with its tenant cross-check.
 //! - [`pool`] — the `EnginePool` impl (execute/begin/close/raw + the schema
@@ -41,6 +42,9 @@ mod convert;
 mod crud;
 mod crud_build;
 mod ddl;
+mod dial;
+#[cfg(test)]
+mod dial_tests;
 mod filter;
 mod pool;
 mod query;

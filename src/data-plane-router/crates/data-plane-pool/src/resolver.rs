@@ -25,6 +25,48 @@ use std::time::{Duration, Instant};
 #[async_trait]
 pub trait MountResolver: Send + Sync {
     async fn resolve_dsn(&self, mount: &DatabaseMount) -> DataPlaneResult<String>;
+
+    /// The DSN and which step produced it (G2 C5). The default is `Tenant`:
+    /// a resolver that does not say where a DSN came from is not trusted.
+    async fn resolve(&self, mount: &DatabaseMount) -> DataPlaneResult<ResolvedDsn> {
+        Ok(ResolvedDsn::tenant(self.resolve_dsn(mount).await?))
+    }
+}
+
+/// Who wrote the DSN a pool dials. Derived from the resolver step, never from
+/// the request: `DatabaseMount` has no such field, so a body cannot claim it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provenance {
+    /// The operator's static `DATA_PLANE_MOUNTS` map. Not dial-guarded.
+    Platform,
+    /// An inline DSN, a replica DSN or a credential provider. Dial-guarded.
+    Tenant,
+}
+
+impl Provenance {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Platform => "platform",
+            Self::Tenant => "tenant",
+        }
+    }
+}
+
+/// A resolved DSN with its [`Provenance`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedDsn {
+    pub dsn: String,
+    pub provenance: Provenance,
+}
+
+impl ResolvedDsn {
+    fn tenant(dsn: String) -> Self {
+        Self {
+            dsn,
+            provenance: Provenance::Tenant,
+        }
+    }
 }
 
 /// Process-wide DSN cache (gap G8, default OFF). Keyed by
@@ -191,13 +233,17 @@ impl EnvMountResolver {
 #[async_trait]
 impl MountResolver for EnvMountResolver {
     async fn resolve_dsn(&self, mount: &DatabaseMount) -> DataPlaneResult<String> {
+        self.resolve(mount).await.map(|r| r.dsn)
+    }
+
+    async fn resolve(&self, mount: &DatabaseMount) -> DataPlaneResult<ResolvedDsn> {
         // 1. Inline DSN wins — PARITY-CRITICAL. The TS query-router proxy already
         //    fetched `connection_string` and supplied it inline; this branch MUST
         //    stay first so that hot 201 path is byte-unchanged. Providers (step 2)
         //    only ever run when inline is absent.
         if let Some(dsn) = mount.inline_dsn.as_ref() {
             if !dsn.trim().is_empty() {
-                return Ok(dsn.clone());
+                return Ok(ResolvedDsn::tenant(dsn.clone()));
             }
         }
         // 2. Pluggable credential providers (gap G8). Single O(1) dispatch keyed
@@ -210,11 +256,11 @@ impl MountResolver for EnvMountResolver {
         if let Some(provider) = self.providers.get(&mount.credential_ref.provider) {
             let pool_key = mount.pool_key();
             if let Some(dsn) = self.cache.get(&pool_key) {
-                return Ok(dsn);
+                return Ok(ResolvedDsn::tenant(dsn));
             }
             let dsn = provider.resolve_dsn(mount).await?;
             self.cache.put(&pool_key, &dsn);
-            return Ok(dsn);
+            return Ok(ResolvedDsn::tenant(dsn));
         }
         // 3. db_per_tenant fail-closed RUNTIME guard (M3, relocated for G8 per
         //    D-extra). A `db_per_tenant` mount MUST resolve to its own distinct
@@ -236,7 +282,10 @@ impl MountResolver for EnvMountResolver {
         //    Only reachable for shared_rls / schema_per_tenant (db_per_tenant
         //    already returned above) AND when no provider answered.
         if let Some(dsn) = self.entries.get(&mount.credential_ref.reference) {
-            return Ok(dsn.clone());
+            return Ok(ResolvedDsn {
+                dsn: dsn.clone(),
+                provenance: Provenance::Platform,
+            });
         }
         // 5. Fail closed: no inline DSN, no provider, no registry entry → no
         //    connection string. There is no shared-DSN fallback for any strategy,
@@ -572,5 +621,59 @@ mod tests {
             matches!(err, DataPlaneError::CredentialUnavailable { .. }),
             "db_per_tenant with no provider must fail closed, not borrow the shared map: {err:?}"
         );
+    }
+
+    // G2 C5: only the static map is Platform; every other step is Tenant.
+    #[tokio::test]
+    async fn provenance_is_platform_only_for_the_static_map() {
+        let r = EnvMountResolver::from_json(r#"{"cred-a":"postgres://env"}"#);
+        let platform = r.resolve(&mount("cred-a", None, None)).await.unwrap();
+        assert_eq!(platform.provenance, Provenance::Platform);
+        let inline = mount("cred-a", None, Some("postgres://inline"));
+        assert_eq!(
+            r.resolve(&inline).await.unwrap().provenance,
+            Provenance::Tenant
+        );
+        let mut primary = mount("cred-a", None, None);
+        primary.replica_inline_dsn = Some("postgres://replica".into());
+        let replica = primary.read_replica_variant().expect("variant");
+        assert_eq!(
+            r.resolve(&replica).await.unwrap().provenance,
+            Provenance::Tenant
+        );
+        let with_p = EnvMountResolver::from_json(r#"{"cred-a":"postgres://env"}"#).with_providers(
+            registry(vec![Arc::new(StubProvider {
+                name: "vault".into(),
+                dsn: "postgres://vault-dsn".into(),
+            })]),
+        );
+        let m = mount_with_provider("vault", "cred-a", None, None);
+        assert_eq!(
+            with_p.resolve(&m).await.unwrap().provenance,
+            Provenance::Tenant
+        );
+        assert_eq!(
+            r.resolve_dsn(&mount("cred-a", None, None)).await.unwrap(),
+            "postgres://env"
+        );
+    }
+
+    // G2 C5: a body cannot claim Platform — the mount has no such field.
+    #[tokio::test]
+    async fn a_provenance_key_in_the_body_has_no_effect() {
+        let m: DatabaseMount = serde_json::from_value(serde_json::json!({
+            "id": "db1", "tenant_id": "t-1", "engine": "postgresql", "name": "n",
+            "credential_ref": {"provider": "inline", "reference": "cred-a", "version": "1"},
+            "inline_dsn": "postgres://u@127.0.0.1/db",
+            "provenance": "platform",
+            "Provenance": "Platform"
+        }))
+        .expect("unknown keys are ignored");
+        let r = EnvMountResolver::from_json(r#"{"cred-a":"postgres://env"}"#);
+        let got = r.resolve(&m).await.unwrap();
+        assert_eq!(got.provenance, Provenance::Tenant);
+        assert_eq!(got.dsn, "postgres://u@127.0.0.1/db");
+        let echoed = serde_json::to_string(&m).expect("serialize");
+        assert!(!echoed.to_lowercase().contains("provenance"), "{echoed}");
     }
 }

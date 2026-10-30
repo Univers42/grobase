@@ -76,12 +76,15 @@ mod tests {
         append_query, encode, extract_scalar, join_url, route_or_default, scalar_id_from_filter,
         scalar_id_from_filter_or_data,
     };
-    use super::validate::{
-        is_blocked_ip, is_http_url, parse_connection, validate_resource, HttpConnection,
-    };
+    use super::validate::{is_http_url, parse_connection, validate_resource, HttpConnection};
     use data_plane_core::{DataOperation, DataOperationKind};
     use serde_json::{json, Value};
     use std::collections::BTreeMap;
+
+    /// The http guard's verdict: refused iff the shared classifier names a class.
+    fn is_blocked_ip(ip: std::net::IpAddr) -> bool {
+        crate::dial_guard::classify::classify(ip).is_some()
+    }
 
     #[test]
     fn ssrf_blocks_internal_and_metadata_ips() {

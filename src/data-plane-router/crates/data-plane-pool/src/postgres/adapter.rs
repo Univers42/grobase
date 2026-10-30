@@ -13,16 +13,15 @@
 //! The `EngineAdapter` front door: dialect selection, pool construction
 //! (`open_pool`), and the `PostgresPool` handle with its tenant cross-check.
 
-use super::conn;
+use super::{conn, dial};
+use crate::dial_guard::DialGuardMode;
 use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
     EngineCapabilities, EngineHealth, EnginePool, Isolation, RequestIdentity, TlsPosture,
 };
-use deadpool_postgres::{
-    Config as DeadpoolConfig, ManagerConfig, PoolConfig, RecyclingMethod, Runtime,
-};
+use deadpool_postgres::{Config as DeadpoolConfig, ManagerConfig, PoolConfig, RecyclingMethod};
 use std::sync::Arc;
 use tokio_postgres::NoTls;
 
@@ -59,15 +58,13 @@ impl PgDialect {
 pub struct PostgresEngineAdapter {
     resolver: Arc<dyn MountResolver>,
     dialect: PgDialect,
+    dial_guard: DialGuardMode,
 }
 
 impl PostgresEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self {
-            resolver,
-            dialect: PgDialect::Postgres,
-        }
+        Self::with_dialect(resolver, PgDialect::Postgres)
     }
 
     /// Build the adapter for a specific pgwire dialect (e.g. CockroachDB). The
@@ -75,7 +72,18 @@ impl PostgresEngineAdapter {
     /// `cockroachdb` mount lands on a Cockroach-dialect instance.
     #[must_use]
     pub fn with_dialect(resolver: Arc<dyn MountResolver>, dialect: PgDialect) -> Self {
-        Self { resolver, dialect }
+        Self {
+            resolver,
+            dialect,
+            dial_guard: DialGuardMode::Off,
+        }
+    }
+
+    /// G2 (ADR 0019): guard every Tenant dial; `Off` (the default) changes nothing.
+    #[must_use]
+    pub fn with_dial_guard(mut self, mode: DialGuardMode) -> Self {
+        self.dial_guard = mode;
+        self
     }
 }
 
@@ -138,7 +146,8 @@ impl EngineAdapter for PostgresEngineAdapter {
     }
 
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
-        let dsn = self.resolver.resolve_dsn(&mount).await?;
+        let resolved = self.resolver.resolve(&mount).await?;
+        let dsn = resolved.dsn;
 
         // Track C / C1: when a connection pooler is wired (`DATA_PLANE_POOLER_URL`
         // set), dial the pooler endpoint instead of the resolved DSN's direct
@@ -184,6 +193,20 @@ impl EngineAdapter for PostgresEngineAdapter {
             });
         }
 
+        // G2: a Tenant DSN under shadow/enforce dials through the guard, which
+        // pins a vetted hostaddr at every physical connect (`dial.rs`). Off or
+        // Platform → `guard` is None and the pool is built exactly as before.
+        let guard = dial::guard_for(
+            self.dial_guard,
+            self.dialect.engine_id(),
+            &mount,
+            resolved.provenance,
+            pooler_url.as_deref(),
+        );
+        if let Some(guard) = &guard {
+            guard.precheck(&cfg).await?;
+        }
+
         // A TLS mode (sslmode=require/verify-*, or any mount under max) dials
         // through rustls with the handshake pinned by `pin_tls`. Baseline mounts
         // without one keep the NoTls path byte-identical (the local stack's postgres).
@@ -191,9 +214,9 @@ impl EngineAdapter for PostgresEngineAdapter {
             Some(mode) => {
                 let ca_file = std::env::var("DATA_PLANE_TLS_CA_FILE").unwrap_or_default();
                 let connector = conn::rustls_connector(mode, &ca_file)?;
-                cfg.create_pool(Some(Runtime::Tokio1), connector)
+                dial::build_pool(&cfg, connector, guard)
             }
-            None => cfg.create_pool(Some(Runtime::Tokio1), NoTls),
+            None => dial::build_pool(&cfg, NoTls, guard),
         }
         .map_err(|e| DataPlaneError::Backend {
             message: format!("pool create failed: {e}"),

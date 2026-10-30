@@ -150,6 +150,10 @@ jobs:
       # and the canary-password tests of the registry, the pool and the filter exist.
       - name: logs and errors redact credentials (m230)
         run: bash scripts/verify/m230-logs-redact-credentials.sh
+      # Static, no stack: one dial classifier (http calls it), DATA_PLANE_DIAL_GUARD refuses a
+      # typo at startup, pgwire/MySQL pin each tenant dial, no subnet allowlist (ADR 0019).
+      - name: dial guard (m244)
+        run: bash scripts/verify/m244-dial-guard.sh
       # Static, no stack: Postgres TLS is opt-in (ENGINE_TLS=1), the overlay never mounts
       # the CA key, and nothing that runs on every host mints the engine cert (ADR 0011).
       - name: engine TLS opt-in (m247)

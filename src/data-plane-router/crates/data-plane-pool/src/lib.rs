@@ -52,6 +52,7 @@ mod canary;
 ))]
 mod capability_honesty;
 mod credential;
+mod dial_guard;
 #[cfg(feature = "dynamodb")]
 mod dynamodb;
 #[cfg(feature = "dynamodb")]
@@ -83,6 +84,7 @@ mod tls;
 pub use credential::{
     AdapterRegistryProvider, CredentialProvider, ProviderConfig, ProviderRegistry, VaultProvider,
 };
+pub use dial_guard::{DialGuardMode, DIAL_GUARD_KEY};
 #[cfg(feature = "dynamodb")]
 pub use dynamodb::DynamoEngineAdapter;
 #[cfg(feature = "http")]
@@ -98,7 +100,7 @@ pub use postgres::{PgDialect, PostgresEngineAdapter};
 #[cfg(feature = "redis")]
 pub use redis::RedisEngineAdapter;
 pub use registry::DefaultPoolRegistry;
-pub use resolver::{EnvMountResolver, MountResolver};
+pub use resolver::{EnvMountResolver, MountResolver, Provenance, ResolvedDsn};
 #[cfg(feature = "sqlite")]
 pub use sqlite::{harden as harden_sqlite_connection, SqliteEngineAdapter};
 

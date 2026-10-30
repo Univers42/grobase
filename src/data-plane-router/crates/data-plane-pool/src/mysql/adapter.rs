@@ -13,11 +13,14 @@
 //! EngineAdapter for MySQL/MariaDB: pool construction + the operation-dispatch
 //! shared by the auto-commit and transaction paths.
 
+use super::dial::DialPool;
 use super::pool::MysqlPool;
 use super::query::{
     run_aggregate, run_delete, run_get, run_insert, run_list, run_update, run_upsert,
 };
 use super::*;
+use crate::dial_guard::scope::DialScope;
+use crate::dial_guard::DialGuardMode;
 
 /// Adapter that knows how to construct [`MysqlPool`] instances from a
 /// [`DatabaseMount`]. Held as `Arc<dyn EngineAdapter>` inside the registry.
@@ -30,15 +33,13 @@ use super::*;
 pub struct MysqlEngineAdapter {
     resolver: Arc<dyn MountResolver>,
     engine_name: &'static str,
+    dial_guard: DialGuardMode,
 }
 
 impl MysqlEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self {
-            resolver,
-            engine_name: "mysql",
-        }
+        Self::with_engine_name(resolver, "mysql")
     }
 
     /// Build the adapter under a specific engine id (`"mysql"` or `"mariadb"`).
@@ -49,7 +50,15 @@ impl MysqlEngineAdapter {
         Self {
             resolver,
             engine_name,
+            dial_guard: DialGuardMode::Off,
         }
+    }
+
+    /// G2 (ADR 0019): guard every Tenant dial; `Off` (the default) changes nothing.
+    #[must_use]
+    pub fn with_dial_guard(mut self, mode: DialGuardMode) -> Self {
+        self.dial_guard = mode;
+        self
     }
 }
 
@@ -189,8 +198,8 @@ impl EngineAdapter for MysqlEngineAdapter {
                     .to_string(),
             });
         }
-        let dsn = self.resolver.resolve_dsn(&mount).await?;
-        let base_opts = Opts::from_url(&dsn).map_err(|e| DataPlaneError::Backend {
+        let resolved = self.resolver.resolve(&mount).await?;
+        let base_opts = Opts::from_url(&resolved.dsn).map_err(|e| DataPlaneError::Backend {
             message: format!("invalid mysql URL: {e}"),
         })?;
 
@@ -220,7 +229,14 @@ impl EngineAdapter for MysqlEngineAdapter {
             .ssl_opts(ssl_opts)
             .into();
         crate::tls::ensure_crypto_provider();
-        let pool = Pool::new(opts);
+        // G2: Off or a Platform DSN → no scope, the pool is built as before.
+        let scope = DialScope::for_mount(
+            self.dial_guard,
+            self.engine_name,
+            &mount,
+            resolved.provenance,
+        );
+        let pool = DialPool::open(opts, scope).await?;
 
         // schema_per_tenant: the engine-neutral scope directive selects a
         // per-tenant database (`USE tenant_<id>`) on every checkout. The

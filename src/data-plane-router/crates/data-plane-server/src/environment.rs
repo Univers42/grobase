@@ -63,6 +63,9 @@ pub enum ConfigError {
     /// `DATA_PLANE_INBOUND_AUTH` is not `off`, `shadow` or `enforce`. Refused
     /// rather than read as `off`, so a typo cannot silently disable the check.
     UnknownInboundAuthMode,
+    /// `DATA_PLANE_DIAL_GUARD` is not `off`, `shadow` or `enforce`. Refused for
+    /// the same reason: a typo must not leave tenant dials unguarded.
+    UnknownDialGuardMode,
     /// Required secrets are unset or empty in a strict environment. `keys` is
     /// `&'static str`, so only key names can ever appear here — never a value.
     MissingSecrets {
@@ -81,6 +84,10 @@ impl fmt::Display for ConfigError {
             Self::UnknownInboundAuthMode => write!(
                 f,
                 "DATA_PLANE_INBOUND_AUTH is not a known mode (allowed: off, shadow, enforce)"
+            ),
+            Self::UnknownDialGuardMode => write!(
+                f,
+                "DATA_PLANE_DIAL_GUARD is not a known mode (allowed: off, shadow, enforce)"
             ),
             Self::MissingSecrets { environment, keys } => write!(
                 f,
