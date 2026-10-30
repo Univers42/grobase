@@ -48,8 +48,9 @@ use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem};
 use aws_sdk_dynamodb::Client;
 use data_plane_core::{
     ColumnSchema, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult,
-    DatabaseMount, EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, NormalizedType,
-    RequestIdentity, SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
+    DatabaseMount, EngineAdapter, EngineCapabilities, EngineHealth, EnginePool, EngineProbe,
+    NormalizedType, RequestIdentity, SchemaDescriptor, TableSchema, TlsPosture, TxBeginRequest,
+    TxHandle,
 };
 use serde_json::{Map as JsonMap, Number, Value};
 use std::collections::HashMap;
@@ -140,7 +141,7 @@ impl EngineAdapter for DynamoEngineAdapter {
 
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
         let dsn = self.resolver.resolve_dsn(&mount).await?;
-        let client = build_client(&dsn).await?;
+        let (client, tls) = build_client(&dsn).await?;
         // schema_per_tenant: a per-tenant namespace prepended to the owner
         // partition key (`<namespace>:<owner>`), derived from the mount's
         // tenant_id (identity-independent), so resolved once here. `None` for
@@ -155,6 +156,7 @@ impl EngineAdapter for DynamoEngineAdapter {
             shared_pool,
             owner_scoped,
             client,
+            tls,
             namespace,
         }))
     }
@@ -176,6 +178,8 @@ pub struct DynamoPool {
     /// key→mount resolution. Every other strategy owner-scopes.
     owner_scoped: bool,
     client: Client,
+    /// TLS posture of the endpoint configured when this pool was opened.
+    tls: TlsPosture,
     /// `Some("tenant_<id>")` for `schema_per_tenant` mounts: prepended to the
     /// owner partition value so a tenant's keyspace is fully partitioned.
     namespace: Option<String>,
@@ -644,6 +648,14 @@ impl EnginePool for DynamoPool {
         })
     }
 
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        Ok(EngineProbe {
+            server_version: "unknown".into(),
+            tls: self.tls,
+            tls_version: None,
+        })
+    }
+
     /// Begin a buffer-then-commit transaction. Allocates an empty buffer + a
     /// `ClientRequestToken` (from a provided idempotency key, else generated) +
     /// the owner partition key from the verified identity. No I/O until commit.
@@ -843,6 +855,25 @@ impl TxHandle for DynamoTxHandle {
 
 // ── client construction (endpoint-agnostic) ──────────────────────────────────
 
+fn endpoint_posture(endpoint: Option<&str>) -> TlsPosture {
+    let Some(endpoint) = endpoint else {
+        return TlsPosture::Verified;
+    };
+    if endpoint
+        .get(..8)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"))
+    {
+        return TlsPosture::Verified;
+    }
+    if endpoint
+        .get(..7)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("http://"))
+    {
+        return TlsPosture::Plaintext;
+    }
+    TlsPosture::Unknown
+}
+
 /// Build an `aws_sdk_dynamodb::Client` from the resolved DSN. The DSN is a
 /// `dynamodb://…` URL whose query string carries:
 ///   * `region=` (default `us-east-1`),
@@ -853,8 +884,9 @@ impl TxHandle for DynamoTxHandle {
 ///
 /// This is the single seam that makes the adapter endpoint-agnostic: the same
 /// code targets AWS, DynamoDB-Local, or Scylla with only DSN changes.
-async fn build_client(dsn: &str) -> DataPlaneResult<Client> {
+async fn build_client(dsn: &str) -> DataPlaneResult<(Client, TlsPosture)> {
     let parsed = parse_dynamo_dsn(dsn)?;
+    let tls = endpoint_posture(parsed.endpoint.as_deref());
     let region = Region::new(parsed.region);
     let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest()).region(region);
     if let Some(endpoint) = parsed.endpoint.as_deref() {
@@ -864,7 +896,7 @@ async fn build_client(dsn: &str) -> DataPlaneResult<Client> {
         loader = loader.credentials_provider(Credentials::new(ak, sk, None, None, "grobase-dsn"));
     }
     let conf = loader.load().await;
-    Ok(Client::new(&conf))
+    Ok((Client::new(&conf), tls))
 }
 
 struct DynamoDsn {
@@ -1275,6 +1307,22 @@ mod tests {
         };
         let (id, _) = DynamoPool::split_id_data(&op, true).unwrap();
         assert!(!id.is_empty());
+    }
+
+    #[test]
+    fn endpoint_posture_labels() {
+        use data_plane_core::TlsPosture;
+
+        let cases = [
+            (None, TlsPosture::Verified),
+            (Some("https://x"), TlsPosture::Verified),
+            (Some("HTTPS://x"), TlsPosture::Verified),
+            (Some("http://localhost:8000"), TlsPosture::Plaintext),
+            (Some("ftp://x"), TlsPosture::Unknown),
+        ];
+        for (endpoint, expected) in cases {
+            assert_eq!(endpoint_posture(endpoint), expected, "{endpoint:?}");
+        }
     }
 
     #[test]

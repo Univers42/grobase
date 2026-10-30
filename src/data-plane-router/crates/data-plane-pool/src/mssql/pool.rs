@@ -17,6 +17,7 @@ use super::convert::{json_to_param, normalize_mssql_type, row_to_json};
 use super::error::backend;
 use super::query::{build_plan, owner_of, SqlPlan, P};
 use super::*;
+use data_plane_core::{normalise_version, EngineProbe, TlsPosture};
 
 pub struct MssqlPool {
     // Fields are `pub(super)` so the sibling `adapter` module can construct the
@@ -30,6 +31,8 @@ pub struct MssqlPool {
     /// `crate::pools_shared`.
     pub(super) shared_pool: bool,
     pub(super) pool: Pool<ConnectionManager>,
+    /// TLS posture selected when this pool was opened.
+    pub(super) tls: TlsPosture,
 }
 
 impl MssqlPool {
@@ -194,6 +197,31 @@ impl EnginePool for MssqlPool {
                     columns,
                 })
                 .collect(),
+        })
+    }
+
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        let mut conn = self.pool.get().await.map_err(|_| DataPlaneError::Backend {
+            message: "probe: pool checkout failed".into(),
+        })?;
+        let server_version = match conn
+            .simple_query("SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(32))")
+            .await
+        {
+            Ok(stream) => match stream.into_row().await {
+                Ok(Some(row)) => row
+                    .try_get::<&str, _>(0)
+                    .ok()
+                    .flatten()
+                    .map_or_else(|| "unknown".into(), normalise_version),
+                _ => "unknown".into(),
+            },
+            Err(_) => "unknown".into(),
+        };
+        Ok(EngineProbe {
+            server_version,
+            tls: self.tls,
+            tls_version: None,
         })
     }
 }
