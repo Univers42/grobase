@@ -39,6 +39,8 @@ pub struct RedisPool {
     /// key so a tenant's keyspace is fully partitioned. `None` (shared_rls /
     /// db_per_tenant) → no extra segment, the historical key shape.
     pub(super) namespace: Option<String>,
+    /// From the parsed address the pool dialled (`adapter::tls_posture`).
+    pub(super) tls: TlsPosture,
 }
 
 impl RedisPool {
@@ -219,9 +221,7 @@ impl EnginePool for RedisPool {
             .map_or_else(|| "unknown".into(), normalise_version);
         Ok(EngineProbe {
             server_version,
-            // The workspace `redis` crate is built without a TLS feature (only
-            // `tokio-comp` + `connection-manager`), so every working pool is plaintext.
-            tls: TlsPosture::Plaintext,
+            tls: self.tls,
             tls_version: None,
         })
     }

@@ -23,8 +23,9 @@ use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperationKind, DataPlaneResult, DatabaseMount, EngineAdapter, EngineCapabilities,
-    EngineHealth, EnginePool,
+    EngineHealth, EnginePool, TlsPosture,
 };
+use redis::{ConnectionAddr, IntoConnectionInfo};
 use std::sync::Arc;
 
 pub struct RedisEngineAdapter {
@@ -65,8 +66,6 @@ impl EngineAdapter for RedisEngineAdapter {
 
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
         let resolved = self.resolver.resolve(&mount).await?;
-        // Phase B: refuse the redis `rediss://…#insecure` cert-skip under max.
-        crate::tls::reject_insecure_tls(&resolved.dsn, crate::tls::max_security(), &["#insecure"])?;
         // G2: Off or a Platform DSN → no scope, the manager is built as before.
         let scope = DialScope::for_mount(self.dial_guard, "redis", &mount, resolved.provenance);
         let manager = DialManager::open(&resolved.dsn, scope).await?;
@@ -77,16 +76,27 @@ impl EngineAdapter for RedisEngineAdapter {
         // envelope, byte-identical to before G5.
         let namespace = resolve_namespace(&mount);
         let shared_pool = crate::pools_shared(&mount);
+        let tls = tls_posture(&resolved.dsn);
         Ok(Box::new(RedisPool {
             mount_id: mount.id,
             tenant_id: mount.tenant_id,
             shared_pool,
             manager,
             namespace,
+            tls,
         }))
     }
 
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
         Ok(EngineHealth::unknown("redis", pool.mount_id()))
+    }
+}
+
+/// `Verified` for `rediss://`: `#insecure` never reaches a dial (`redis_client`), so
+/// a TLS pool that opened checked the certificate. The probe reports it.
+fn tls_posture(dsn: &str) -> TlsPosture {
+    match dsn.into_connection_info().map(|info| info.addr) {
+        Ok(ConnectionAddr::TcpTls { .. }) => TlsPosture::Verified,
+        _ => TlsPosture::Plaintext,
     }
 }

@@ -34,6 +34,8 @@ mod dial;
 mod dial_tests;
 mod pool;
 mod query;
+#[cfg(test)]
+mod tls_tests;
 mod validate;
 
 use data_plane_core::DataOperationKind;

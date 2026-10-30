@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:31:42 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:31:43 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 14:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -76,6 +76,8 @@ mod mysql;
 mod postgres;
 #[cfg(feature = "redis")]
 mod redis;
+#[cfg(feature = "redis-tls")]
+mod redis_tls;
 mod registry;
 mod resolver;
 pub mod service_auth;
@@ -103,10 +105,13 @@ pub use mysql::MysqlEngineAdapter;
 pub use postgres::{PgDialect, PostgresEngineAdapter};
 #[cfg(feature = "redis")]
 pub use redis::RedisEngineAdapter;
+#[cfg(feature = "redis-tls")]
+pub use redis_tls::redis_client;
 pub use registry::DefaultPoolRegistry;
 pub use resolver::{EnvMountResolver, MountResolver, Provenance, ResolvedDsn};
 #[cfg(feature = "sqlite")]
 pub use sqlite::{harden as harden_sqlite_connection, SqliteEngineAdapter};
+pub use tls::ensure_crypto_provider;
 
 /// B4-pools: whether this mount's connection pool is SHARED across tenants.
 ///

@@ -100,7 +100,15 @@ aws-smithy-runtime-api = { version = "=1.12.3", default-features = false, featur
 mysql_async = { version = "0.37", default-features = false, features = ["minimal-rust", "rustls-tls"] }
 # R8: Redis adapter (KV/Hash). `tokio-comp` provides async runtime hooks;
 # `connection-manager` gives us an auto-reconnecting Arc-cheap pool handle.
-redis = { version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager"] }
+# D3 (ADR 0024): `tokio-rustls-comp` lets a `rediss://` DSN dial TLS. rustls, not
+# native-tls: openssl is absent from the scratch images. Lock delta measured: one
+# crate, rustls-native-certs 0.7.3. `tls-rustls-insecure` stays off on purpose.
+redis = { version = "0.27", default-features = false, features = ["tokio-comp", "connection-manager", "tokio-rustls-comp"] }
+# D3: the system trust store redis already reads, loaded once more so a custom CA
+# can be ADDED to it (redis replaces the store with whatever root_cert it is
+# given), and base64 to hand that bundle back as PEM. Both already in Cargo.lock.
+rustls-native-certs = "0.7"
+base64 = "0.22"
 # R8: HTTP passthrough adapter. `rustls-tls` to match the rest of the
 # workspace's TLS posture; `json` for serde integration.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
