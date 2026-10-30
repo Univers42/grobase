@@ -18,7 +18,9 @@
 #  Arms: SHARED (every path, censored [REDACTED]) ·                           #
 #         ROUTED (every LoggerModule.forRoot takes createPinoHttpOptions; no  #
 #                 other pinoHttp key, no other pino/pino-http import) ·       #
-#         PROOF (logger.spec.ts exercises every header the paths name).      #
+#         PROOF (logger.spec.ts exercises every header the paths name) ·     #
+#         CANARY (the canary-password tests of the Go registry, the Rust     #
+#                 pool and the TS filter exist; CI's test jobs run them).    #
 #                                                                              #
 #  Static only: no network, no stack, no credential read, no value printed.  #
 #  The runtime proof is the jest spec: src/libs/common/src/observability/    #
@@ -144,9 +146,30 @@ proof_arm() {
     fail "logger.spec.ts no longer logs through the shared config or asserts the censor"
 }
 
+# canary_arm — Caveat: proves the tests exist, not that they pass; go test,
+# cargo test --workspace and jest in CI are the runtime proof.
+canary_arm() {
+  step "CANARY — a DSN password reaches no error body or log line (Go, Rust, TS)"
+  local pair file needle missing=""
+  for pair in \
+    "src/control-plane/internal/adapterregistry/internal_error_test.go|func TestInternalErrorsHideTheCanaryFromBodyAndLog(" \
+    "src/data-plane-router/crates/data-plane-pool/src/canary.rs|async fn a_refused_dial_never_repeats_the_password()" \
+    "src/data-plane-router/crates/data-plane-pool/src/lib.rs|mod canary;" \
+    "src/data-plane-router/crates/data-plane-pool/src/http/pool.rs|fn an_error_quotes_the_url_without_its_userinfo()" \
+    "src/libs/common/src/observability/redact-dsn.spec.ts|describe('redactDsn'" \
+    "src/libs/common/src/filters/all-exceptions.filter.spec.ts|describe('DSN redaction'" \
+    "src/libs/common/src/filters/all-exceptions.filter.ts|redactDsn("; do
+    file="${pair%%|*}" needle="${pair#*|}"
+    grep -qF -- "${needle}" "${ROOT}/${file}" 2>/dev/null || missing="${missing} ${file}:${needle}"
+  done
+  [ -z "${missing}" ] && ok "7 canary anchors present across the registry, the pool and the filter" ||
+    fail "a canary test or its wiring is gone:${missing}"
+}
+
 shared_arm
 routed_arm
 proof_arm
+canary_arm
 
 if [ "${rc}" -eq 0 ]; then
   printf '%s[M230] PASS — every request log is built by createPinoHttpOptions, which censors all %s credential paths%s\n' "${_G}" "${#PATHS[@]}" "${_0}"
