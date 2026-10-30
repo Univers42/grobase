@@ -17,9 +17,10 @@
 use async_trait::async_trait;
 use bson::Document;
 use data_plane_core::{
-    DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, EnginePool,
-    RequestIdentity, SchemaDdlOp, SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus,
-    SchemaDescriptor, TableSchema, TxBeginRequest, TxHandle,
+    normalise_version, DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult,
+    DataResult, EnginePool, EngineProbe, RequestIdentity, SchemaDdlOp, SchemaDdlRequest,
+    SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TableSchema, TlsPosture, TxBeginRequest,
+    TxHandle,
 };
 use futures::TryStreamExt;
 use mongodb::{
@@ -58,6 +59,10 @@ pub struct MongoPool {
     /// Empty unless `DATA_PLANE_PER_TABLE_ISOLATION` is on AND the mount opted
     /// in → byte-parity (every read owner-scoped). Consulted by `is_shared`.
     pub(super) shared_resources: std::sync::Arc<[String]>,
+    /// The TLS posture this pool was opened with (devil G4 P4): labelled
+    /// from the parsed client options at open time, never from DSN text or
+    /// what the server says. Read back by [`Self::probe`].
+    pub(super) tls: TlsPosture,
 }
 
 impl MongoPool {
@@ -261,6 +266,24 @@ impl EnginePool for MongoPool {
         Ok(SchemaDescriptor {
             engine: "mongodb".to_string(),
             tables,
+        })
+    }
+
+    /// Read-only probe: the TLS label comes from the client options, not the server.
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        let db = self.client.database("admin");
+        let build_info = db.run_command(bson::doc! { "buildInfo": 1 }).await;
+        let server_version = match build_info {
+            Ok(doc) => match doc.get_str("version") {
+                Ok(raw) => normalise_version(raw),
+                Err(_) => "unknown".to_string(),
+            },
+            Err(_) => "unknown".to_string(),
+        };
+        Ok(EngineProbe {
+            server_version,
+            tls: self.tls,
+            tls_version: None,
         })
     }
 
