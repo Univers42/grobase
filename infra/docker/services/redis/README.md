@@ -12,7 +12,7 @@ docker compose up redis
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REDIS_PASSWORD` | — | Authentication password (optional) |
+| `REDIS_PASSWORD` | minted by `make env` | Password of the `app` ACL user; used only with `REDIS_ACL=1` (docker-compose.redis-acl.yml, ADR 0028). The default user stays passwordless in stage 1 |
 | `REDIS_ARGS` | — | Extra CLI arguments passed to `redis-server` |
 
 ## Ports
