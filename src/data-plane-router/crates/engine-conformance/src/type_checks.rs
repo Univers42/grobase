@@ -88,8 +88,10 @@ fn is_utc_instant(text: &str, want: &str) -> bool {
 const INT_AS_BIGINT: &str = "integer is created as a 64-bit column and described as bigint";
 const SQLITE_AFFINITY: &str =
     "SQLite stores it under a type affinity, so the described type is the affinity";
-const MARIADB_TS: &str =
+// MariaDB and Oracle MySQL alike: the shared mysql adapter binds the string as-is.
+const MYSQL_TS: &str =
     "the datetime bind is type-blind: an RFC 3339 string is refused (ERROR 1292)";
+const UUID_AS_CHAR36: &str = "created as CHAR(36), described as text";
 
 /// engine (or server flavour) → column → reason. Each entry is an open item
 /// in wiki/architecture/multidb-holistic.md (G7).
@@ -98,12 +100,17 @@ fn gaps(flavour: &str) -> &'static [(&'static str, &'static str)] {
         "postgresql" | "cockroachdb" => &[("c_int", INT_AS_BIGINT)],
         "mariadb" => &[
             ("c_int", INT_AS_BIGINT),
-            ("c_ts", MARIADB_TS),
+            ("c_ts", MYSQL_TS),
             (
                 "c_json",
                 "MariaDB JSON is an alias of LONGTEXT, described as text",
             ),
-            ("c_uuid", "created as CHAR(36), described as text"),
+            ("c_uuid", UUID_AS_CHAR36),
+        ],
+        "mysql" => &[
+            ("c_int", INT_AS_BIGINT),
+            ("c_ts", MYSQL_TS),
+            ("c_uuid", UUID_AS_CHAR36),
         ],
         "mongodb" => &[
             ("c_int", INT_AS_BIGINT),
@@ -297,7 +304,14 @@ mod tests {
     #[test]
     fn every_gap_names_a_real_case() {
         let names: Vec<_> = cases().into_iter().map(|c| c.0).collect();
-        for flavour in ["postgresql", "cockroachdb", "mariadb", "mongodb", "sqlite"] {
+        for flavour in [
+            "postgresql",
+            "cockroachdb",
+            "mariadb",
+            "mysql",
+            "mongodb",
+            "sqlite",
+        ] {
             for (column, _) in gaps(flavour) {
                 assert!(names.contains(column), "{flavour}: {column}");
             }

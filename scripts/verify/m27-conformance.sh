@@ -112,6 +112,17 @@ dsn_for() {
     d="${d:-mini_baas}"
     echo "mysql://${u}:${p}@mysql:3306/${d}"
     ;;
+  mysql8)
+    container_up mini-baas-mysql8 || return 1
+    local u p d
+    u="$(env_of mini-baas-mysql8 MYSQL_USER)"
+    u="${u:-mini_baas}"
+    p="$(env_of mini-baas-mysql8 MYSQL_PASSWORD)"
+    p="${p:-mini_baas_pw}"
+    d="$(env_of mini-baas-mysql8 MYSQL_DATABASE)"
+    d="${d:-mini_baas}"
+    echo "mysql://${u}:${p}@mysql8:3306/${d}"
+    ;;
   mariadb)
     container_up mini-baas-mariadb || return 1
     local u p d
@@ -207,7 +218,7 @@ start_dynamodb() {
 # M27_NET pins the network (a host whose docker address pools are exhausted).
 # Any running engine names it: CI's per-engine matrix starts only the engine it gates.
 NET="${M27_NET:-}"
-for c in postgres mysql mariadb mongo redis cockroach mssql; do
+for c in postgres mysql mysql8 mariadb mongo redis cockroach mssql; do
   [[ -z "${NET}" ]] || break
   NET="$(docker inspect "mini-baas-${c}" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null |
     awk 'NF && !f {f = $0} /net-data$/ {d = $0} END {print (d != "" ? d : f)}' || true)"
@@ -218,7 +229,7 @@ if [[ $# -ge 1 ]]; then
 else
   # Always-on engines + engines-extra (mariadb/cockroachdb/mssql, skipped
   # cleanly when their profile isn't up — run_engine returns 2=skip).
-  ENGINES=(postgresql mysql mariadb cockroachdb mongodb redis sqlite mssql http dynamodb)
+  ENGINES=(postgresql mysql mysql8 mariadb cockroachdb mongodb redis sqlite mssql http dynamodb)
 fi
 
 if [[ -z "${NET}" ]]; then
@@ -248,7 +259,9 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   }
   step "conformance: ${engine}"
   out="$(mktemp)"
-  local features=() extra_env=()
+  local features=() extra_env=() pool_engine="${engine}"
+  # mysql8 is Oracle MySQL behind the same `mysql` pool descriptor as the MariaDB service.
+  [[ "${engine}" != mysql8 ]] || pool_engine=mysql
   [[ "${engine}" != dynamodb ]] || features=(--features dynamodb)
   [[ "${engine}" != http ]] || extra_env=(-e DATA_PLANE_HTTP_ALLOW_INTERNAL=1)
   [[ "${engine}" != postgresql || -z "${M27_PG_TLS_CA:-}" ]] ||
@@ -257,7 +270,7 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   # exit code is the source of truth; we tee the report for the operator.
   set +e
   docker run --rm --network "${NET}" \
-    -e CONFORMANCE_ENGINE="${engine}" \
+    -e CONFORMANCE_ENGINE="${pool_engine}" \
     -e CONFORMANCE_DSN="${dsn}" \
     -e CONFORMANCE_TENANT="conf-${engine}" \
     -e DATA_PLANE_TLS_INSECURE=1 \
@@ -272,7 +285,20 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   set -e
   grep -E "conformance:|PASS |SKIP |FAIL |passed,|panicked" "${out}" || tail -5 "${out}"
   rm -f "${out}"
+  [[ ${rc} -eq 0 && "${engine}" == mysql8 ]] && { mysql8_is_oracle || return 1; }
   return ${rc}
+}
+
+# Load-bearing: a MariaDB image under the mysql8 name would pass the battery and prove nothing.
+mysql8_is_oracle() {
+  local version
+  version="$(docker exec mini-baas-mysql8 mysqld --version 2>&1)" || version=""
+  if [[ "${version}" == *"MySQL Community Server"* && "${version}" != *MariaDB* ]]; then
+    pass "mysql8 is Oracle MySQL: ${version##*Ver }"
+    return 0
+  fi
+  red "[M27] mysql8 is not Oracle MySQL Community Server: ${version:-no mysqld --version}"
+  return 1
 }
 
 ensure_toolchain
