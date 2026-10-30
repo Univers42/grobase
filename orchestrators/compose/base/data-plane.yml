@@ -112,6 +112,14 @@ services:
       # G1: off | shadow | enforce for the internal /v1 routes. Off until a 24 h
       # shadow window shows zero `would_deny` (wiki/architecture/multidb-holistic.md).
       DATA_PLANE_INBOUND_AUTH: ${DATA_PLANE_INBOUND_AUTH:-off}
+      # D1 (ADR 0023): off | shadow | enforce, independent of G1. Each caller signs
+      # with its own key and the verifying key is the caller class; under shadow or
+      # enforce an unset, short or reused key refuses to start (names only, no value).
+      DATA_PLANE_CALLER_POLICY: ${DATA_PLANE_CALLER_POLICY:-off}
+      DATA_PLANE_KEY_QUERY_ROUTER: ${DATA_PLANE_KEY_QUERY_ROUTER:-}
+      DATA_PLANE_KEY_QUERY_ROUTER_PREV: ${DATA_PLANE_KEY_QUERY_ROUTER_PREV:-}
+      DATA_PLANE_KEY_TENANT_CONTROL: ${DATA_PLANE_KEY_TENANT_CONTROL:-}
+      DATA_PLANE_KEY_TENANT_CONTROL_PREV: ${DATA_PLANE_KEY_TENANT_CONTROL_PREV:-}
       # Phase 7d: system Postgres holding public.outbox_events. On the bypass
       # write path the data plane emits the row-change event itself (the
       # query-router is out of the path), so realtime/webhooks keep firing.
