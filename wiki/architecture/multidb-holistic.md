@@ -157,9 +157,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] m243: unauthenticated `/v1/admin/raw` → 401; forged body identity → 403;
       read-scoped key DDL → 403; owner DDL → 200; an edge function POSTing unsigned to
       `/v1/admin/raw` → 401 and cannot read `INTERNAL_SERVICE_TOKEN`.
-- [ ] No Kong Lua signer (sandbox allows only `cjson.safe`, and it would sign client
+- [x] No Kong Lua signer (sandbox allows only `cjson.safe`, and it would sign client
       bodies): `/admin/v1/{migrate,rotate}` move to a tenant-control route that builds the
       identity and signs via `postAdmin`; SDK `admin.ts:114-122` keeps working (test).
+      *(G1f 1fbcfa1c, ADR 0008: `admin_relay.go` + `admin_relay_test.go` (kong_service_key
+      arm, unmodelled mount fields kept). SDK half: `sdks/js/tests/admin-migrate.test.mjs`
+      — same path, `apikey` + bearer = service key, body sent unchanged, 401 surfaced.)*
 - [x] `/v1/capabilities` stays open (unsigned probes in m72, m101, m74, m20).
 - [x] Body buffered with a 2 MiB cap (today's axum default) → 413 before hashing.
 - [x] Cross-language test: Rust verifier accepts a TS-signed `postJson` (string body,
