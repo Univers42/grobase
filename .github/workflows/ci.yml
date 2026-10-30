@@ -592,7 +592,7 @@ jobs:
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
-  # ─── Standalone gates (m64 m81 m87 m183 m209) ─────────────────
+  # ─── Standalone gates (m64 m81 m87 m183 m209 m259) ────────────
   # Each builds or starts its own throwaway containers; no stack needed.
   standalone-gates:
     name: Standalone gates (m64 m81 m87 m183 m209)
@@ -629,6 +629,16 @@ jobs:
           bash scripts/ci/retry-on-429.sh docker pull -q ghcr.io/univers42/grobase-minio:latest
       - name: Backups encrypted at rest (m209)
         run: bash scripts/verify/m209-backup-encryption.sh
+
+      # Migration 095 on a scratch postgres (the image pulled for m209): erase anonymises,
+      # purge refuses bad input, only service_role executes, and --self-test requires
+      # the four planted mutants to fail the gate (grobase#83, ADR 0022).
+      - name: audit_log retention and erasure (m259)
+        env:
+          M259_PG_IMAGE: mirror.gcr.io/library/postgres:16-alpine
+        run: |
+          bash scripts/verify/m259-audit-retention.sh
+          bash scripts/verify/m259-audit-retention.sh --self-test
 
       # tenant-control built from the commit: per-tenant backup/restore, sealed
       # with age, every restore checked against the ledger sha256 (scratch postgres).
