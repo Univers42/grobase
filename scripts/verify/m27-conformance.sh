@@ -39,6 +39,8 @@
 # DATA_PLANE_TLS_INSECURE=0 and that CA pinned; adding M27_MSSQL_EXPECT=refused inverts the leg,
 # so it passes only when the pinned run cannot connect while the escape run on the same server
 # is green. Unset, mssql keeps the escape (INSECURE=1), as before.
+# cockroachdb in secure mode (ADR 0029): M27_PG_TLS_CA=certs/engine-tls/cockroach/ca.pem runs
+# the pool over verify-full as root:<password>, the same knob postgresql reads.
 # M27_TARGET (a volume or host path) holds cargo's target dir instead of mini-baas-dpr-target.
 
 set -euo pipefail
