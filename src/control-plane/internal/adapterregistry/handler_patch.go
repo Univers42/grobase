@@ -63,6 +63,6 @@ func writePatchError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrPlaintextDsnForbidden):
 		httpx.WriteError(w, http.StatusForbidden, "plaintext_dsn_forbidden", ErrPlaintextDsnForbidden.Error())
 	default:
-		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+		writeInternalError(w, err)
 	}
 }
