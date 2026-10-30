@@ -46,6 +46,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAAS_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ROUTER_DIR="${BAAS_DIR}/src/data-plane-router"
+# shellcheck source=../lib/lib-crdb-client.sh
+. "${BAAS_DIR}/scripts/lib/lib-crdb-client.sh"
 
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
 red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
@@ -155,10 +157,11 @@ dsn_for() {
     ;;
   cockroachdb)
     container_up mini-baas-cockroach || return 1
-    # Insecure single-node: root, no password, sslmode=disable. The suite
-    # qualifies its probe table to public.conf_probe (CRDB shares pg's
+    # root with its password when one exists (secure mode refuses passwordless root; an
+    # insecure node ignores it, ADR 0029); M27_PG_TLS_CA runs the pool over verify-full.
+    # The suite qualifies its probe table to public.conf_probe (CRDB shares pg's
     # "$user", public search_path quirk).
-    echo "postgres://root@cockroach:26257/defaultdb?sslmode=disable"
+    crdb_dsn mini-baas-cockroach defaultdb "${M27_PG_TLS_CA:+verify-full}"
     ;;
   sqlite)
     # Embedded — no container. A fresh file inside the ephemeral conformance
@@ -271,7 +274,7 @@ run_engine() { # $1 engine -> 0 green, 1 fail, 2 skip (engine down)
   [[ "${engine}" != mysql8 ]] || pool_engine=mysql
   [[ "${engine}" != dynamodb ]] || features=(--features dynamodb)
   [[ "${engine}" != http ]] || extra_env=(-e DATA_PLANE_HTTP_ALLOW_INTERNAL=1)
-  [[ "${engine}" != postgresql || -z "${M27_PG_TLS_CA:-}" ]] ||
+  [[ "${engine}" != postgresql && "${engine}" != cockroachdb || -z "${M27_PG_TLS_CA:-}" ]] ||
     extra_env=(-v "${M27_PG_TLS_CA}":/run/m27-ca.pem:ro -e DATA_PLANE_TLS_CA_FILE=/run/m27-ca.pem)
   if [[ "${engine}" == mssql && -n "${M27_MSSQL_TLS_CA:-}" ]]; then
     insecure=0

@@ -214,7 +214,9 @@ mongo_restore() {
 }
 
 # ── cockroach ─────────────────────────────────────────────────────────────────
-crdb_sql() { docker exec "$C" cockroach sql --insecure --format=tsv -e "$1"; }
+# shellcheck source=../lib/lib-crdb-client.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../lib/lib-crdb-client.sh"
+crdb_sql() { docker exec "$C" cockroach sql "$(crdb_auth "$C")" --format=tsv -e "$1"; }
 # crdb_names SQL: run SQL, whose one column is a database name hex-encoded, and
 # print each name NUL-terminated. Hex, because --format=tsv CSV-quotes a name
 # holding " or a tab, and a newline in a name would split it.

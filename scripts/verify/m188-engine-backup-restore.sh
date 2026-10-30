@@ -90,7 +90,9 @@ mongo_seed() { mongo_eval "const d=db.getSiblingDB('${DB}'); d.marker.insertMany
 mongo_sum() { mongo_eval "const d=db.getSiblingDB('${DB}'); const r=d.marker.find({},{_id:0}).sort({i:1}).toArray(); print(r.length+' '+require('crypto').createHash('md5').update(JSON.stringify(r)).digest('hex'))" 2>/dev/null | tail -n1; }
 mongo_drop() { mongo_eval "db.getSiblingDB('${DB}').dropDatabase()" >/dev/null 2>&1 || true; }
 
-crdb() { docker exec "${PREFIX}-cockroach" cockroach sql --insecure --format=tsv -e "$1"; }
+# shellcheck source=../lib/lib-crdb-client.sh
+. "${ROOT}/scripts/lib/lib-crdb-client.sh"
+crdb() { docker exec "${PREFIX}-cockroach" cockroach sql "$(crdb_auth "${PREFIX}-cockroach")" --format=tsv -e "$1"; }
 cockroach_seed() { crdb "CREATE DATABASE ${DB}; CREATE TABLE ${DB}.marker (i INT PRIMARY KEY, v STRING); INSERT INTO ${DB}.marker SELECT g, 'm188-' || ((g*7919)%1000)::STRING FROM generate_series(1,50) g" >/dev/null; }
 cockroach_sum() { crdb "SELECT count(*)::STRING || ' ' || md5(string_agg(i::STRING || ':' || v, ',' ORDER BY i)) FROM ${DB}.marker" 2>/dev/null | tail -n1; }
 cockroach_drop() { crdb "DROP DATABASE IF EXISTS ${DB} CASCADE" >/dev/null 2>&1 || true; }
