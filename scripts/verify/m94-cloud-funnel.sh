@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 08:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -591,8 +591,13 @@ grep -q "\"identifier\":\"${PROBE_IDEM}\"" "${EVENTS_TMP}" ||
 ORIG_SEEN="$(grep -c "\"identifier\":\"${ORIG_IDEM}\"" "${EVENTS_TMP}" || true)"
 [[ "${ORIG_SEEN}" == "1" ]] ||
   fail "B3: idempotency broken — the first window (${ORIG_IDEM}) was sent ${ORIG_SEEN}× across re-ticks; the billing_reported ledger must suppress re-sends"
-[[ "${AFTER}" == "$((BEFORE + 1))" ]] ||
-  fail "B3: re-ticks emitted $((AFTER - BEFORE)) extra event(s), expected exactly 1 (the probe window) — un-suppressed re-sends"
+# A re-send is an identifier seen twice. The old `AFTER == BEFORE + 1` count also
+# counted the FIRST send of a second pending window that landed after BEFORE was
+# sampled (BEFORE only waits for ≥1 event): CI f806f539 failed with 2 new events
+# while the first window was still seen exactly once.
+RESENT="$(grep -o '"identifier":"[^"]*"' "${EVENTS_TMP}" | sort | uniq -d | head -3 | tr '\n' ' ')"
+[[ -z "${RESENT}" ]] ||
+  fail "B3: idempotency broken — window(s) sent more than once across re-ticks: ${RESENT}"
 ok "B3: ≥1 meter event (event_name=${EVENT_NAME}, customer=${CUS}, value>0); reporter demonstrably ticked (probe delivered) and re-sent nothing — first window seen exactly once, ${BEFORE}→${AFTER}"
 
 step "11/14 [POSITIVE 7 · B4b] Kong route ~/v1/tenants/me (the key) → 200 (public buyer-facing surface wired)"
