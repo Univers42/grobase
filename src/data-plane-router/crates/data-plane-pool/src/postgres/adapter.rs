@@ -18,7 +18,7 @@ use crate::resolver::MountResolver;
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
-    EngineCapabilities, EngineHealth, EnginePool, Isolation, RequestIdentity,
+    EngineCapabilities, EngineHealth, EnginePool, Isolation, RequestIdentity, TlsPosture,
 };
 use deadpool_postgres::{
     Config as DeadpoolConfig, ManagerConfig, PoolConfig, RecyclingMethod, Runtime,
@@ -150,9 +150,12 @@ impl EngineAdapter for PostgresEngineAdapter {
         // request's transaction (`apply_rls_context`), so a transaction-mode
         // pooler that hands a different backend to the next request never leaks
         // tenant state — the SAME invariant that lets shared_rls pools serve many
-        // tenants. See scripts/scale/POOLER.md.
-        let dsn = match conn::pooler_url() {
-            Some(pooler) => conn::repoint_dsn_host(&dsn, &pooler),
+        // tenants. See scripts/scale/POOLER.md. The Option is captured (not
+        // consumed inline) so the pool can remember it dialed a pooler
+        // (`PostgresPool::behind_pooler` for `probe`).
+        let pooler_url = conn::pooler_url();
+        let dsn = match &pooler_url {
+            Some(pooler) => conn::repoint_dsn_host(&dsn, pooler),
             None => dsn,
         };
 
@@ -244,6 +247,8 @@ impl EngineAdapter for PostgresEngineAdapter {
             shared_resources,
             admin_bypass,
             read_predicate,
+            tls: conn::tls_posture(tls_mode),
+            behind_pooler: pooler_url.is_some(),
             mount,
         }))
     }
@@ -291,6 +296,16 @@ pub(super) struct PostgresPool {
     /// predicate-based read owner-scoping on Postgres — OFF → reads carry no
     /// appended `owner_id` predicate (RLS-GUC-only, byte-identical SQL).
     pub(super) read_predicate: bool,
+    /// The TLS posture this pool ACTUALLY connected with (devil G4 P4):
+    /// `conn::tls_posture` over the same `effective_tls_mode` that chose the
+    /// rustls connector in `open_pool` — never re-derived from DSN text, never
+    /// taken from the server's answer. `probe()` reports this label verbatim.
+    pub(super) tls: TlsPosture,
+    /// True when `open_pool` dialed a connection pooler (`DATA_PLANE_POOLER_URL`
+    /// was set): `pg_stat_ssl` then describes the pooler→postgres link, not
+    /// ours, so `probe()` must leave `tls_version` unset rather than report
+    /// the pooler's session as ours.
+    pub(super) behind_pooler: bool,
     /// Retained mount for migration-time schema derivation
     /// ([`DatabaseMount::tenant_schema`] in `apply_migration`). Cheap: opened
     /// once per pool, not per request.
