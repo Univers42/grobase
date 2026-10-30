@@ -22,9 +22,10 @@ use data_plane_core::{
     DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
     EngineCapabilities, EngineHealth, EnginePool,
 };
-use redis::aio::ConnectionManager;
+use redis::aio::{ConnectionManager, ConnectionManagerConfig};
 use redis::Client;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub struct RedisEngineAdapter {
     resolver: Arc<dyn MountResolver>,
@@ -58,12 +59,11 @@ impl EngineAdapter for RedisEngineAdapter {
         let client = Client::open(dsn.as_str()).map_err(|e| DataPlaneError::Backend {
             message: format!("invalid redis URL: {e}"),
         })?;
-        let manager =
-            ConnectionManager::new(client)
-                .await
-                .map_err(|e| DataPlaneError::Backend {
-                    message: format!("redis connection manager init failed: {e}"),
-                })?;
+        let manager = ConnectionManager::new_with_config(client, manager_config())
+            .await
+            .map_err(|e| DataPlaneError::Backend {
+                message: format!("redis connection manager init failed: {e}"),
+            })?;
         // schema_per_tenant: a per-tenant namespace segment prepended to every
         // key (`<namespace>:<owner>:<resource>:<id>`). Derived from the mount's
         // tenant_id (identity-independent) so resolved once here; `None` for
@@ -83,4 +83,17 @@ impl EngineAdapter for RedisEngineAdapter {
     async fn health_check(&self, pool: &dyn EnginePool) -> DataPlaneResult<EngineHealth> {
         Ok(EngineHealth::unknown("redis", pool.mount_id()))
     }
+}
+
+/// redis-rs 0.27 hands `factor` (100) to backon as a multiplier on its 1 s base, so
+/// the default retry delays climb to backon's 60 s cap: a refused port held
+/// `open_pool` over 120 s (measured, `canary.rs`). Bounded to 3 retries of ≤ 0.5 s.
+///
+/// Caveat: a host that accepts TCP and never answers still holds `open_pool` for
+/// about 4 × 5 s; the same bound applies to background reconnects after a drop.
+fn manager_config() -> ConnectionManagerConfig {
+    ConnectionManagerConfig::new()
+        .set_connection_timeout(Duration::from_secs(5))
+        .set_max_delay(500)
+        .set_number_of_retries(3)
 }
