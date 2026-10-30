@@ -12,8 +12,10 @@
 #   6. monitoring  Prometheus has no scrape target down and no alert firing
 #
 # Ponytail: in leg 4 cockroach (--insecure, or the root client cert under its secure-mode
-# overlay, ADR 0029), trino and a redis without REDIS_PASSWORD have no credential to get
-# wrong: for them the query proves the engine executes statements, not that a password matches. DynamoDB-local accepts any credential
+# overlay, ADR 0029), trino and a redis without the REDIS_ACL overlay have no credential to
+# get wrong: for them the query proves the engine executes statements, not that a password
+# matches (redis-cli ping PONGs past a wrong password as the default user; under the overlay
+# the app login is checked instead). DynamoDB-local accepts any credential
 # and is not queried at all; its healthcheck (leg 1) and TCP edges (leg 2) vouch for it.
 #
 # Ponytail: leg 5 decides "refused at the gateway" from the body — a 401/403 carrying
@@ -75,6 +77,16 @@ sql_login() {
   esac
 }
 
+# redis_login: under the REDIS_ACL overlay the env file's REDIS_PASSWORD must log in as the
+# app user (redis-acl.sh health, password on stdin); otherwise the legacy ping.
+redis_login() {
+  if docker exec "$PROJECT-redis" test -f /usr/local/bin/redis-acl.sh; then
+    getenv REDIS_PASSWORD | docker exec -i "$PROJECT-redis" sh /usr/local/bin/redis-acl.sh health /dev/stdin
+  else
+    docker exec -e REDISCLI_AUTH="$(getenv REDIS_PASSWORD)" "$PROJECT-redis" redis-cli ping | grep -q PONG
+  fi
+}
+
 # engine_login runs one query inside engine $1's container with the env file's credentials;
 # MinIO's travel on stdin as a curl config for a SigV4-signed ListBuckets.
 engine_login() {
@@ -83,7 +95,7 @@ engine_login() {
     docker exec -e P="$(getenv MONGO_INITDB_ROOT_PASSWORD)" -e U="$(getenv MONGO_INITDB_ROOT_USERNAME)" "$PROJECT-mongo" \
       mongosh --quiet admin --eval 'db.auth(process.env.U, process.env.P)'
     ;;
-  redis) docker exec -e REDISCLI_AUTH="$(getenv REDIS_PASSWORD)" "$PROJECT-redis" redis-cli ping | grep -q PONG ;;
+  redis) redis_login ;;
   minio)
     printf 'user = "%s:%s"\n' "$(getenv MINIO_ROOT_USER)" "$(getenv MINIO_ROOT_PASSWORD)" |
       docker exec -i "$PROJECT-minio" curl -fsS -o /dev/null -K - --aws-sigv4 'aws:amz:us-east-1:s3' http://localhost:9000/
