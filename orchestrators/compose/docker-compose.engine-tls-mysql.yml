@@ -1,0 +1,36 @@
+# docker-compose.engine-tls-mysql.yml — accept-mode TLS on the mysql service with the CA-signed engine
+# cert (G5b, docs/adr/0012-g5b-engine-accept-tls.md). Opt-in: ENGINE_TLS_ENGINES lists mysql
+# (env, or an ENGINE_TLS_ENGINES= line in .env.local; orchestrators/makes/00-config.mk).
+# ENGINE_TLS=1 alone never composes this file.
+#
+# The mysql service is MariaDB 11.4 (its own Dockerfile), so this mirrors
+# docker-compose.engine-tls-mariadb.yml: the default already serves TLS with a self-signed
+# cert no client can verify, and this overlay swaps in `scripts/certs/generate-engine-cert.sh
+# mysql`, from a directory of its own (G5b-C5). Plaintext stays allowed (--skip-ssl clients).
+#
+# Caveat: this proves mysql CAN serve a verifiable cert, not that any client checks it.
+# The pool and every consumer dial without require_ssl until each DSN asks for it.
+services:
+  mysql:
+    user: "0"
+    # An overlay entrypoint clears the image CMD, and the image entrypoint dispatches on $1.
+    entrypoint:
+      ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh", "docker-entrypoint.sh"]
+    command: ["mysqld"]
+    environment:
+      ENGINE_TLS_NAME: mysql
+      ENGINE_TLS_UID: "100"
+      ENGINE_TLS_GID: "101"
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MYSQL_CERT_DIR:-./certs/engine-tls/mysql}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700

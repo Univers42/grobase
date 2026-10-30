@@ -1,6 +1,6 @@
 # 0012 — Mongo, Redis and MySQL/MariaDB accept TLS, each behind its own opt-in
 
-Status: ruled PROCEED-WITH-CONDITIONS (2026-10-30, C1–C15). Code: mongo, redis, mariadb.
+Status: ruled PROCEED-WITH-CONDITIONS (2026-10-30, C1–C15). Code: mongo, redis, mariadb, mysql.
 MySQL/MariaDB follow, one engine per commit (C12). Not on the VM: C13.
 
 ## Problem
@@ -38,8 +38,8 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
     `--regid` or `--clear-groups`. Its Dockerfile adds Alpine's `setpriv` package (33 KiB).
     An image without it fails closed: the wrapper checks for `--reuid` before it copies a key.
 - **Flags are appended, never restated (C4).** Mongo and Redis add their flags to `"$@"`, the
-  compose `command`. MariaDB has none, so its overlay restates `command: ["mariadbd"]`; the
-  `mysql` service will restate `["mysqld"]`.
+  compose `command`. MariaDB and the `mysql` service have none, so their overlays restate
+  `command: ["mariadbd"]` and `["mysqld"]`.
 - **Sibling cert directories (C5).**
   - `generate-engine-cert.sh <engine>` writes to `certs/engine-tls/<engine>/`, with that
     engine's own SANs. mongo's are `mongo`, `mini-baas-mongo`, `localhost` and `127.0.0.1`.
@@ -55,7 +55,7 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
   - `--tls-port 6380` with the cert, key and CA files, and `--tls-auth-clients no`
   - 6379 stays plaintext. 6380 is never published: the overlay has no `ports`, and m247
     static checks that.
-  MariaDB:
+  MariaDB, and the `mysql` service, which is MariaDB 11.4 from its own Dockerfile:
   - `--ssl-cert`, `--ssl-key` and `--ssl-ca` on the tmpfs copies.
   - 11.4 already serves TLS with a self-signed cert that no client can verify against the local
     CA; the flags replace that cert. `require_secure_transport` stays off, so `--skip-ssl`
@@ -92,17 +92,19 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
   - **C:** the container refuses to start without a cert.
   - **B:** a `--ssl-ca --ssl-verify-server-cert` session gets TLSv1.2 or 1.3;
     `openssl s_client -starttls mysql -verify_hostname` verifies `mariadb` and refuses
-    `m247-mariadb` with "hostname mismatch"; `--skip-ssl` still connects; PID 1 is uid 100; the key copy is
-    600 uid 100; nothing lands in `/var/lib/mysql`.
+    `m247-mariadb` with "hostname mismatch"; `--skip-ssl` still connects; PID 1 is uid 100;
+    the key copy is 600 uid 100; nothing lands in `/var/lib/mysql`.
   - The legs found `mariadb-install-db`'s passwordless `root@<hostname>`, `@127.0.0.1` and
     `@::1`; the mysql and mariadb entrypoints now drop them on first boot. Measured locally
     on 2026-10-30: all green, and m27 mariadb under the overlay 12 passed / 0 failed.
+  - `M247_ENGINE=mysql` runs the same legs against the `mysql` service. Measured locally on
+    2026-10-30: all green, and m27 mysql under the overlay 12 passed / 0 failed.
 - **CI (C11).** The `mongodb` engine-conformance leg runs twice: as before, and with `tls: mongo`.
   The `tls: mongo` run initiates the replica set under the overlay, runs m27 and then runs m247
-  live. The `mariadb` leg runs twice the same way, with `tls: mariadb`; it builds the image from
-  the commit first, since the published one has no util-linux `setpriv`. Redis has no
-  conformance leg. A CI step builds its image from the commit and runs the
-  m247 redis legs.
+  live. The `mariadb` and `mysql` legs run twice the same way, with `tls: mariadb` and
+  `tls: mysql`; each builds its image from the commit first, since the published one has no
+  util-linux `setpriv`. Redis has no conformance leg. A CI step builds its image from the
+  commit and runs the m247 redis legs.
 - **Renewal.** Re-run `generate-engine-cert.sh <engine>`, then recreate that engine. The script
   says when it issued a new cert.
 - **The VM (C13).** No pin or rollout outside a confirmed G5 window, one engine per window. A
@@ -111,15 +113,13 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
 
 ## Not done here
 
-- **No client verifies mongo's, redis's or mariadb's cert yet.** mongosh, mongo-init, mongo-api,
-  the pool and every redis consumer still dial plaintext, which accept mode allows. Pool mysql
-  mounts can trust the CA (`DATA_PLANE_TLS_CA_FILE`, C10), but no mount asks for TLS yet. Moving them is the next G5
-  step.
-- **The published redis and mariadb images lack `setpriv` until a main push republishes them.**
-  Until then, `ENGINE_TLS_ENGINES=redis` (or `mariadb`) on a host that pulls `:latest` fails closed with the wrapper's
-  message; `make build` fixes it.
-- **The `mysql` service (MariaDB 11.4, `data-plane` profile) has no overlay yet.** It is its own
-  commit (C12) and restates `command: ["mysqld"]`.
+- **No client verifies mongo's, redis's, mariadb's or mysql's cert yet.** mongosh, mongo-init,
+  mongo-api, the pool and every redis consumer still dial plaintext, which accept mode allows.
+  Pool mysql mounts can trust the CA (`DATA_PLANE_TLS_CA_FILE`, C10), but no mount asks for
+  TLS yet. Moving them is the next G5 step.
+- **The published redis, mariadb and mysql images lack `setpriv` until a main push republishes
+  them.** Until then, `ENGINE_TLS_ENGINES=redis` (or `mariadb`, `mysql`) on a host that pulls
+  `:latest` fails closed with the wrapper's message; `make build` fixes it.
 - **Pool Redis TLS is out of scope (C9).** redis 0.27.6 is built without a TLS feature. It needs
   its own ruling.
 - **Oracle mysql8 TLS needs its own ruling (C14).** `auto_generate_certs` writes keys into the

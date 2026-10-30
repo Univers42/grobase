@@ -14,7 +14,8 @@
 # contract, and a working `mysqladmin ping` healthcheck are all kept.
 FROM alpine:3.21
 
-RUN apk add --no-cache mariadb mariadb-client \
+# setpriv (util-linux) is for the engine-TLS wrapper: BusyBox's has no --reuid/--regid (ADR 0012).
+RUN apk add --no-cache mariadb mariadb-client setpriv \
  && install -d -m 0755 -o mysql -g mysql /var/lib/mysql /run/mysqld
 
 # Alpine's mariadb-server.cnf ships `skip-networking` ON, so mariadbd would bind

@@ -279,8 +279,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         self-signed default, `command: ["mariadbd"]` restated, root → setpriv uid 100; m247
         mariadb A/B/C green locally 2026-10-30, m27 under the overlay 12 passed / 0 failed; CI
         mariadb leg twice. First boot drops install-db's passwordless root@<hostname>.
-  - [ ] G5b `mysql` service (MariaDB, `data-plane` profile) — own overlay, `command: ["mysqld"]`
-        restated (ADR 0012 C4, C12).
+  - [x] G5b `mysql` service (MariaDB 11.4, `data-plane` profile) — `ENGINE_TLS_ENGINES=mysql`,
+        `command: ["mysqld"]` restated, root → setpriv uid 100; m247 mysql A/B/C green locally
+        2026-10-30, m27 mysql under the overlay 12 passed / 0 failed; CI mysql leg twice.
   - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
         consumers); today plaintext.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
