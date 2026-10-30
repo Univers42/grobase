@@ -6,13 +6,16 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/30 00:00:00 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/30 00:00:00 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 //! m230: a mount whose DSN carries a canary password, dialled at a refused port,
 //! must fail without the canary in the error's Display or Debug — that string is
 //! what `tracing::warn!(error = %err)` logs on every request failure.
+//!
+//! The same harness bounds how long a dead mongo or mssql holds a request: refused,
+//! and a listener that completes the handshake then never answers.
 //!
 //! Caveat: one failure per engine (connection refused). An error raised after
 //! authentication (a bad query, a TLS handshake) is not exercised here, and the
@@ -30,8 +33,8 @@ use serde_json::json;
 use crate::resolver::{EnvMountResolver, MountResolver};
 
 const CANARY: &str = "Canary-pw_7f3a";
-/// mssql is the slowest to fail: bb8 retries a refused dial until its 30 s checkout timeout.
-const DIAL_BOUND: Duration = Duration::from_secs(45);
+/// mssql is the slowest to fail: bb8 retries a refused dial until its 5 s checkout timeout.
+const DIAL_BOUND: Duration = Duration::from_secs(10);
 
 fn mount(engine: &str, dsn: String) -> DatabaseMount {
     DatabaseMount {
@@ -45,11 +48,7 @@ fn mount(engine: &str, dsn: String) -> DatabaseMount {
             reference: "canary".into(),
             version: "1".into(),
         },
-        // mongo's server-selection timeout is max(idle_ttl_ms, 5 s): 30 s by default.
-        pool_policy: PoolPolicy {
-            idle_ttl_ms: 1,
-            ..PoolPolicy::default()
-        },
+        pool_policy: PoolPolicy::default(),
         capability_overrides: None,
         inline_dsn: Some(dsn),
         isolation: None,
@@ -136,4 +135,35 @@ async fn a_refused_dial_never_repeats_the_password() {
     while let Some(done) = dials.join_next().await {
         done.unwrap();
     }
+}
+
+/// One open + list against `at`, returning how long the failure took.
+async fn failure_time(engine: &str, adapter: &dyn EngineAdapter, dsn: String) -> Duration {
+    let started = std::time::Instant::now();
+    dial(engine, adapter, dsn).await;
+    started.elapsed()
+}
+
+#[tokio::test]
+async fn a_dead_mongo_or_mssql_fails_within_six_seconds() {
+    let resolver: Arc<dyn MountResolver> = Arc::new(EnvMountResolver::from_json("{}"));
+    // Bound but never accepted: the kernel completes the handshake, nothing answers.
+    let silent = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let silent_at = silent.local_addr().unwrap().to_string();
+    let mongo = crate::MongoEngineAdapter::new(resolver.clone());
+    let mssql = crate::MssqlEngineAdapter::new(resolver);
+    for at in ["127.0.0.1:1", silent_at.as_str()] {
+        // No serverSelectionTimeoutMS: the 5 s default is what is measured.
+        let (m, s) = tokio::join!(
+            failure_time("mongodb", &mongo, format!("mongodb://app:{CANARY}@{at}/db")),
+            failure_time("mssql", &mssql, format!("mssql://sa:{CANARY}@{at}/db")),
+        );
+        for (engine, took) in [("mongodb", m), ("mssql", s)] {
+            assert!(
+                took < Duration::from_secs(6),
+                "{engine} at {at} took {took:?}"
+            );
+        }
+    }
+    drop(silent);
 }

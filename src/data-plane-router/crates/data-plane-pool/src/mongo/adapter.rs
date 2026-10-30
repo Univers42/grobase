@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:49 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:50 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -86,9 +86,8 @@ impl EngineAdapter for MongoEngineAdapter {
         // driver already enforces this efficiently.
         options.max_pool_size = Some(mount.pool_policy.max);
         options.min_pool_size = Some(mount.pool_policy.min);
-        options.server_selection_timeout = Some(Duration::from_millis(
-            mount.pool_policy.idle_ttl_ms.max(5_000),
-        ));
+        options.server_selection_timeout =
+            Some(server_selection_timeout(options.server_selection_timeout));
         options.app_name = Some(format!("mini-baas/{}", mount.id));
 
         let tls = tls_posture(options.tls.as_ref());
@@ -175,10 +174,38 @@ fn parse_db_name(dsn: &str) -> String {
     "test".to_string()
 }
 
+/// Server selection when the DSN sets none. It used to be `max(idle_ttl_ms, 5 s)`, the
+/// pool-eviction TTL (30 s by default), so a dead mongo held every request 30 s.
+const SELECTION_DEFAULT: Duration = Duration::from_secs(5);
+/// The data plane has no request-level timeout: a DSN's `serverSelectionTimeoutMS` is
+/// the only bound on how long a request waits, so a tenant value is clamped to this.
+const SELECTION_CAP: Duration = Duration::from_secs(30);
+
+/// The DSN's own `serverSelectionTimeoutMS`, else 5 s, never above 30 s.
+///
+/// Caveat: a replica-set election (~10–12 s with the default `electionTimeoutMillis`)
+/// now fails requests that used to wait it out; such a mount sets
+/// `serverSelectionTimeoutMS` (≤ 30 s) in its DSN.
+fn server_selection_timeout(from_dsn: Option<Duration>) -> Duration {
+    from_dsn.map_or(SELECTION_DEFAULT, |t| t.min(SELECTION_CAP))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mongodb::options::TlsOptions;
+
+    #[test]
+    fn selection_timeout_defaults_honours_and_caps_the_dsn() {
+        assert_eq!(server_selection_timeout(None), Duration::from_secs(5));
+        let short = Duration::from_millis(500);
+        assert_eq!(server_selection_timeout(Some(short)), short);
+        let long = Duration::from_millis(600_000);
+        assert_eq!(
+            server_selection_timeout(Some(long)),
+            Duration::from_secs(30)
+        );
+    }
 
     // ── parse_db_name: DSN → database name, with default ──────────────────────
 

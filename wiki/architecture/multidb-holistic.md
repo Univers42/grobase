@@ -242,10 +242,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       `httpx.RedactDSN`). The m230 CANARY arm requires those tests to exist; each was
       mutation-checked red. Found on the way, measured with the canary (refused port):
       redis held `open_pool` over 120 s (redis-rs 0.27 backoff `factor` is a multiplier on
-      a 1 s base) — now ≤ 3 retries of 0.5 s, 3.2 s measured. Open: a dead mongo holds a
-      request 30 s (server selection = max(`idle_ttl_ms`, 5 s), `mongo/adapter.rs:89`);
-      mssql 30 s (bb8 checkout timeout also covers the dial); `DatabaseMount` derives
-      `Debug` with `inline_dsn` (no `{:?}` consumer found). Closed: data-plane-server's
+      a 1 s base) — now ≤ 3 retries of 0.5 s, 3.2 s measured. A dead mongo or mssql held a
+      request 30 s; now 5 s (mongo honours the DSN's `serverSelectionTimeoutMS`, capped at
+      30 s; mssql bb8 checkout 5 s), refused and silent listeners both tested (ADR 0016;
+      VM rollout waits on its D6 mount count). Open: `DatabaseMount` derives `Debug` with
+      `inline_dsn` (no `{:?}` consumer found). Closed: data-plane-server's
       own redis managers (limiter, quota honor-set, usage flusher) held each request
       over 90 s on a refused platform redis; one `redis_link::connect` (1 s timeout, no
       retry) now fails in 255 µs, test `refused_dial_fails_fast`.
