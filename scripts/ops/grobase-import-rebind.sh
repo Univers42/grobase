@@ -46,12 +46,32 @@ target_docker() {
   fi
 }
 
-# Ponytail: the redis password is read from a `--requirepass` argument only; one set in a
-# mounted redis.conf is missed, the DSN is rebound without a password, and the mount fails
-# AUTH — the data-plane probe after apply is what catches it.
+# redis_program — the jq defs that find the target redis' login for config_program.
+# Caveat: the login is read from a `--requirepass` argument, else from the one
+# redis://USER:PASSWORD@redis userinfo the running containers' *REDIS*_URL values carry
+# (the REDIS_ACL overlay, docs/adr/0028-g5-redis-acl-stage1.md). A password set in a mounted
+# redis.conf is missed, the DSN is rebound without one, and the mount fails AUTH: the
+# data-plane probe after apply is what catches it. The userinfo is taken as written, not
+# percent-decoded (generate-env.sh mints hex). Under stage 1 a DSN with no user is kept as
+# it is and still opens, as the passwordless default user.
+redis_program() {
+  cat <<'JQ'
+def redis_logins: [.[].Config.Env // [] | .[]
+  | capture("^[A-Z_]*REDIS[A-Z_]*_URL=rediss?://(?<user>[^:@/]+):(?<password>[^@/]+)@(redis|mini-baas-redis):")]
+  | unique;
+def redis_login($ra): ($ra | index(["--requirepass"])) as $i | redis_logins as $l
+  | if $i then {user: "", password: $ra[$i + 1]}
+    elif ($l | length) > 1 then error("target: \($l | length) distinct redis logins in running containers' *REDIS*_URL; need at most 1")
+    elif ($l | length) == 1 then $l[0]
+    elif ($ra | index(["/usr/local/bin/redis-acl.sh"])) then error("target: redis runs the ACL overlay but no running container's *REDIS*_URL carries its login")
+    else {user: "", password: ""} end;
+JQ
+}
+
 # config_program — jq over `docker inspect` of every running target container → the
 # mount-rebind config line. Refuses unless exactly one VAULT_ENC_KEY is in use there.
 config_program() {
+  redis_program
   cat <<'JQ'
 def env($c): (map(select(.Name == "/" + $c)) | .[0].Config.Env // [])
   | map(capture("^(?<key>[^=]+)=(?<value>.*)$")) | from_entries;
@@ -70,8 +90,8 @@ def srckey: $srcenv | split("\n") | map(select(startswith("VAULT_ENC_KEY="))) | 
     (env("mini-baas-mysql") | select(.MYSQL_PASSWORD) | target("mysql"; ["mysql", "mariadb"]; ["mysql", "mini-baas-mysql"]; 3306; .MYSQL_USER; .MYSQL_PASSWORD)),
     (env("mini-baas-mongo") | select(.MONGO_INITDB_ROOT_PASSWORD) | target("mongodb"; ["mongodb"]; ["mongo", "mini-baas-mongo"]; 27017; .MONGO_INITDB_ROOT_USERNAME; .MONGO_INITDB_ROOT_PASSWORD)),
     (env("mini-baas-mssql") | select(.MSSQL_SA_PASSWORD // .SA_PASSWORD) | target("mssql"; ["mssql", "sqlserver"]; ["mssql", "mini-baas-mssql"]; 1433; "sa"; .MSSQL_SA_PASSWORD // .SA_PASSWORD)),
-    ($all | select(running("mini-baas-redis")) | ($ra | index(["--requirepass"])) as $i
-      | target("redis"; ["redis"]; ["redis", "mini-baas-redis"]; 6379; ""; (if $i then $ra[$i + 1] else "" end)))
+    ($all | select(running("mini-baas-redis")) | redis_login($ra)
+      | target("redis"; ["redis"]; ["redis", "mini-baas-redis"]; 6379; .user; .password))
   ]}
 JQ
 }
