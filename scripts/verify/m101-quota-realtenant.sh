@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -124,6 +124,7 @@ payload_list() {
 
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -297,6 +298,8 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_QUOTA_ENFORCEMENT=1 \
   -e DATA_PLANE_QUOTA_REFRESH_MS="${REFRESH_MS}" \
   -e REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_ON}" "${PORT_ON}" || fail "ENFORCE router not ready (line: wait_ready DPR_ON)"
@@ -327,6 +330,8 @@ step "5/7 boot data-plane-router with enforcement UNSET (B · PARITY) — same r
 docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_OFF}" "${PORT_OFF}" || fail "PARITY router not ready (line: wait_ready DPR_OFF)"

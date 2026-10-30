@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -203,6 +203,7 @@ payload_list() { # $1=db-innet $2=tenant
 }
 post_q() { # $1=port $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -392,6 +393,7 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_TENANT_OBS=1 \
   -e REDIS_URL="${REDIS_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr "${DPR}" "${PORT_DPR}" || fail "ENABLED data-plane-router not ready"
@@ -698,6 +700,7 @@ docker run -d --name "${PDPR}" --network "${PNET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e REDIS_URL="${PREDIS_INNET}" \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_PDPR}:4011" "${DPR_IMG}" >/dev/null
 # orchestrator: registered sub-services but ALL cloud flags unset (METERING_ENABLED

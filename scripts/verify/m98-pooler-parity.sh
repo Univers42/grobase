@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -84,6 +84,8 @@ TENANT="m98-tenant-$$"
 OWNER_A="m98-owner-a-$$"
 OWNER_B="m98-owner-b-$$"
 PROBE_TABLE="m98_probe"
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 # In-network DSNs. Direct → postgres:5432 as app_user; pooled → pgbouncer:6432.
 DB_DIRECT="postgres://${APP_USER}:${APP_PW}@${PG}:5432/postgres"
 POOLER_URL="postgres://${APP_USER}:${APP_PW}@${PGB}:6432/postgres"
@@ -116,6 +118,7 @@ payload() {
 # POST a /v1/query; echo HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -252,6 +255,8 @@ ok "pgbouncer up in transaction mode; a query proxies through it to postgres"
 step "4/8 boot DIRECT router (DATA_PLANE_POOLER_URL UNSET) → byte-parity baseline"
 docker run -d --name "${DPR_DIRECT}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DIRECT}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_DIRECT}" "${PORT_DIRECT}" || fail "DIRECT router not ready (line: wait_ready DIRECT)"
@@ -304,6 +309,8 @@ docker run -d --name "${DPR_POOLED}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e DATA_PLANE_POOLER_URL="${POOLER_URL}" \
   -e DATA_PLANE_STATEMENT_CACHE=off \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_POOLED}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_POOLED}" "${PORT_POOLED}" || fail "POOLED router not ready (line: wait_ready POOLED)"

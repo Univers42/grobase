@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/15 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/15 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -81,6 +81,8 @@ REPLICA="m122-pg-replica-$$"
 DPR="m122-dpr-$$" # data-plane-router under test
 PORT_DPR="${M122_PORT_DPR:-18993}"
 PGPW="postgres"
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 PROBE_TABLE="m122_probe"
 
 # A single REAL tenant identity (UUID used as both id + slug elsewhere; here it is
@@ -121,7 +123,7 @@ payload_insert() { # $1 = new row id
 post_q() { # $1=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' --max-time 8 \
     -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
-    -H 'Content-Type: application/json' -d "$1"
+    -H 'Content-Type: application/json' -H "X-Service-Token: ${SVC_TOKEN}" -d "$1"
 }
 
 wait_dpr() {
@@ -196,6 +198,8 @@ step "3/7 boot data-plane-router WITH DATA_PLANE_READ_REPLICA=1 (routing ON) on 
 docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e DATA_PLANE_READ_REPLICA=1 \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr || fail "data-plane-router (flag ON) not ready (line: wait_dpr ON)"
@@ -243,6 +247,8 @@ step "6/7 (PARITY) restart data-plane-router WITHOUT DATA_PLANE_READ_REPLICA (fl
 docker rm -fv "${DPR}" >/dev/null 2>&1 || true
 docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr || fail "data-plane-router (flag OFF) not ready (line: wait_dpr OFF)"

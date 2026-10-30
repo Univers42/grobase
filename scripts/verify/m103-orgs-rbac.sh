@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -372,11 +372,13 @@ step "6b/9 (A · POSITIVE) boot data-plane-router; a /v1/query for the project s
 docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e DATA_PLANE_ROUTER_PORT=3030 \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:3030" "${DPR_IMG}" >/dev/null
 wait_ready_http "${DPR}" "${PORT_DPR}" /v1/capabilities || fail "data-plane-router not ready (line: wait DPR)"
 C="$(curl -s -o "${DP_ON_BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
+  -H "X-Service-Token: ${SVC_TOKEN}" \
   -H 'Content-Type: application/json' -d "$(payload_list "${PROJ_SLUG}")")"
 [[ "${C}" == "200" ]] || fail "(A) data-plane /v1/query for the org-owned project expected 200, got ${C} — $(head -c 400 "${DP_ON_BODY}") (line: dp query project)"
 ok "(A) data CRUD through the Rust data plane works for the org-scoped project (200)"
@@ -479,6 +481,7 @@ echo "${PAYLOAD}" | grep -q '"org_id"' && fail "(C2) the data-plane request enve
 # envelope, same data plane, after the WHOLE org world (org A/B, members, invites,
 # org-owned project) exists. If orgs touched the data path these would differ.
 C="$(curl -s -o "${DP_OFF_BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
+  -H "X-Service-Token: ${SVC_TOKEN}" \
   -H 'Content-Type: application/json' -d "${PAYLOAD}")"
 [[ "${C}" == "200" ]] || fail "(C2) repeat /v1/query expected 200, got ${C} — $(head -c 400 "${DP_OFF_BODY}") (line: C2 repeat 200)"
 # The response bodies must be byte-identical (the data plane is org-agnostic).

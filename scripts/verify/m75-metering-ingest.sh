@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -167,6 +167,7 @@ batch_data() { # $1=table
 # POST a query to a router on 127.0.0.1:$port; echo HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -333,6 +334,8 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_METERING=1 \
   -e DATA_PLANE_METERING_FLUSH_MS="${FLUSH_MS}" \
   -e DATA_PLANE_METERING_REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${DPR_IMG}" >/dev/null
 wait_http "${DPR_ON}" "${PORT_ON}" "/v1/capabilities" || fail "POSITIVE router not ready (line: wait_http DPR_ON)"
@@ -476,6 +479,8 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e METERING_ENABLED=1 -e DATA_PLANE_METERING=1 \
   -e DATA_PLANE_METERING_FLUSH_MS="${FLUSH_MS}" \
   -e DATA_PLANE_METERING_REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${DPR_IMG}" >/dev/null
 wait_http "${DPR_ON}" "${PORT_ON}" "/v1/capabilities" || fail "(C1) producer not ready (line: C1 wait_http)"
@@ -508,6 +513,8 @@ redis_cli DEL usage.events >/dev/null 2>&1 || true
 docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e DATA_PLANE_METERING_REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${DPR_IMG}" >/dev/null
 wait_http "${DPR_OFF}" "${PORT_OFF}" "/v1/capabilities" || fail "(C2) PARITY router not ready (line: C2 wait_http)"

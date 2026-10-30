@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -96,6 +96,8 @@ TABLE="m88_items"
 TENANT="m88-t-$$"
 U1="m88-u1-$$"
 U2="m88-u2-$$"
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 # In-network DSN: dynamodb://local?endpoint=… selects DynamoDB-Local, with static
 # creds dynamodb-local accepts any non-empty values for.
 DSN_INNET="dynamodb://local?endpoint=http://${DDB}:${DDB_PORT}&region=us-east-1&access_key=fake&secret_key=fake"
@@ -120,6 +122,7 @@ payload() { # $1=owner $2=op $3=table $4=data_json $5=filter_json
 
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -197,6 +200,8 @@ ok "${TABLE} created (owner_pk HASH, id RANGE)"
 step "2/8 boot router --features dynamodb on 127.0.0.1:${PORT_ON} (A · positive / B · reject)"
 docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_ON}" "${PORT_ON}" || fail "dynamodb-feature router not ready (line: wait_ready DPR_ON)"
@@ -233,13 +238,14 @@ ok "(A) insert→200, dup→409, get round-trips, list returns the owner's items
 step "4/8 (A · POSITIVE) begin → execute(put A) → execute(put B) → commit (TransactWriteItems) → both atomically visible"
 # Begin a tx; capture tx_id. The tx envelope mirrors /v1/query but on /v1/transactions.
 TXBODY="$(printf '{"identity":{"tenant_id":"%s","user_id":"%s","roles":["service_role"],"scopes":["admin"],"source":"test"},"mount":{"id":"m88","tenant_id":"%s","engine":"dynamodb","name":"probe","credential_ref":{"provider":"inline","reference":"-","version":"1"},"capability_overrides":null,"inline_dsn":"%s","isolation":"shared_rls"}}' "${TENANT}" "${U1}" "${TENANT}" "${DSN_INNET}")"
-C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions" -H 'Content-Type: application/json' -d "${TXBODY}")"
+C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions" -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' -d "${TXBODY}")"
 [[ "${C}" == "200" || "${C}" == "201" ]] || fail "(A) tx begin expected 200/201, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A tx begin)"
 TX_ID="$({ grep -o '"tx_id":"[^"]*"' "${BODY_TMP}" || grep -o '"id":"[^"]*"' "${BODY_TMP}" || true; } | head -1 | sed 's/.*://; s/"//g')"
 [[ -n "${TX_ID}" ]] || fail "(A) tx begin returned no tx_id — $(head -c 300 "${BODY_TMP}") (line: A tx id)"
 # Buffer two puts (A and B) then commit.
 tx_exec() { # $1=op $2=data
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX_ID}/execute" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' \
     -d "$(printf '{"identity":{"tenant_id":"%s","user_id":"%s","roles":["service_role"],"scopes":["admin"],"source":"test"},"operation":{"op":"%s","resource":"%s","data":%s,"filter":null}}' "${TENANT}" "${U1}" "$1" "${TABLE}" "$2")"
 }
@@ -247,7 +253,7 @@ C="$(tx_exec insert '{"id":"txa","v":"A"}')"
 [[ "${C}" == "200" ]] || fail "(A) tx execute put A got ${C} — $(head -c 200 "${BODY_TMP}") (line: A tx put A)"
 C="$(tx_exec insert '{"id":"txb","v":"B"}')"
 [[ "${C}" == "200" ]] || fail "(A) tx execute put B got ${C} — $(head -c 200 "${BODY_TMP}") (line: A tx put B)"
-C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX_ID}/commit" -H 'Content-Type: application/json' -d '{}')"
+C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX_ID}/commit" -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' -d '{}')"
 [[ "${C}" == "200" ]] || fail "(A) tx commit (TransactWriteItems) expected 200, got ${C} — $(head -c 300 "${BODY_TMP}") (line: A tx commit)"
 # Both A and B must now be visible atomically.
 post_q "${PORT_ON}" "$(payload "${U1}" get "${TABLE}" 'null' '{"id":"txa"}')" >/dev/null
@@ -259,7 +265,7 @@ ok "(A) TransactWriteItems committed A AND B atomically"
 # asserted via the engine's de-dup window; re-issuing the commit on the same tx
 # handle returns success without a second write — proven by the row count staying
 # stable across a second commit attempt.
-C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX_ID}/commit" -H 'Content-Type: application/json' -d '{}' || true)"
+C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX_ID}/commit" -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' -d '{}' || true)"
 ok "(A · idempotency) re-commit of the same token returned ${C} with no duplicate write (native_idempotency)"
 
 # ── 5) (B · LOAD-BEARING REJECT) cross-owner read denied ───────────────────────
@@ -285,18 +291,19 @@ step "6/8 (B · LOAD-BEARING) transaction ROLLBACK on cond-check failure — who
 # id (x) with attribute_not_exists → ConditionalCheckFailed → the WHOLE
 # TransactWriteItems is canceled. The proof: rb_ok must NOT exist afterward.
 TXBODY2="$(printf '{"identity":{"tenant_id":"%s","user_id":"%s","roles":["service_role"],"scopes":["admin"],"source":"test"},"mount":{"id":"m88","tenant_id":"%s","engine":"dynamodb","name":"probe","credential_ref":{"provider":"inline","reference":"-","version":"1"},"capability_overrides":null,"inline_dsn":"%s","isolation":"shared_rls"}}' "${TENANT}" "${U1}" "${TENANT}" "${DSN_INNET}")"
-curl -s -o "${BODY_TMP}" -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions" -H 'Content-Type: application/json' -d "${TXBODY2}" >/dev/null
+curl -s -o "${BODY_TMP}" -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions" -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' -d "${TXBODY2}" >/dev/null
 TX2="$({ grep -o '"tx_id":"[^"]*"' "${BODY_TMP}" || grep -o '"id":"[^"]*"' "${BODY_TMP}" || true; } | head -1 | sed 's/.*://; s/"//g')"
 [[ -n "${TX2}" ]] || fail "(B) rollback tx begin returned no tx_id — $(head -c 300 "${BODY_TMP}") (line: B tx begin)"
 tx_exec2() { # $1=op $2=data  (on TX2)
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX2}/execute" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' \
     -d "$(printf '{"identity":{"tenant_id":"%s","user_id":"%s","roles":["service_role"],"scopes":["admin"],"source":"test"},"operation":{"op":"%s","resource":"%s","data":%s,"filter":null}}' "${TENANT}" "${U1}" "$1" "${TABLE}" "$2")"
 }
 tx_exec2 insert '{"id":"rb_ok","note":"should-roll-back"}' >/dev/null # 1st: a fresh id (buffered)
 tx_exec2 insert '{"id":"x","note":"collides"}' >/dev/null             # 2nd: collides on existing id=x
 # Commit → the conditional check on the 2nd item fails → 409 (whole tx canceled).
-C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX2}/commit" -H 'Content-Type: application/json' -d '{}')"
+C="$(curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:${PORT_ON}/v1/transactions/${TX2}/commit" -H "X-Service-Token: ${SVC_TOKEN}" -H 'Content-Type: application/json' -d '{}')"
 [[ "${C}" == "409" ]] ||
   fail "(B) cond-check-failing transact commit expected 409 (TransactionCanceled), got ${C} — $(head -c 300 "${BODY_TMP}") (line: B tx commit 409)"
 # The LOAD-BEARING proof: the FIRST item (rb_ok) must NOT have been written.
@@ -309,6 +316,8 @@ ok "(B) cond-check failure → 409 + the first item was NOT written: the WHOLE t
 step "7/8 (C · PARITY) boot a router with DEFAULT features (no dynamodb) on 127.0.0.1:${PORT_OFF}"
 docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${DEFAULT_IMG}" >/dev/null
 wait_ready "${DPR_OFF}" "${PORT_OFF}" || fail "default-feature router not ready (line: wait_ready DPR_OFF)"
