@@ -45,6 +45,7 @@
 # (verified -N m session, a name outside the SANs refused, an unencrypted client still in)
 # and PID 1 runs as the image's mssql user; the render shows the overlay alone sets the data plane's
 # INSECURE=0 (ADR 0027). MySQL 8 (Oracle, ADR 0026): scripts/lib/lib-m247-mysql8.sh.
+# CockroachDB (ADR 0029): scripts/lib/lib-m247-cockroach.sh, legs A C B and the rollback D.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -67,14 +68,14 @@ OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
 postgres) LIVE_OVERLAY="${OVERLAY}" ;;
-mongo | redis | mariadb | mysql | mysql8 | mssql) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
+mongo | redis | mariadb | mysql | mysql8 | mssql | cockroach) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
 *)
-  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb, mysql, mysql8 or mssql\n' "${ENGINE}" >&2
+  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb, mysql, mysql8, mssql or cockroach\n' "${ENGINE}" >&2
   exit 2
   ;;
 esac
 case "${ENGINE}" in
-mariadb | mssql) PROFILE="engines-extra" ;;
+mariadb | mssql | cockroach) PROFILE="engines-extra" ;;
 mysql8) PROFILE=mysql8 ;;
 *) PROFILE=data-plane ;;
 esac
@@ -90,6 +91,8 @@ skip() { printf '  \033[33m- SKIP %s\033[0m\n' "$*"; }
 . "${ROOT}/scripts/lib/lib-m247-mysql8.sh"
 # shellcheck source=../lib/lib-m247-mssql-plane.sh
 . "${ROOT}/scripts/lib/lib-m247-mssql-plane.sh"
+# shellcheck source=../lib/lib-m247-cockroach.sh
+. "${ROOT}/scripts/lib/lib-m247-cockroach.sh"
 
 static_checks() {
   local engines="${ROOT}/orchestrators/compose/base/data-engines.yml"
@@ -112,6 +115,7 @@ static_checks() {
   mysql8_static_checks
   mssql_plane_static_checks
   mongo_clients_static_checks
+  cockroach_static_checks
 }
 
 g5b_static_checks() {
