@@ -15,6 +15,7 @@
 
 use super::pool::MssqlPool;
 use super::*;
+use data_plane_core::TlsPosture;
 
 pub struct MssqlEngineAdapter {
     resolver: Arc<dyn MountResolver>,
@@ -45,7 +46,7 @@ impl EngineAdapter for MssqlEngineAdapter {
     //   one straight-line setup, nothing to factor.
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
         let dsn = self.resolver.resolve_dsn(&mount).await?;
-        let config = mssql_config(&dsn)?;
+        let (config, tls) = mssql_config(&dsn)?;
         let manager = ConnectionManager::new(config);
         let pool = Pool::builder()
             .max_size(mount.pool_policy.max.max(1))
@@ -60,6 +61,7 @@ impl EngineAdapter for MssqlEngineAdapter {
             owner_scoped: mount.isolation().owner_scoped(),
             shared_pool: crate::pools_shared(&mount),
             pool,
+            tls,
         }))
     }
 
@@ -71,7 +73,7 @@ impl EngineAdapter for MssqlEngineAdapter {
 /// Build a tiberius `Config` from a `mssql://user:pass@host:port/db` DSN. The
 /// TLS posture is decided by [`apply_mssql_tls`] — tiberius verifies the server
 /// cert by default; we only relax that deliberately (never silently).
-fn mssql_config(dsn: &str) -> DataPlaneResult<Config> {
+fn mssql_config(dsn: &str) -> DataPlaneResult<(Config, TlsPosture)> {
     let rest = dsn
         .strip_prefix("mssql://")
         .or_else(|| dsn.strip_prefix("sqlserver://"))
@@ -94,8 +96,8 @@ fn mssql_config(dsn: &str) -> DataPlaneResult<Config> {
     config.port(port);
     config.database(if db.is_empty() { "master" } else { db });
     config.authentication(AuthMethod::sql_server(user, pass));
-    apply_mssql_tls(&mut config);
-    Ok(config)
+    let tls = apply_mssql_tls(&mut config);
+    Ok((config, tls))
 }
 
 /// Phase B — the MSSQL TLS posture (closes the unconditional `trust_cert()`
@@ -109,7 +111,11 @@ fn mssql_config(dsn: &str) -> DataPlaneResult<Config> {
 ///   * baseline/dev        → a self-signed local SQL Server is accepted ONLY via
 ///     the explicit `DATA_PLANE_TLS_INSECURE=1` escape (or a pinned CA); without
 ///     it the chain is still verified.
-fn apply_mssql_tls(config: &mut Config) {
+///
+/// Returns the TLS posture selected by those settings for the engine probe.
+fn apply_mssql_tls(config: &mut Config) -> TlsPosture {
+    // The label below is only true if encryption is never negotiated down (devil G4 P4).
+    config.encryption(tiberius::EncryptionLevel::Required);
     let max_security = std::env::var("SECURITY_MODE")
         .map(|v| v.eq_ignore_ascii_case("max"))
         .unwrap_or(false);
@@ -118,8 +124,12 @@ fn apply_mssql_tls(config: &mut Config) {
         !max_security && std::env::var("DATA_PLANE_TLS_INSECURE").ok().as_deref() == Some("1");
     if insecure {
         config.trust_cert();
+        TlsPosture::Encrypted
     } else if !ca_file.is_empty() {
         config.trust_cert_ca(&ca_file);
+        TlsPosture::Verified
+    } else {
+        // Default tiberius behaviour — verify against the native root store.
+        TlsPosture::Verified
     }
-    // else: default tiberius behaviour — verify against the native root store.
 }
