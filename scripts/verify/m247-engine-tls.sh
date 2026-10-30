@@ -38,7 +38,8 @@
 # still connects) and PID 1 runs as uid 100. The mysql service is MariaDB too: the same legs.
 # MSSQL: leg A finds a self-signed cert a CA-trusting sqlcmd refuses; B serves the engine cert
 # (verified -N m session, a name outside the SANs refused, an unencrypted client still in)
-# and PID 1 runs as the image's mssql user. MySQL 8 (Oracle, ADR 0026): scripts/lib/lib-m247-mysql8.sh.
+# and PID 1 runs as the image's mssql user; the render shows the overlay alone sets the data plane's
+# INSECURE=0 (ADR 0027). MySQL 8 (Oracle, ADR 0026): scripts/lib/lib-m247-mysql8.sh.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -78,6 +79,8 @@ step() { printf '\033[1m• %s\033[0m\n' "$*"; }
 skip() { printf '  \033[33m- SKIP %s\033[0m\n' "$*"; }
 # shellcheck source=../lib/lib-m247-mysql8.sh
 . "${ROOT}/scripts/lib/lib-m247-mysql8.sh"
+# shellcheck source=../lib/lib-m247-mssql-plane.sh
+. "${ROOT}/scripts/lib/lib-m247-mssql-plane.sh"
 
 static_checks() {
   local engines="${ROOT}/orchestrators/compose/base/data-engines.yml"
@@ -98,6 +101,7 @@ static_checks() {
   pass "default unchanged, overlay opt-in, CA key never mounted, cert minted on request only"
   g5b_static_checks
   mysql8_static_checks
+  mssql_plane_static_checks
 }
 
 g5b_static_checks() {
@@ -449,6 +453,7 @@ mssql_live_checks() {
     fail "a key or cert landed in /var/opt/mssql"
   ! docker exec "m247-${ENGINE}" grep -qi tls /var/opt/mssql/mssql.conf || fail "mssql.conf in the volume carries TLS settings"
   pass "PID 1 is mssql (uid ${uid}), the key is 600 on tmpfs, the volume holds no cert and no TLS setting"
+  mssql_plane_render_checks
 }
 
 # --- stack ------------------------------------------------------------------
