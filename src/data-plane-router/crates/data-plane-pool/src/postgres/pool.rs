@@ -12,7 +12,7 @@
 
 //! The `EnginePool` trait impl for `PostgresPool`.
 //!
-//! A trait impl must live in one block, so all eight methods are here. The two
+//! A trait impl must live in one block, so all nine methods are here. The two
 //! heaviest bodies (`describe_schema`, `apply_migration`) and the DDL-apply
 //! body are factored into `pub(super)` free functions in [`super::schema`] —
 //! the method keeps only its `check_tenant` guard and delegates, byte-for-byte
@@ -23,9 +23,10 @@ use super::cell::JsonCell;
 use super::{convert, schema, tx, BoxedParam};
 use async_trait::async_trait;
 use data_plane_core::{
-    DataOperation, DataPlaneError, DataPlaneResult, DataResult, EnginePool, MigrationRequest,
-    MigrationResult, RawStatement, RequestIdentity, SchemaDdlRequest, SchemaDdlResult,
-    SchemaDescriptor, TxBeginRequest, TxHandle,
+    normalise_tls_version, normalise_version, DataOperation, DataPlaneError, DataPlaneResult,
+    DataResult, EnginePool, EngineProbe, MigrationRequest, MigrationResult, RawStatement,
+    RequestIdentity, SchemaDdlRequest, SchemaDdlResult, SchemaDescriptor, TlsPosture,
+    TxBeginRequest, TxHandle,
 };
 use serde_json::Value;
 use std::error::Error as _;
@@ -194,6 +195,46 @@ impl EnginePool for PostgresPool {
     ) -> DataPlaneResult<SchemaDescriptor> {
         self.check_tenant(&identity)?;
         schema::describe_schema(&self.pool, self.search_path_schema.as_deref()).await
+    }
+
+    /// Read-only probe: the TLS label is the connector's mode, not the server's word (devil G4 P4).
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        // P7: a checkout failure can echo the DSN (host/user) — fixed text only.
+        let client = self.pool.get().await.map_err(|_| DataPlaneError::Backend {
+            message: "probe: pool checkout failed".into(),
+        })?;
+        // CockroachDB's `server_version` setting is the PG-compat number, not
+        // CockroachDB's own — `version()` carries the real banner there.
+        let version_sql = match self.dialect {
+            PgDialect::Postgres => "SELECT current_setting('server_version')",
+            PgDialect::Cockroach => "SELECT version()",
+        };
+        // A refused statement is an honest "unknown", never a probe error.
+        let server_version = match client.query_one(version_sql, &[]).await {
+            Ok(row) => normalise_version(&row.get::<_, String>(0)),
+            Err(_) => "unknown".into(),
+        };
+        // Behind a pooler, pg_stat_ssl describes the pooler→postgres hop, not ours.
+        let tls_version = if self.tls != TlsPosture::Plaintext && !self.behind_pooler {
+            client
+                .query_opt(
+                    "SELECT version FROM pg_stat_ssl WHERE pid = pg_backend_pid()",
+                    &[],
+                )
+                .await
+                .ok()
+                .flatten()
+                .and_then(|row| row.try_get::<_, Option<String>>(0).ok().flatten())
+                .as_deref()
+                .and_then(normalise_tls_version)
+        } else {
+            None
+        };
+        Ok(EngineProbe {
+            server_version,
+            tls: self.tls,
+            tls_version,
+        })
     }
 
     /// Engine-agnostic schema DDL (M22 step 2). The request is lowered to SQL

@@ -16,7 +16,7 @@
 //! parameters so they unit-test without a DB. Used only by [`super::adapter`]'s
 //! `open_pool`.
 
-use data_plane_core::{DataPlaneError, DataPlaneResult};
+use data_plane_core::{DataPlaneError, DataPlaneResult, TlsPosture};
 use std::sync::Arc;
 
 /// The TLS verification posture a mount's DSN opts into.
@@ -46,6 +46,17 @@ pub(super) fn effective_tls_mode(dsn: &str, max_security: bool) -> Option<TlsMod
         // Max mode: `require` is upgraded to real verification.
         (Some(TlsMode::Require), true) => Some(TlsMode::Verify),
         (other, _) => other,
+    }
+}
+
+/// The probe's TLS label for the mode `open_pool` connected with (devil G4 P4):
+/// the connector's own choice, so the label can never drift from what actually
+/// encrypted the channel. `None` (the NoTls path) is the honest `Plaintext`.
+pub(super) fn tls_posture(mode: Option<TlsMode>) -> TlsPosture {
+    match mode {
+        Some(TlsMode::Verify) => TlsPosture::Verified,
+        Some(TlsMode::Require) => TlsPosture::Encrypted,
+        None => TlsPosture::Plaintext,
     }
 }
 
@@ -349,6 +360,32 @@ mod tests {
         assert_eq!(
             effective_tls_mode("postgres://postgres:pw@postgres:5432/commerce", true),
             None
+        );
+    }
+
+    #[test]
+    fn tls_posture_labels_each_mode() {
+        use super::{tls_posture, TlsMode};
+        use data_plane_core::TlsPosture;
+        assert_eq!(tls_posture(Some(TlsMode::Verify)), TlsPosture::Verified);
+        assert_eq!(tls_posture(Some(TlsMode::Require)), TlsPosture::Encrypted);
+        assert_eq!(tls_posture(None), TlsPosture::Plaintext);
+    }
+
+    #[test]
+    fn tls_posture_follows_the_effective_mode_not_the_dsn() {
+        use super::{effective_tls_mode, tls_posture};
+        use data_plane_core::TlsPosture;
+        // The label composes with the mode open_pool would connect with:
+        // SECURITY_MODE=max upgrades `require` → the probe says Verified.
+        assert_eq!(
+            tls_posture(effective_tls_mode("postgres://h/d?sslmode=require", true)),
+            TlsPosture::Verified
+        );
+        // Baseline `require` encrypts without verifying → Encrypted.
+        assert_eq!(
+            tls_posture(effective_tls_mode("postgres://h/d?sslmode=require", false)),
+            TlsPosture::Encrypted
         );
     }
 }
