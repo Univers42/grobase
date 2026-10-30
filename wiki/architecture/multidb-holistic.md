@@ -400,6 +400,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         `MSSQL_TLS_*` env (no mssql.conf write), forceencryption 0, root → setpriv uid 999;
         m247 mssql A/B/C green locally 2026-10-30, m27 mssql under the overlay 9 passed /
         3 skipped / 0 failed; CI mssql leg twice.
+  - [x] G5b mysql8 — `ENGINE_TLS_ENGINES=mysql8` (Oracle MySQL 8.4): the CA-signed cert replaces
+        the auto-generated one (ADR 0026, f9605fb5); CI `mysql8 over TLS` leg green on develop
+        runs 41080324791, 41086854436, 41089119419.
+  - [x] G5b cockroach — `ENGINE_TLS_ENGINES=cockroach`: secure mode with the CA-signed cert,
+        plaintext still accepted (ADR 0029, 4d83e748); CI `cockroachdb over TLS` leg green on
+        develop runs 41080324791, 41086854436, 41089119419.
   - [ ] Clients verify mongo's certs (mongosh, mongo-init, mongo-api); today plaintext.
   - [x] D3 — the Rust redis clients verify redis's cert: the pool engine and the server's
         limiter/quota/metering link dial `rediss://` through rustls with the system store plus
