@@ -92,12 +92,12 @@ svc_auth_with() {
 svc_class_key() { # $1 = query_router | tenant_control
   local var holder key
   case "$1" in
-    query_router) var=DATA_PLANE_KEY_QUERY_ROUTER holder=mini-baas-query-router ;;
-    tenant_control) var=DATA_PLANE_KEY_TENANT_CONTROL holder=mini-baas-tenant-control ;;
-    *)
-      printf 'svc_class_key: unknown caller class %s\n' "$1" >&2
-      return 2
-      ;;
+  query_router) var=DATA_PLANE_KEY_QUERY_ROUTER holder=mini-baas-query-router ;;
+  tenant_control) var=DATA_PLANE_KEY_TENANT_CONTROL holder=mini-baas-tenant-control ;;
+  *)
+    printf 'svc_class_key: unknown caller class %s\n' "$1" >&2
+    return 2
+    ;;
   esac
   key="${!var:-}"
   [ -n "${key}" ] || key=$(docker inspect "${holder}" \
@@ -126,8 +126,8 @@ svc_curl_as() {
   shift
   for arg in "$@"; do
     case "${prev}" in
-      -d | --data | --data-raw | --data-binary) body="${arg}" ;;
-      -X) method="${arg}" ;;
+    -d | --data | --data-raw | --data-binary) body="${arg}" ;;
+    -X) method="${arg}" ;;
     esac
     case "${arg}" in http://* | https://*) [ -n "${url}" ] || url="${arg}" ;; esac
     prev="${arg}"
