@@ -21,12 +21,17 @@
 //! Only a DSN the operator wrote into `DATA_PLANE_MOUNTS` is
 //! [`crate::Provenance::Platform`]; everything else is `Tenant` and guarded.
 
-#[cfg(any(feature = "http", feature = "postgres", feature = "mysql"))]
+#[cfg(any(
+    feature = "http",
+    feature = "postgres",
+    feature = "mysql",
+    feature = "redis"
+))]
 pub(crate) mod classify;
 #[cfg(test)]
 #[cfg(any(feature = "http", feature = "postgres", feature = "mysql"))]
 mod classify_tests;
-#[cfg(any(feature = "postgres", feature = "mysql"))]
+#[cfg(any(feature = "postgres", feature = "mysql", feature = "redis"))]
 pub(crate) mod scope;
 
 /// The env key holding the mode, read once at startup by the server.

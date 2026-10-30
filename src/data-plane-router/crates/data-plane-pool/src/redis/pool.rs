@@ -14,6 +14,7 @@
 //! derives owner-scoped key prefixes, and dispatches single + batch operations.
 
 use super::convert::build_key_prefix;
+use super::dial::DialManager;
 use super::query::{run_delete, run_get, run_insert, run_list, run_update, run_upsert};
 use super::validate::validate_resource;
 use super::SUPPORTED_OPS;
@@ -23,7 +24,6 @@ use data_plane_core::{
     DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, EnginePool, EngineProbe,
     RequestIdentity, TlsPosture, TxBeginRequest, TxHandle,
 };
-use redis::aio::ConnectionManager;
 use serde_json::Value;
 
 pub struct RedisPool {
@@ -34,7 +34,7 @@ pub struct RedisPool {
     /// `<owner>:<resource>` derived from the identity — carries isolation). See
     /// `crate::pools_shared`.
     pub(super) shared_pool: bool,
-    pub(super) manager: ConnectionManager,
+    pub(super) manager: DialManager,
     /// `Some("tenant_<id>")` for `schema_per_tenant` mounts: prepended to every
     /// key so a tenant's keyspace is fully partitioned. `None` (shared_rls /
     /// db_per_tenant) → no extra segment, the historical key shape.
@@ -85,7 +85,7 @@ impl RedisPool {
     ) -> DataPlaneResult<DataResult> {
         validate_resource(&operation.resource)?;
         crate::kv_scope::refuse_ignored_predicates("redis", operation)?;
-        let mut conn = self.manager.clone();
+        let mut conn = self.manager.checkout().await?;
         let prefix = self.key_prefix(&operation.resource, identity);
         match operation.op {
             DataOperationKind::List => run_list(&mut conn, &prefix, operation).await,
@@ -207,7 +207,7 @@ impl EnginePool for RedisPool {
 
     /// Read-only probe: server version from `INFO server`; a failed query stays `unknown`.
     async fn probe(&self) -> DataPlaneResult<EngineProbe> {
-        let mut conn = self.manager.clone();
+        let mut conn = self.manager.checkout().await?;
         let info = redis::cmd("INFO")
             .arg("server")
             .query_async::<String>(&mut conn)
