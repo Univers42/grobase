@@ -13,7 +13,7 @@
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperation, DataPlaneError, DataPlaneResult, DataResult, DatabaseMount, EngineAdapter,
-    EnginePool, PoolRegistry, PoolStats, RequestIdentity, TxBeginRequest, TxHandle,
+    EnginePool, EngineProbe, PoolRegistry, PoolStats, RequestIdentity, TxBeginRequest, TxHandle,
 };
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -379,6 +379,10 @@ impl EnginePool for SharedPool {
         self.0.describe_schema(identity).await
     }
 
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        self.0.probe().await
+    }
+
     async fn apply_schema_ddl(
         &self,
         ddl: data_plane_core::SchemaDdlRequest,
@@ -391,7 +395,9 @@ impl EnginePool for SharedPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_plane_core::{CredentialRef, EngineCapabilities, EngineHealth, PoolPolicy};
+    use data_plane_core::{
+        CredentialRef, EngineCapabilities, EngineHealth, PoolPolicy, TlsPosture,
+    };
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// A no-op pool that counts how many times `close()` was called, so tests
@@ -421,6 +427,13 @@ mod tests {
         async fn close(&self) -> DataPlaneResult<()> {
             self.closed.fetch_add(1, Ordering::SeqCst);
             Ok(())
+        }
+        async fn probe(&self) -> DataPlaneResult<data_plane_core::EngineProbe> {
+            Ok(data_plane_core::EngineProbe {
+                server_version: "9.9".into(),
+                tls: TlsPosture::Verified,
+                tls_version: None,
+            })
         }
     }
 
@@ -486,6 +499,27 @@ mod tests {
             vec![Arc::new(CountingAdapter { closed }) as Arc<dyn EngineAdapter>],
             cap,
         )
+    }
+
+    #[tokio::test]
+    async fn shared_pool_forwards_probe() {
+        let closed = Arc::new(AtomicUsize::new(0));
+        let reg = registry(closed, 256);
+        let probe = reg
+            .get_or_create(mount_n(1, 30_000))
+            .await
+            .unwrap()
+            .probe()
+            .await
+            .unwrap();
+        assert_eq!(
+            probe,
+            data_plane_core::EngineProbe {
+                server_version: "9.9".into(),
+                tls: TlsPosture::Verified,
+                tls_version: None,
+            }
+        );
     }
 
     #[tokio::test]

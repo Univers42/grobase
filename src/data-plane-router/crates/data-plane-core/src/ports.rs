@@ -92,6 +92,12 @@ pub trait EnginePool: Send + Sync {
         })
     }
 
+    /// Read-only probe: server version + the TLS posture this pool connected with. Default
+    /// `unknown` so an engine without a probe says so instead of guessing.
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        Ok(EngineProbe::unknown())
+    }
+
     /// Apply ONE engine-agnostic schema-DDL operation (M22 step 2): add /
     /// drop / retype a column, create / drop a table. Engines lower the
     /// request through pure, identifier-validated builders (never raw client
@@ -220,6 +226,76 @@ impl EngineHealth {
     }
 }
 
+/// What a pool used to reach its engine. Comes from the setting the pool was opened with,
+/// never from DSN text or from what the server says (devil G4 P4).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TlsPosture {
+    Verified,
+    Encrypted,
+    Plaintext,
+    NotApplicable,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EngineProbe {
+    pub server_version: String,
+    pub tls: TlsPosture,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls_version: Option<String>,
+}
+
+impl EngineProbe {
+    #[must_use]
+    pub fn unknown() -> Self {
+        Self {
+            server_version: "unknown".into(),
+            tls: TlsPosture::Unknown,
+            tls_version: None,
+        }
+    }
+}
+
+/// Extract the first numeric version, capped at four components and 32 bytes. Other banner
+/// text is never copied, keeping platform and build details out of the probe.
+#[must_use]
+pub fn normalise_version(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let Some(start) = bytes.iter().position(|byte| byte.is_ascii_digit()) else {
+        return "unknown".into();
+    };
+    let mut end = start;
+    let mut dots = 0;
+    while end < bytes.len() {
+        if bytes[end].is_ascii_digit() {
+            end += 1;
+            continue;
+        }
+        if bytes[end] != b'.'
+            || dots == 3
+            || end + 1 == bytes.len()
+            || !bytes[end + 1].is_ascii_digit()
+        {
+            break;
+        }
+        dots += 1;
+        end += 1;
+    }
+    raw[start..end].chars().take(32).collect()
+}
+
+/// Accept only the TLS protocol versions an engine probe may report.
+#[must_use]
+pub fn normalise_tls_version(raw: &str) -> Option<String> {
+    let version = raw.trim();
+    if matches!(version, "TLSv1" | "TLSv1.1" | "TLSv1.2" | "TLSv1.3") {
+        Some(version.to_string())
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PoolStats {
     pub mount_id: String,
@@ -227,4 +303,41 @@ pub struct PoolStats {
     pub active_connections: u32,
     pub idle_connections: u32,
     pub waiting_requests: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalise_tls_version, normalise_version};
+
+    #[test]
+    fn normalise_version_extracts_only_numeric_versions() {
+        let cases = [
+            (
+                "PostgreSQL 16.4 on x86_64-pc-linux-musl, compiled by gcc",
+                "16.4",
+            ),
+            ("11.4.3-MariaDB-log", "11.4.3"),
+            ("8.4.9", "8.4.9"),
+            (
+                "CockroachDB CCL v24.1.0 (x86_64-pc-linux-gnu, built 2024/05/01)",
+                "24.1.0",
+            ),
+            ("1.2.3.4.5", "1.2.3.4"),
+            ("v.", "unknown"),
+            ("", "unknown"),
+            ("16.", "16"),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(normalise_version(raw), expected, "raw: {raw}");
+        }
+        assert!(normalise_version(&"9".repeat(100)).len() <= 32);
+    }
+
+    #[test]
+    fn normalise_tls_version_accepts_only_the_closed_set() {
+        assert_eq!(normalise_tls_version("TLSv1.3"), Some("TLSv1.3".into()));
+        assert_eq!(normalise_tls_version(" TLSv1.2 "), Some("TLSv1.2".into()));
+        assert_eq!(normalise_tls_version("SSLv3"), None);
+        assert_eq!(normalise_tls_version("TLSv1.3; os=linux"), None);
+    }
 }
