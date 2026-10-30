@@ -20,9 +20,11 @@ const (
 	relayKey   = "kong-service-key"
 )
 
-// dataPlaneStub stands in for data-plane-router-rust: it refuses unsigned
-// requests, records the forwarded body, and answers with status/answer.
+// dataPlaneStub stands in for data-plane-router-rust: it refuses requests not
+// signed with key (relayToken when empty), records the forwarded body, and
+// answers with status/answer.
 type dataPlaneStub struct {
+	key    string
 	hits   atomic.Int32
 	body   atomic.Value
 	status int
@@ -34,7 +36,11 @@ func (s *dataPlaneStub) serve(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.hits.Add(1)
-		if !serviceauth.VerifyServiceRequest(r, relayToken) {
+		key := s.key
+		if key == "" {
+			key = relayToken
+		}
+		if !serviceauth.VerifyServiceRequest(r, key) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
