@@ -20,11 +20,15 @@
 #   generate-engine-cert.sh mysql      ENGINE_TLS_ENGINES="mysql" (ADR 0012)
 #   generate-engine-cert.sh mysql8     ENGINE_TLS_ENGINES="mysql8" (ADR 0026)
 #   generate-engine-cert.sh mssql      ENGINE_TLS_ENGINES="mssql" (ADR 0012)
+#   generate-engine-cert.sh cockroach  ENGINE_TLS_ENGINES="cockroach" (ADR 0029)
 # Output, under ENGINE_TLS_CERT_DIR (default certs/engines for postgres,
 # certs/engine-tls/<engine> for the others): engine.pem, engine-key.pem (0600)
 # and ca.pem, the public CA a client verifies against. The CA key never leaves
 # certs/. Each engine gets a sibling directory, never one nested in another's
 # mount, so no engine container can read another's key (G5b-C5).
+# cockroach also gets the root client cert (CN=root, clientAuth) that sets the
+# first SQL password, in the sibling <dir>-client (ENGINE_TLS_CLIENT_CERT_DIR):
+# only the cockroach overlay mounts it, never an application container.
 #
 # Deliberately NOT called by expose.sh, `make certs` or the WAF CI steps: the
 # cert existing must never be what turns TLS on (G5a-C1). Renewal: re-run, then
@@ -69,8 +73,12 @@ mssql)
   SANS="DNS:mssql,DNS:mini-baas-mssql,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/mssql"}
   ;;
+cockroach)
+  SANS="DNS:cockroach,DNS:mini-baas-cockroach,DNS:localhost,IP:127.0.0.1"
+  OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/cockroach"}
+  ;;
 *)
-  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8 or mssql.\n' "$ENGINE" >&2
+  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8, mssql or cockroach.\n' "$ENGINE" >&2
   exit 2
   ;;
 esac
@@ -95,6 +103,25 @@ issue_leaf() {
   rm -f "$ext" "$csr"
 }
 
+# root_client_cert DIR: client.root.crt/.key, the cert cockroach's `cockroach sql
+# --certs-dir` logs in with as root (a secure node refuses root's password until
+# one is set, and an insecure node refuses to set one: devil g5-cockroach CR3/CR4).
+root_client_cert() {
+  mkdir -p "$1"
+  chmod 755 "$1"
+  if [ -s "$1/client.root.key" ] && [ -s "$1/client.root.crt" ] &&
+    openssl verify -CAfile "$CA_CERT" -purpose sslclient "$1/client.root.crt" >/dev/null 2>&1 &&
+    openssl x509 -checkend 2592000 -noout -in "$1/client.root.crt" >/dev/null 2>&1 &&
+    openssl x509 -in "$1/client.root.crt" -noout -subject -nameopt RFC2253 | grep -qxF 'subject=CN=root'; then
+    printf 'Using existing root client certificate %s\n' "$1/client.root.crt"
+  else
+    issue_leaf "$1/client.root.key" "$1/client.root.crt" root clientAuth
+    printf 'New root client certificate in %s\n' "$1"
+  fi
+  chmod 600 "$1/client.root.key"
+  chmod 644 "$1/client.root.crt"
+}
+
 if [ ! -s "$CA_KEY" ] || [ ! -s "$CA_CERT" ]; then
   printf 'No local CA in %s: run make certs (generate-localhost-cert.sh) first.\n' "$CERT_DIR" >&2
   exit 1
@@ -117,3 +144,4 @@ chmod 600 "$KEY"
 cp "$CA_CERT" "$OUT_DIR/ca.pem"
 chmod 644 "$CERT" "$OUT_DIR/ca.pem"
 openssl x509 -in "$CERT" -noout -subject -enddate -ext subjectAltName
+[ "$ENGINE" != cockroach ] || root_client_cert "${ENGINE_TLS_CLIENT_CERT_DIR:-"$OUT_DIR-client"}"
