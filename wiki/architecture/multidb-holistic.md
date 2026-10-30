@@ -404,6 +404,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         the CA verifies, a wrong CA and a name outside the SANs are refused, an empty store
         fails closed, plaintext 6379 unchanged, honor-set refresh over rediss. Compose defaults
         stay `redis://…:6379` (opt-in by DSN). realtime-gateway presence stays plaintext (R12).
+  - [x] G5 redis ACL password, stage 1 — `REDIS_ACL=1` (own overlay, ADR 0028): an `app` ACL user
+        (sha256 in argv, password only in a compose secret) beside the nopass default; all 57
+        `*REDIS*_URL` pairs (13 names) and the Debezium sink dial as app; outbox-relay reads the
+        env (`redisUrlFrom`). m261 green locally 2026-10-30: inspect 0 password/hash hits, health
+        fails a wrong password, go-redis/ioredis/Debezium refuse it and hold `user=app`, CLIENT
+        LIST 0 `user=default`, boots under TLS+ACL; default render byte-identical. CI job
+        `redis-acl` not yet run (unpushed). Stage 2 (`default off`) needs its own ruling.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
