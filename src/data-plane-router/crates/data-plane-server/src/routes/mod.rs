@@ -26,6 +26,7 @@ mod helpers;
 mod inbound_auth;
 mod metrics_text;
 mod permissions;
+mod probe;
 mod query;
 mod query_emit;
 mod query_guards;
@@ -107,7 +108,7 @@ pub fn router(state: AppState) -> Router {
     };
     // G1a: everything a caller with a self-declared identity could abuse sits
     // behind the service-auth layer; the probes and the API-key bypass do not.
-    let internal = Router::new()
+    let mut internal = Router::new()
         .route("/v1/query", post(query::execute_query))
         .route("/v1/schema", post(schema::describe_schema))
         .route("/v1/schema/ddl", post(schema::apply_schema_ddl))
@@ -131,11 +132,16 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/v1/permissions/decide",
             post(permissions::decide_permission),
-        )
-        .route_layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            inbound_auth::require_service_auth,
-        ));
+        );
+    // Devil P11: the probe sits behind the service-auth layer like every other
+    // internal route, and only exists when DATA_PLANE_PROBE=1.
+    if probe::enabled() {
+        internal = internal.route("/v1/probe", post(probe::probe));
+    }
+    let internal = internal.route_layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        inbound_auth::require_service_auth,
+    ));
     Router::new()
         .route("/v1/health", get(health::health))
         .route("/metrics", get(health::metrics_handler))
