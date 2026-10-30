@@ -12,6 +12,7 @@
 
 use crate::environment::{ConfigError, Environment, ENVIRONMENT_KEY};
 use crate::routes::{InboundAuth, InboundAuthMode, INBOUND_AUTH_KEY};
+use data_plane_pool::{DialGuardMode, DIAL_GUARD_KEY};
 
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -98,6 +99,10 @@ pub struct ServerConfig {
     /// G1a — who may call the internal `/v1/*` routes (`routes/inbound_auth.rs`).
     /// From `DATA_PLANE_INBOUND_AUTH` (`off` default, `shadow`, `enforce`).
     pub inbound_auth: InboundAuth,
+    /// G2 — what the pgwire and MySQL adapters do with a Tenant dial to a
+    /// denied address (ADR 0019). From `DATA_PLANE_DIAL_GUARD` (`off` default,
+    /// `shadow`, `enforce`).
+    pub dial_guard: DialGuardMode,
     /// Phase D — apply ABAC field masks in the Rust data path (cutover prep).
     /// OFF by default (the query-router still masks → byte-parity); flip ON
     /// (`DATA_PLANE_APPLY_MASKS=1`) once the query-router's mask is removed.
@@ -233,11 +238,15 @@ impl ServerConfig {
     ///
     /// # Errors
     /// `ConfigError::UnknownEnvironment`, `ConfigError::UnknownInboundAuthMode`,
-    /// or `ConfigError::MissingSecrets` naming every missing key (never a value).
+    /// `ConfigError::UnknownDialGuardMode`, or `ConfigError::MissingSecrets`
+    /// naming every missing key (never a value).
     pub fn try_from_env() -> Result<Self, ConfigError> {
         let environment = Environment::parse(&read_env(ENVIRONMENT_KEY, ""))?;
         if InboundAuthMode::parse(&read_env(INBOUND_AUTH_KEY, "")).is_none() {
             return Err(ConfigError::UnknownInboundAuthMode);
+        }
+        if DialGuardMode::parse(&read_env(DIAL_GUARD_KEY, "")).is_none() {
+            return Err(ConfigError::UnknownDialGuardMode);
         }
         let config = Self::from_env();
         config.require_secrets(environment, cfg!(not(feature = "nano")))?;
@@ -341,6 +350,7 @@ impl ServerConfig {
             tenant_control_url: read_env("TENANT_CONTROL_URL", "http://tenant-control:3022"),
             internal_service_token: read_env("INTERNAL_SERVICE_TOKEN", ""),
             inbound_auth: InboundAuth::from_env(),
+            dial_guard: DialGuardMode::parse(&read_env(DIAL_GUARD_KEY, "")).unwrap_or_default(),
             bypass_enabled: matches!(
                 read_env("DATA_PLANE_BYPASS_ENABLED", "false")
                     .to_lowercase()
@@ -525,6 +535,7 @@ impl std::fmt::Debug for ServerConfig {
             )
             .field("bypass_enabled", &self.bypass_enabled)
             .field("inbound_auth", &self.inbound_auth)
+            .field("dial_guard", &self.dial_guard)
             .field("metering", &self.metering)
             .field("metering_flush_ms", &self.metering_flush_ms)
             // A Redis URL can embed credentials (redis://user:pass@host) — redact
@@ -739,5 +750,17 @@ mod tests {
         let shadow = ServerConfig::try_from_env().expect("shadow is a mode");
         assert_eq!(shadow.inbound_auth.mode, InboundAuthMode::Shadow);
         std::env::remove_var(INBOUND_AUTH_KEY);
+        let unset = ServerConfig::try_from_env().expect("unset is off");
+        assert_eq!(unset.dial_guard, DialGuardMode::Off);
+        std::env::set_var(DIAL_GUARD_KEY, "enforcing");
+        assert_eq!(
+            ServerConfig::try_from_env().err(),
+            Some(ConfigError::UnknownDialGuardMode),
+            "a dial-guard typo must not read as off"
+        );
+        std::env::set_var(DIAL_GUARD_KEY, "Shadow");
+        let shadow = ServerConfig::try_from_env().expect("shadow is a mode");
+        assert_eq!(shadow.dial_guard, DialGuardMode::Shadow);
+        std::env::remove_var(DIAL_GUARD_KEY);
     }
 }

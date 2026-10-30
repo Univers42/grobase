@@ -12,11 +12,12 @@
 
 //! Connection parsing, resource validation, and the SSRF guard.
 //!
-//! The SSRF classifier + `guard_and_resolve` are kept together here: a mount's
-//! base URL is parsed, its host classified against every reserved IP range, and
+//! `guard_and_resolve`: a mount's base URL is parsed, its host classified by the
+//! shared dial-guard classifier (`crate::dial_guard::classify`, ADR 0019), and
 //! the validated public IP(s) are returned so the caller can PIN them (defeating
 //! a later DNS rebind).
 
+use crate::dial_guard::classify::{classify, denied_name};
 use data_plane_core::{DataPlaneError, DataPlaneResult};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -79,35 +80,6 @@ pub(super) fn is_http_url(s: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
-/// SSRF classifier: `true` for any address an outbound HTTP mount must NOT reach
-/// — loopback, RFC-1918 private, link-local (incl. 169.254.169.254 cloud
-/// metadata), CGNAT, unspecified/broadcast/documentation, IPv6 ULA + link-local,
-/// and IPv4-mapped forms of all the above.
-pub(super) fn is_blocked_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => {
-            v4.is_loopback()
-                || v4.is_private()
-                || v4.is_link_local()
-                || v4.is_broadcast()
-                || v4.is_unspecified()
-                || v4.is_documentation()
-                || v4.octets()[0] == 0
-                || (v4.octets()[0] == 100 && (v4.octets()[1] & 0xc0) == 64) // 100.64/10 CGNAT
-        }
-        IpAddr::V6(v6) => {
-            if let Some(mapped) = v6.to_ipv4_mapped() {
-                return is_blocked_ip(IpAddr::V4(mapped));
-            }
-            v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                || (v6.segments()[0] & 0xfe00) == 0xfc00 // fc00::/7 unique-local
-                || (v6.segments()[0] & 0xffc0) == 0xfe80 // fe80::/10 link-local
-        }
-    }
-}
-
 fn ssrf_blocked(host: &str) -> DataPlaneError {
     DataPlaneError::Backend {
         message: format!(
@@ -120,7 +92,7 @@ fn ssrf_blocked(host: &str) -> DataPlaneError {
 /// Validate an http mount's base URL against the SSRF guard and return the host
 /// and its validated socket addresses to PIN (so a later DNS rebind cannot point
 /// the client inward). `Ok(None)` when the dev escape is set (no check, no pin).
-// ponytail: 51-line SSRF guard kept whole — escape/parse/host-deny/literal-IP/
+// ponytail: 45-line SSRF guard kept whole — escape/parse/host-deny/literal-IP/
 // DNS-resolve are one security-critical sequence; splitting would scatter the
 // classification and invite a bypass. Extract a helper only if a step grows.
 pub async fn guard_and_resolve(
@@ -142,19 +114,13 @@ pub async fn guard_and_resolve(
             message: "http baseUrl has no host".to_string(),
         })?
         .to_string();
-    let lower = host.to_ascii_lowercase();
-    if lower == "localhost"
-        || lower == "metadata"
-        || lower == "instance-data"
-        || lower.ends_with(".local")
-        || lower.ends_with(".internal")
-    {
+    if denied_name(&host) {
         return Err(ssrf_blocked(&host));
     }
     let port = url.port_or_known_default().unwrap_or(80);
     // Literal IP host → classify directly (no DNS).
     if let Ok(ip) = host.parse::<IpAddr>() {
-        if is_blocked_ip(ip) {
+        if classify(ip).is_some() {
             return Err(ssrf_blocked(&host));
         }
         return Ok(Some((host, vec![SocketAddr::new(ip, port)])));
@@ -179,7 +145,7 @@ pub async fn guard_and_resolve(
         });
     }
     for sa in &addrs {
-        if is_blocked_ip(sa.ip()) {
+        if classify(sa.ip()).is_some() {
             return Err(ssrf_blocked(&host));
         }
     }

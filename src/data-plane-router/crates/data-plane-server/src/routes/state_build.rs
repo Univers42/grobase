@@ -33,7 +33,7 @@ use data_plane_pool::MysqlEngineAdapter;
 use data_plane_pool::RedisEngineAdapter;
 #[cfg(feature = "sqlite")]
 use data_plane_pool::SqliteEngineAdapter;
-use data_plane_pool::{EnvMountResolver, ProviderConfig};
+use data_plane_pool::{DialGuardMode, EnvMountResolver, ProviderConfig};
 #[cfg(feature = "postgres")]
 use data_plane_pool::{PgDialect, PostgresEngineAdapter};
 use std::sync::Arc;
@@ -73,30 +73,40 @@ pub(super) fn build_resolver(config: &ServerConfig) -> Arc<EnvMountResolver> {
 /// compiles + registers only the engines it mounts; the default build registers
 /// all nine. Runs the boot-time honesty self-check before returning.
 // ponytail: irreducible adapter registry — one cfg-gated push per engine adapter
-pub(super) fn build_adapters(resolver: &Arc<EnvMountResolver>) -> Vec<Arc<dyn EngineAdapter>> {
+pub(super) fn build_adapters(
+    resolver: &Arc<EnvMountResolver>,
+    dial_guard: DialGuardMode,
+) -> Vec<Arc<dyn EngineAdapter>> {
+    // G2 D1 guards pgwire and MySQL only; a build without both has nothing to guard.
+    #[cfg(not(any(feature = "postgres", feature = "mysql")))]
+    let _ = dial_guard;
     #[allow(unused_mut)]
     let mut adapters: Vec<Arc<dyn EngineAdapter>> = Vec::new();
     #[cfg(feature = "postgres")]
     {
-        adapters.push(Arc::new(PostgresEngineAdapter::new(resolver.clone())));
+        adapters.push(Arc::new(
+            PostgresEngineAdapter::new(resolver.clone()).with_dial_guard(dial_guard),
+        ));
         // CockroachDB rides the Postgres adapter (pgwire) under its own
         // engine id with a serializable-only descriptor.
-        adapters.push(Arc::new(PostgresEngineAdapter::with_dialect(
-            resolver.clone(),
-            PgDialect::Cockroach,
-        )));
+        adapters.push(Arc::new(
+            PostgresEngineAdapter::with_dialect(resolver.clone(), PgDialect::Cockroach)
+                .with_dial_guard(dial_guard),
+        ));
     }
     #[cfg(feature = "mongodb")]
     adapters.push(Arc::new(MongoEngineAdapter::new(resolver.clone())));
     #[cfg(feature = "mysql")]
     {
-        adapters.push(Arc::new(MysqlEngineAdapter::new(resolver.clone())));
+        adapters.push(Arc::new(
+            MysqlEngineAdapter::new(resolver.clone()).with_dial_guard(dial_guard),
+        ));
         // MariaDB rides the MySQL adapter (same wire protocol + dispatch)
         // under its own engine id.
-        adapters.push(Arc::new(MysqlEngineAdapter::with_engine_name(
-            resolver.clone(),
-            "mariadb",
-        )));
+        adapters.push(Arc::new(
+            MysqlEngineAdapter::with_engine_name(resolver.clone(), "mariadb")
+                .with_dial_guard(dial_guard),
+        ));
     }
     #[cfg(feature = "redis")]
     adapters.push(Arc::new(RedisEngineAdapter::new(resolver.clone())));

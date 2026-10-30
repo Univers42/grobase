@@ -17,6 +17,10 @@
 //! The same harness bounds how long a dead mongo or mssql holds a request: refused,
 //! and a listener that completes the handshake then never answers.
 //!
+//! G2 (ADR 0019): the dial guard's own refusal and its `dial_guard` log line,
+//! under shadow and enforce, carry neither the password, the user, the
+//! database nor the DSN query.
+//!
 //! Caveat: one failure per engine (connection refused). An error raised after
 //! authentication (a bad query, a TLS handshake) is not exercised here, and the
 //! http adapter stops at its SSRF guard: its upstream message is `http/pool.rs`.
@@ -30,6 +34,8 @@ use data_plane_core::{
 };
 use serde_json::json;
 
+use crate::dial_guard::scope::recorded_for;
+use crate::dial_guard::DialGuardMode;
 use crate::resolver::{EnvMountResolver, MountResolver};
 
 const CANARY: &str = "Canary-pw_7f3a";
@@ -71,7 +77,11 @@ fn assert_hidden(engine: &str, stage: &str, err: &DataPlaneError) {
 
 /// Open, then (if the pool is lazy) run one list, each bounded by `DIAL_BOUND`.
 async fn dial(engine: &str, adapter: &dyn EngineAdapter, dsn: String) {
-    let opened = tokio::time::timeout(DIAL_BOUND, adapter.open_pool(mount(engine, dsn))).await;
+    dial_mount(engine, adapter, mount(engine, dsn)).await;
+}
+
+async fn dial_mount(engine: &str, adapter: &dyn EngineAdapter, mount: DatabaseMount) {
+    let opened = tokio::time::timeout(DIAL_BOUND, adapter.open_pool(mount)).await;
     let pool = match opened.unwrap_or_else(|_| panic!("{engine} open hung")) {
         Err(err) => return assert_hidden(engine, "open", &err),
         Ok(pool) => pool,
@@ -134,6 +144,49 @@ async fn a_refused_dial_never_repeats_the_password() {
     }
     while let Some(done) = dials.join_next().await {
         done.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn a_dial_guard_refusal_never_repeats_the_password() {
+    let resolver: Arc<dyn MountResolver> = Arc::new(EnvMountResolver::from_json("{}"));
+    let at = "127.0.0.1:1";
+    for (mode, verdict) in [
+        (DialGuardMode::Shadow, "would_deny"),
+        (DialGuardMode::Enforce, "deny"),
+    ] {
+        let cases: Vec<(&str, Box<dyn EngineAdapter>, String)> = vec![
+            (
+                "postgresql",
+                Box::new(crate::PostgresEngineAdapter::new(resolver.clone()).with_dial_guard(mode)),
+                format!("postgresql://canaryuser:{CANARY}@{at}/canarydb?application_name=QSECRET"),
+            ),
+            (
+                "mysql",
+                Box::new(crate::MysqlEngineAdapter::new(resolver.clone()).with_dial_guard(mode)),
+                format!("mysql://canaryuser:{CANARY}@{at}/canarydb?tcp_nodelay=true"),
+            ),
+        ];
+        for (engine, adapter, dsn) in cases {
+            let id = format!("canary-guard-{engine}-{verdict}");
+            let mut guarded = mount(engine, dsn);
+            guarded.id.clone_from(&id);
+            dial_mount(engine, adapter.as_ref(), guarded).await;
+            let lines = recorded_for(&id);
+            assert!(!lines.is_empty(), "{engine} {verdict}: no dial_guard line");
+            for line in &lines {
+                assert!(
+                    line.starts_with(&format!("dial_guard {verdict} ")),
+                    "{line}"
+                );
+                for secret in [CANARY, "canaryuser", "canarydb", "QSECRET", "tcp_nodelay"] {
+                    assert!(
+                        !line.contains(secret),
+                        "{engine} {verdict} leaked {secret}: {line}"
+                    );
+                }
+            }
+        }
     }
 }
 

@@ -57,7 +57,7 @@ pub(super) use data_plane_core::{
 pub(super) use mysql_async::prelude::Queryable;
 pub(super) use mysql_async::{Column, Value as MysqlValue};
 pub(super) use mysql_async::{
-    Conn, Opts, OptsBuilder, Params, Pool, PoolConstraints, PoolOpts, Row, TxOpts,
+    Conn, Opts, OptsBuilder, Params, PoolConstraints, PoolOpts, Row, TxOpts,
 };
 pub(super) use serde_json::{Map as JsonMap, Value};
 pub(super) use std::collections::BTreeMap;
@@ -66,6 +66,9 @@ pub(super) use tokio::sync::Mutex;
 
 mod adapter;
 mod convert;
+mod dial;
+#[cfg(test)]
+mod dial_tests;
 mod error;
 mod pool;
 mod query;

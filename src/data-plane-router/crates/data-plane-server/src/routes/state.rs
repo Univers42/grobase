@@ -152,7 +152,7 @@ impl AppState {
         let evaluator = build_evaluator(&config);
         let resolver = build_resolver(&config);
         let registry = Arc::new(DefaultPoolRegistry::with_config(
-            build_adapters(&resolver),
+            build_adapters(&resolver, config.dial_guard),
             config.max_pools,
             config.share_pools,
         ));

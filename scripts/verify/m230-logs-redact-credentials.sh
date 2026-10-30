@@ -154,6 +154,7 @@ canary_arm() {
   for pair in \
     "src/control-plane/internal/adapterregistry/internal_error_test.go|func TestInternalErrorsHideTheCanaryFromBodyAndLog(" \
     "src/data-plane-router/crates/data-plane-pool/src/canary.rs|async fn a_refused_dial_never_repeats_the_password()" \
+    "src/data-plane-router/crates/data-plane-pool/src/canary.rs|async fn a_dial_guard_refusal_never_repeats_the_password()" \
     "src/data-plane-router/crates/data-plane-pool/src/lib.rs|mod canary;" \
     "src/data-plane-router/crates/data-plane-pool/src/http/pool.rs|fn an_error_quotes_the_url_without_its_userinfo()" \
     "src/libs/common/src/observability/redact-dsn.spec.ts|describe('redactDsn'" \
@@ -162,7 +163,7 @@ canary_arm() {
     file="${pair%%|*}" needle="${pair#*|}"
     grep -qF -- "${needle}" "${ROOT}/${file}" 2>/dev/null || missing="${missing} ${file}:${needle}"
   done
-  [ -z "${missing}" ] && ok "7 canary anchors present across the registry, the pool and the filter" ||
+  [ -z "${missing}" ] && ok "8 canary anchors present across the registry, the pool (and its dial guard) and the filter" ||
     fail "a canary test or its wiring is gone:${missing}"
 }
 
