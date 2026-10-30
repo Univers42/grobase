@@ -23,7 +23,7 @@ use super::SUPPORTED_OPS;
 use async_trait::async_trait;
 use data_plane_core::{
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, EnginePool,
-    RequestIdentity, TxBeginRequest, TxHandle,
+    EngineProbe, RequestIdentity, TlsPosture, TxBeginRequest, TxHandle,
 };
 use reqwest::{header, Client, Method, StatusCode};
 use serde_json::Value;
@@ -126,6 +126,15 @@ impl EnginePool for HttpPool {
     async fn close(&self) -> DataPlaneResult<()> {
         Ok(())
     }
+
+    /// Read-only probe: no request is sent (devil G4 P5) — the posture follows the base URL.
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        Ok(EngineProbe {
+            server_version: "unknown".into(),
+            tls: url_posture(&self.conn.base_url),
+            tls_version: None,
+        })
+    }
 }
 
 impl HttpPool {
@@ -189,5 +198,32 @@ impl HttpPool {
         }
         let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::String(text));
         Ok(shape_response(parsed))
+    }
+}
+
+/// The TLS posture implied by the base URL scheme: `https://` counts as verified
+/// (reqwest uses rustls with webpki roots and nothing in this crate disables
+/// verification), `http://` as plaintext, anything else as unknown.
+fn url_posture(base_url: &str) -> TlsPosture {
+    let lower = base_url.to_ascii_lowercase();
+    if lower.starts_with("https://") {
+        TlsPosture::Verified
+    } else if lower.starts_with("http://") {
+        TlsPosture::Plaintext
+    } else {
+        TlsPosture::Unknown
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn url_posture_follows_the_scheme_case_insensitively() {
+        assert_eq!(url_posture("https://x"), TlsPosture::Verified);
+        assert_eq!(url_posture("HTTPS://x"), TlsPosture::Verified);
+        assert_eq!(url_posture("http://x"), TlsPosture::Plaintext);
+        assert_eq!(url_posture("ftp://x"), TlsPosture::Unknown);
     }
 }
