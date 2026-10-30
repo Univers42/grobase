@@ -953,6 +953,18 @@
       "$comment": "Read by the Go control plane (internal/push/crypto.go:46). Optional: the feature is flag-gated OFF by default (PUSH_ENABLED), and its mount fails closed when the flag is on without it \u2014 requiring it in prod would break the OFF-by-default parity rule.",
       "consumers": []
     },
+    "REDIS_PASSWORD": {
+      "category": "SECRET",
+      "format": "hex64",
+      "required_in": [],
+      "compose_required": true,
+      "vault42_path": "redis/REDIS_PASSWORD",
+      "$comment": "Password of the redis ACL user app (ADR 0028). generate-env.sh mints it; only the opt-in REDIS_ACL=1 overlay (docker-compose.redis-acl.yml) reads it, as redis' secret file and inside every *REDIS*_URL it sets.",
+      "consumers": [
+        "redis",
+        "debezium"
+      ]
+    },
     "S3_ACCESS_KEY": {
       "category": "SECRET",
       "format": "opaque",
