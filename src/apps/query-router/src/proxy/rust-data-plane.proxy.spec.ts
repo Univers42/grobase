@@ -96,6 +96,19 @@ describe('postJson signs the bytes it sends', () => {
     );
   });
 
+  it('signs with DATA_PLANE_KEY_QUERY_ROUTER when set, not the shared token', async () => {
+    process.env.SERVICE_TOKEN_MODE = 'hmac';
+    const { http, sent } = capture();
+    const env = { ADAPTER_REGISTRY_SERVICE_TOKEN: 'shared', DATA_PLANE_KEY_QUERY_ROUTER: 'qr-key' };
+    await make(env, http).execute(context, 'notes', 'list', {} as never);
+
+    const [{ body, headers }] = sent;
+    const ts = Number(headers['X-Service-Auth'].split('.')[1]);
+    expect(headers['X-Service-Auth']).toBe(
+      computeServiceAuth('qr-key', 'POST', '/v1/query', body as string, ts),
+    );
+  });
+
   it('outside hmac mode: the static token, as before', async () => {
     delete process.env.SERVICE_TOKEN_MODE;
     const { http, sent } = capture();

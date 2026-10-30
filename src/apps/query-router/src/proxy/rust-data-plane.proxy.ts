@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/02 00:00:00 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/30 04:10:00 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 16:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -241,7 +241,11 @@ export class RustDataPlaneProxy {
         .filter(Boolean),
     );
     this.timeoutMs = Number(config.get<string>('RUST_DATA_PLANE_TIMEOUT_MS', '5000'));
-    this.serviceToken = config.get<string>('ADAPTER_REGISTRY_SERVICE_TOKEN', '');
+    // D1 (ADR 0023): the data plane tells its callers apart by the key that
+    // verifies. The shared token stays the fallback until the key is set.
+    this.serviceToken =
+      config.get<string>('DATA_PLANE_KEY_QUERY_ROUTER', '') ||
+      config.get<string>('ADAPTER_REGISTRY_SERVICE_TOKEN', '');
     this.capsTtlMs = Number(config.get<string>('QUERY_ROUTER_CAPS_CACHE_TTL_MS', '30000'));
   }
 
