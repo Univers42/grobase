@@ -36,6 +36,16 @@
     feature = "mongodb",
     feature = "mysql",
     feature = "redis",
+    feature = "mssql",
+    feature = "http"
+))]
+mod canary;
+#[cfg(all(
+    test,
+    feature = "postgres",
+    feature = "mongodb",
+    feature = "mysql",
+    feature = "redis",
     feature = "sqlite",
     feature = "mssql",
     feature = "http"

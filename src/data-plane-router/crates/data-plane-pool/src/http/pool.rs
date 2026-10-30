@@ -25,7 +25,7 @@ use data_plane_core::{
     DataOperation, DataOperationKind, DataPlaneError, DataPlaneResult, DataResult, EnginePool,
     EngineProbe, RequestIdentity, TlsPosture, TxBeginRequest, TxHandle,
 };
-use reqwest::{header, Client, Method, StatusCode};
+use reqwest::{header, Client, Method, StatusCode, Url};
 use serde_json::Value;
 
 pub struct HttpPool {
@@ -171,7 +171,11 @@ impl HttpPool {
         }
 
         let resp = req.send().await.map_err(|e| DataPlaneError::Backend {
-            message: format!("http upstream {method} {url}: {e}"),
+            message: format!(
+                "http upstream {method} {}: {}",
+                quotable(url),
+                e.without_url()
+            ),
         })?;
 
         let status = resp.status();
@@ -185,7 +189,7 @@ impl HttpPool {
         // its body is not the resource and must not be read as data.
         if !status.is_success() {
             return Err(DataPlaneError::Backend {
-                message: format!("http upstream {method} {url} returned {status}"),
+                message: format!("http upstream {method} {} returned {status}", quotable(url)),
             });
         }
 
@@ -195,6 +199,19 @@ impl HttpPool {
         }
         let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::String(text));
         Ok(shape_response(parsed))
+    }
+}
+
+/// The URL as an error message may quote it: that message is logged on every
+/// failed request, so a base URL's `user:password@` is dropped (m230).
+fn quotable(url: &str) -> String {
+    match Url::parse(url) {
+        Ok(mut parsed) => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.to_string()
+        }
+        Err(_) => "<unparsable url>".to_string(),
     }
 }
 
@@ -215,6 +232,17 @@ fn url_posture(base_url: &str) -> TlsPosture {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_error_quotes_the_url_without_its_userinfo() {
+        let canary = "Canary-pw_7f3a";
+        let quoted = quotable(&format!(
+            "https://app:{canary}@api.example.com:8443/v1/items?x=1"
+        ));
+        assert_eq!(quoted, "https://api.example.com:8443/v1/items?x=1");
+        assert_eq!(quotable(&format!("http://:{canary}@h/")), "http://h/");
+        assert_eq!(quotable("not a url"), "<unparsable url>");
+    }
 
     #[test]
     fn url_posture_follows_the_scheme_case_insensitively() {
