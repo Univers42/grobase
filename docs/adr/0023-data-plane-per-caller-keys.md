@@ -51,9 +51,11 @@ The data plane has only two production callers of `/v1/*`:
   `would_deny` with route, class and reason, then serve) / `enforce` (the refusal above).** It
   is independent of `DATA_PLANE_INBOUND_AUTH`. The caller keys are also valid credentials for
   G1a, so turning G1a on never refuses a caller that signs with its own key.
-- **Startup refusal (K8).** Under shadow or enforce, the process refuses to start if either
-  current key is unset, any set key is under 32 bytes, or any two keys are equal (shared token
-  included). The error names the variable, never the value.
+- **Startup refusal (K8).** In every mode, the process refuses to start if a set key is under
+  32 bytes or has leading or trailing whitespace (a `_PREV` of `" "` included), because G1a
+  accepts the keys even under `off`. Under shadow or enforce it also refuses if either current
+  key is unset or any two keys are equal (shared token included). An unset key is fine under
+  `off`. The error names the variable, never the value.
 
 ## What it proves, and what it does not
 
@@ -83,6 +85,25 @@ is zero.
   and the API-key `/data/v1` path were never in it).
 - query-router can act for any tenant, because the tenant it asserts is trusted. Binding that
   tenant to the end user needs a claim signed by the edge, and is out of scope here.
+
+## Enforce preconditions
+
+`DATA_PLANE_CALLER_POLICY=enforce` must not be set on any deployment until both hold. Neither
+weakens `off` or `shadow`, so the code ships with the policy off.
+
+1. **The admin relay stops accepting the shared token, or gets its own key.** tenant-control's
+   `POST /v1/admin/{migrate,rotate}` accepts `INTERNAL_SERVICE_TOKEN` (the `service_token` arm,
+   `src/control-plane/internal/tenants/admin_relay.go:69`). It then re-signs the call with the
+   tenant-control key (`admin_relay.go:51`, key chosen in `cmd/tenant-control/boot.go:69`).
+   functions-runtime holds that token (`orchestrators/compose/base/storage.yml:74`). Under
+   enforce, it could therefore drive `/v1/admin/migrate` as `tenant_control` with any
+   `inline_dsn`, which is the very class split this ADR makes. The fix is one of two: drop the
+   `service_token` arm while the policy is on, or give the relay its own credential. Either fix
+   needs its own devil ruling before enforce.
+2. **`IDENTITY_HEADER_MODE=strict` on every service that reads identity.** In compat mode,
+   `src/libs/common/src/identity/request-identity.ts:41` trusts raw `x-baas-*` headers. Compat
+   is the default whenever `NODE_ENV` is not `production` (`request-identity.ts:364`). A caller
+   class proves nothing if the identity it carries can be forged one hop earlier.
 
 ## Evidence
 
