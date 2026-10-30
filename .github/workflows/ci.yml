@@ -146,6 +146,10 @@ jobs:
       # calling the KMS, and its canary-password Go tests exist (go test ./... runs them).
       - name: mount descriptor (m246)
         run: bash scripts/verify/m246-mount-descriptor.sh
+      # Static, no stack: request logs censor credential headers through one pino config,
+      # and the canary-password tests of the registry, the pool and the filter exist.
+      - name: logs and errors redact credentials (m230)
+        run: bash scripts/verify/m230-logs-redact-credentials.sh
       # Static, no stack: Postgres TLS is opt-in (ENGINE_TLS=1), the overlay never mounts
       # the CA key, and nothing that runs on every host mints the engine cert (ADR 0011).
       - name: engine TLS opt-in (m247)

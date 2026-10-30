@@ -78,7 +78,7 @@ its `mongodb` catalog answers Unauthorized live) and MinIO (storage-router).
    `nightly-proof.yml` on `workflow_dispatch`, postgres + mongo, `continue-on-error`
    (`nightly-proof.yml:351,422-430`). Per-PR `cargo test` skips without
    `CONFORMANCE_ENGINE` (`tests/conformance.rs:15-37`). Gates m22, m26, m88, m131, m174,
-   m176, m181, m230 exist and are wired into no workflow.
+   m176, m181 exist and are wired into no workflow (m230 runs in `ci.yml` since 2026-10-30).
 
 ## The work — grobase epics, in order
 
@@ -232,8 +232,22 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       not decrypted: a read on both mounts right after promotion is the check.
 - [ ] N-22: adapter-registry identity HMAC on by default; Vault ref namespaced
       `{prefix}/{tenant_id}/{reference}` server-side; DSN check inside `Validate`.
-- [ ] m230 extended with a canary password through register and error paths in Rust, Go
-      and TS, then wired into CI.
+- [x] m230 extended with a canary password through register and error paths in Rust, Go
+      and TS, then wired into CI (2026-10-30). Go: every adapter-registry 500 answers a
+      fixed message and logs the error DSN-redacted (`internal_error_test.go`, 4 writers ×
+      URL and keyword DSNs). Rust: each engine dialled at a refused port with a canary
+      password (`data-plane-pool/src/canary.rs`); the http adapter quoted URL userinfo in
+      two messages, now stripped. TS: the exception filter redacts the response message,
+      the unhandled log line and its stack (`redact-dsn.ts`, the same two patterns as
+      `httpx.RedactDSN`). The m230 CANARY arm requires those tests to exist; each was
+      mutation-checked red. Found on the way, measured with the canary (refused port):
+      redis held `open_pool` over 120 s (redis-rs 0.27 backoff `factor` is a multiplier on
+      a 1 s base) — now ≤ 3 retries of 0.5 s, 3.2 s measured. Open: a dead mongo holds a
+      request 30 s (server selection = max(`idle_ttl_ms`, 5 s), `mongo/adapter.rs:89`);
+      mssql 30 s (bb8 checkout timeout also covers the dial); data-plane-server's own
+      redis managers (`ratelimit.rs:231`, `quota.rs:168`, `usage.rs:390`) keep the default
+      backoff against the platform redis; `DatabaseMount` derives `Debug` with
+      `inline_dsn` (no `{:?}` consumer found).
 
 **G3 · Per-PR engine conformance, all engines** — gate m245 + CI matrix
 - [x] CI job `engine-conformance` with a matrix over the 10 engines, each starting only
