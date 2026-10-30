@@ -41,6 +41,7 @@ mod adapter;
 mod convert;
 mod pool;
 mod query;
+mod redirect;
 mod validate;
 
 use data_plane_core::DataOperationKind;

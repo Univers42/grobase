@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:28:22 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/30 02:30:00 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 12:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -181,12 +181,9 @@ impl HttpPool {
         {
             return Ok(DataResult::new(vec![], 0));
         }
-        if status.is_server_error() {
-            return Err(DataPlaneError::Backend {
-                message: format!("http upstream {method} {url} returned {status}"),
-            });
-        }
-        if status.is_client_error() {
+        // A 3xx is here only when the redirect policy refused it (`redirect.rs`);
+        // its body is not the resource and must not be read as data.
+        if !status.is_success() {
             return Err(DataPlaneError::Backend {
                 message: format!("http upstream {method} {url} returned {status}"),
             });
