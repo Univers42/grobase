@@ -28,12 +28,14 @@
 #   C  overlay, no cert  → the container refuses to start and names the script
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
-# clients negotiated TLS, by application_name, and every logical slot advances.
+# clients and walsenders negotiated TLS, by application_name, and every logical
+# slot has a consumer on TLS whose walsender decodes past a probe WAL message.
 #
-# Caveat: the slot check emits one WAL message and waits M247_SLOT_WAIT (15 s)
-# for each logical slot's confirmed_flush_lsn to move. A consumer that confirms
-# lazily (Debezium flushes on its own heartbeat) can need a longer wait and
-# reads as a FAIL; a slot that moved for an unrelated write reads as a PASS.
+# Caveat: the probe proves the server streamed past it over the encrypted
+# session (pg_stat_replication.sent_lsn), not that the consumer acted on it:
+# confirmed_flush_lsn only moves on a captured table (Debezium: outbox_events,
+# no heartbeat), and the gate never writes one. A consumer that stalls after
+# reading still passes; one that reconnects mid-probe can read as a FAIL.
 
 set -euo pipefail
 
@@ -153,32 +155,36 @@ live_checks() {
 # --- stack ------------------------------------------------------------------
 
 stack_checks() {
-  local pg="${M247_PG_CONTAINER:-mini-baas-postgres}" user before after
+  local pg="${M247_PG_CONTAINER:-mini-baas-postgres}" user slots probe waited=0 behind
   user="$(docker exec "${pg}" printenv POSTGRES_USER 2>/dev/null || echo postgres)"
   sql() { docker exec "${pg}" psql -X -At -U "${user}" -d postgres -c "$1"; }
   step "stack: who negotiated TLS on ${pg}"
   [[ "$(sql 'SHOW ssl')" == on ]] || fail "${pg} is not composed with ENGINE_TLS=1"
-  sql "SELECT coalesce(nullif(application_name, ''), '(unnamed)') || ' ' || client_addr || ' ssl=' || s.ssl
-         || coalesce(' ' || s.version, '')
+  sql "SELECT a.backend_type || ' ' || coalesce(nullif(application_name, ''), '(unnamed)') || ' '
+         || client_addr || ' ssl=' || s.ssl || coalesce(' ' || s.version, '')
        FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid)
-       WHERE a.backend_type = 'client backend' AND client_addr IS NOT NULL
+       WHERE a.backend_type IN ('client backend', 'walsender') AND client_addr IS NOT NULL
        ORDER BY 1" | sed 's/^/    /'
-  step "stack: every logical slot advances"
-  before="$(sql "SELECT string_agg(slot_name || '=' || confirmed_flush_lsn, ' ' ORDER BY slot_name)
-                 FROM pg_replication_slots WHERE slot_type = 'logical'")"
-  [[ -n "${before}" ]] || {
+  step "stack: every logical slot streams over TLS past a probe"
+  slots="$(sql "SELECT count(*) FROM pg_replication_slots WHERE slot_type = 'logical'")"
+  ((slots > 0)) || {
     skip "no logical slot on this stack"
     return
   }
-  sql "SELECT pg_logical_emit_message(true, 'm247', 'probe')" >/dev/null
-  sleep "${M247_SLOT_WAIT:-15}"
-  after="$(sql "SELECT string_agg(slot_name || '=' || confirmed_flush_lsn, ' ' ORDER BY slot_name)
-                FROM pg_replication_slots WHERE slot_type = 'logical'")"
-  local slot
-  for slot in ${after}; do
-    [[ " ${before} " != *" ${slot} "* ]] || fail "slot ${slot%%=*} did not advance in ${M247_SLOT_WAIT:-15}s"
+  [[ "$(sql "SELECT count(*) FROM pg_replication_slots r JOIN pg_stat_ssl s ON s.pid = r.active_pid
+             WHERE r.slot_type = 'logical' AND r.active AND s.ssl")" == "${slots}" ]] ||
+    fail "a logical slot has no consumer, or its consumer is not on TLS"
+  probe="$(sql "SELECT pg_logical_emit_message(false, 'm247', 'probe')")"
+  while :; do
+    behind="$(sql "SELECT count(*) FROM pg_replication_slots r
+                   LEFT JOIN pg_stat_replication w ON w.pid = r.active_pid
+                   WHERE r.slot_type = 'logical' AND coalesce(w.sent_lsn < '${probe}', true)")"
+    [[ "${behind}" == 0 ]] && break
+    ((waited < ${M247_SLOT_WAIT:-15})) || fail "${behind} slot(s) did not decode past ${probe} in ${waited}s"
+    sleep 1
+    waited=$((waited + 1))
   done
-  pass "${after}"
+  pass "${slots} logical slot(s) active on TLS, decoded past ${probe} in ${waited}s"
 }
 
 static_checks
