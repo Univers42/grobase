@@ -1,6 +1,6 @@
 # 0016 — A dead mongo or mssql fails a request in 5 s, not 30 s (m230)
 
-Status: ruled PROCEED-WITH-CONDITIONS (2026-10-30, D1–D7). Code on develop; VM rollout waits for D6.
+Status: ruled PROCEED-WITH-CONDITIONS (2026-10-30, D1–D7). Code on develop; D6 measured (below); VM rollout is D7.
 
 ## Problem
 
@@ -43,6 +43,14 @@ The data-plane server has no request-level timeout: the only `tokio::time::timeo
   that sets less gets what it asked for.
 - **D6 — rollout gate.** Before the VM image changes, count the VM's mongo mounts that use
   `replicaSet=` or `mongodb+srv` and its mssql mounts, and report both numbers.
+  Measured 2026-10-30 on b2b, read-only (`public.tenant_databases` by engine, `rs.conf()`):
+  - 5 mongodb mounts and 2 mssql mounts, served by one mssql server container.
+  - `mini-baas-mongo` is `rs0` with one voting member (`electionTimeoutMillis` 10000). A
+    one-member set has no failover election, so the D1 wait does not arise there.
+  - `drill-mongo` runs without replication.
+  - Not measured: which of the 5 DSNs carry `replicaSet=` or `mongodb+srv`. The DSNs are
+    AES-256-GCM encrypted and were not decrypted. A mount pointing at a multi-member set
+    elsewhere would still hit D1.
 - **D7 — rollout.** The rollout is a separate step under a `:pre-` tag. After the swap, run
   one probe per live mongo and mssql mount.
 
