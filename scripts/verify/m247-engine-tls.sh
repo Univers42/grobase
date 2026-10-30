@@ -188,12 +188,15 @@ refuses_without_cert() { # $1 the engine's cert directory, left empty
   ! boot -f "${ROOT}/${LIVE_OVERLAY}" || fail "${ENGINE} started with TLS on and no cert"
   # compose can report the failure before the exited container's log is readable
   # (redis, CI run 40990129485), so the remedy line gets a few seconds to appear.
-  local _
+  # The log is read whole first: under pipefail `docker logs | grep -q` reads 141 once grep
+  # quits early, so a restarting engine's repeated refusal read as a miss (CI run 41010336246).
+  local _ logs=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do
-    docker logs "m247-${ENGINE}" 2>&1 | grep -q 'generate-engine-cert.sh' && break
+    logs="$(docker logs "m247-${ENGINE}" 2>&1)" || true
+    grep -qF 'generate-engine-cert.sh' <<<"${logs}" && break
     sleep 1
   done
-  if ! docker logs "m247-${ENGINE}" 2>&1 | grep -q 'generate-engine-cert.sh'; then
+  if ! grep -qF 'generate-engine-cert.sh' <<<"${logs}"; then
     tail -5 "${WORK}/up.log" >&2
     docker logs --tail 10 "m247-${ENGINE}" >&2 2>&1 || true
     fail "the refusal does not name the cert script"
