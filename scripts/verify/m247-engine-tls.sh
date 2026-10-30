@@ -30,7 +30,11 @@
 #                          is 600 postgres on tmpfs and absent from PGDATA
 #   C  overlay, no cert  → the container refuses to start and names the script
 # Mongo: the same three legs with mongosh (verified --tls, a name outside the SANs,
-# a default plaintext client), plus PID 1 running as uid 999, never root (G5b-C3).
+# a default plaintext client), plus PID 1 running as uid 999, never root (G5b-C3), and
+#   D  requireTLS + clients → mongo-init, mongo-api, realtime, the orchestrator's driver and
+#                          engine-backup all verify the cert (engine-tls-mongo-clients-live.sh).
+# M247_MONGO_LEGS=ABC or D runs half (CI splits them); the static mongo-client checks always run.
+# M247_PROJECT (default m247) names the compose project, for a second run on the same daemon.
 # Redis: the same with redis-cli on 6380 (verified --tls, a name outside the SANs, plaintext
 # refused there) while 6379 stays plaintext, and PID 1 as uid 100.
 # MariaDB: leg A finds the default already on TLS with a cert our CA does not sign; B swaps
@@ -54,6 +58,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=engine-tls-mongo-clients.sh
+. "${ROOT}/scripts/verify/engine-tls-mongo-clients.sh"
+# shellcheck source=engine-tls-mongo-clients-live.sh
+. "${ROOT}/scripts/verify/engine-tls-mongo-clients-live.sh"
 OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
@@ -102,6 +110,7 @@ static_checks() {
   g5b_static_checks
   mysql8_static_checks
   mssql_plane_static_checks
+  mongo_clients_static_checks
 }
 
 g5b_static_checks() {
@@ -134,9 +143,12 @@ g5b_static_checks() {
 
 WORK=""
 # The profile is on every call, not just `up`: `down` skips a profiled service it cannot
-# see, so mongo outlived its leg and the next boot found it.
+# see, so mongo outlived its leg and the next boot found it. M247_PROJECT keeps two runs on one
+# daemon apart: `down --remove-orphans` removes every container of its project.
+M247_PROJECT="${M247_PROJECT:-m247}"
+NETWORK="${M247_PROJECT}_mini-baas"
 dc() {
-  docker compose -p m247 --project-directory "${ROOT}" -f "${ROOT}/docker-compose.yml" --profile "${PROFILE}" "$@"
+  docker compose -p "${M247_PROJECT}" --project-directory "${ROOT}" -f "${ROOT}/docker-compose.yml" --profile "${PROFILE}" "$@"
 }
 down() { dc -f "${ROOT}/${LIVE_OVERLAY}" -f "${WORK}/rename.yml" down -v --remove-orphans >/dev/null 2>&1 || true; }
 cleanup() {
@@ -258,13 +270,19 @@ mongosh_in() {
     --authenticationDatabase admin --eval "${MONGO_EVAL}" "$@" --password "${M247_MONGO_PW}"
 }
 
+# M247_MONGO_LEGS: ABCD (default), ABC (the server legs) or D (requireTLS with the clients).
 mongo_live_checks() {
+  local legs="${M247_MONGO_LEGS:-ABCD}"
+  [[ "${legs}" =~ ^(ABCD|ABC|D)$ ]] || fail "M247_MONGO_LEGS=${legs}: expected ABCD, ABC or D"
   live_setup
   M247_MONGO_PW="$(openssl rand -hex 16)"
   export M247_MONGO_PW MONGO_INITDB_ROOT_PASSWORD="${M247_MONGO_PW}" ENGINE_TLS_MONGO_CERT_DIR="${WORK}/mongo"
-  local verify=(--tls --tlsCAFile /etc/engine-tls/ca.pem) opts='db.adminCommand({getCmdLineOpts: 1}).parsed.net.tls'
-  MONGO_EVAL="EJSON.stringify(${opts} || null)"
+  MONGO_EVAL="EJSON.stringify(db.adminCommand({getCmdLineOpts: 1}).parsed.net.tls || null)"
+  [[ "${legs}" != ABC* ]] || mongo_server_legs
+  [[ "${legs}" != *D ]] || mongo_clients_live_checks
+}
 
+mongo_server_legs() {
   step "live A: no overlay → plaintext only"
   boot_or_fail "the default mongo did not become healthy"
   [[ "$(mongosh_in mongo)" == null ]] || fail "the default boot has TLS options"
@@ -272,13 +290,16 @@ mongo_live_checks() {
   down
 
   refuses_without_cert "${ENGINE_TLS_MONGO_CERT_DIR}"
+  mongo_leg_b
+}
 
+mongo_leg_b() {
+  local verify=(--tls --tlsCAFile /etc/engine-tls/ca.pem) refused
   step "live B: overlay + cert → accept-mode TLS that verifies"
   mint_cert "${ENGINE_TLS_MONGO_CERT_DIR}"
   boot_or_fail "mongo with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
   [[ "$(mongosh_in mongo "${verify[@]}")" == *'"mode":"allowTLS"'* ]] || fail "a verified --tls session failed"
   pass "verified --tls session against the CA, net.tls.mode = allowTLS"
-  local refused
   refused="$(mongosh_in m247-mongo "${verify[@]}" 2>&1 || true)"
   [[ "${refused}" == *"Hostname/IP does not match"* || "${refused}" == *"does not match"* ]] ||
     fail "a name outside the SANs was not refused by verification: ${refused}"
@@ -410,7 +431,7 @@ mysql_live_checks() { mariadb_live_checks; }
 mssql_as() {
   local image
   image="$(docker inspect -f '{{.Config.Image}}' "m247-${ENGINE}")"
-  docker run --rm --network m247_mini-baas --user 0 -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" \
+  docker run --rm --network "${NETWORK}" --user 0 -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" \
     -v "${WORK}/track-binocle-local-ca.pem:/ca.pem:ro" -e HOST="$1" -e MODE="$2" \
     --entrypoint /bin/bash "${image}" -c '
       cp /ca.pem /usr/local/share/ca-certificates/m247.crt && update-ca-certificates >/dev/null 2>&1

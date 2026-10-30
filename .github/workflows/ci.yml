@@ -1611,7 +1611,19 @@ jobs:
           M247_LIVE: 1
           M247_ENGINE: ${{ matrix.tls }}
           M247_STACK: ${{ matrix.tls == 'postgres' && '1' || '0' }}
+          # Mongo's leg D runs in the next step, so a failure names the half that broke.
+          M247_MONGO_LEGS: ABC
         run: bash scripts/verify/m247-engine-tls.sh
+      # ADR 0025 (M7, M9): mongo under requireTLS with mongo-init, mongo-api, realtime, the
+      # orchestrator's mongo-driver and engine-backup, each verifying the engine cert. The
+      # probe's golang image and mongo-api come from registries, so a 429 is retried.
+      - name: mongo clients verify the engine cert under requireTLS (m247 leg D)
+        if: matrix.tls == 'mongo'
+        env:
+          M247_LIVE: 1
+          M247_ENGINE: mongo
+          M247_MONGO_LEGS: D
+        run: bash scripts/ci/retry-on-429.sh bash scripts/verify/m247-engine-tls.sh
 
   # ─── Redis client TLS (D3, ADR 0024) ───────────────────────────
   # The pool and the server's limiter/quota/metering link dial rediss:// against redis
