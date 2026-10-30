@@ -18,6 +18,8 @@
 #            that read it (H-19, m202 = live), base env maps merged, every     #
 #            other service as the base has it; PROD_IDENTITY_HEADER_MODE=compat #
 #            renders compat on the same 11 (the escape hatch works)            #
+#    shadow  IDENTITY_STRICT_SHADOW on the same 11 as .env has it, base and    #
+#            both overlays; no overlay sets it (the strict dry run, ADR 0023)  #
 #    held    TENANT_HEADER_IDENTITY_HMAC, SECURITY_MODE,                       #
 #            REALTIME_NAMESPACE_FALLBACK, TENANT_CONTROL_VERIFY_CACHE_TTL_MS   #
 #            identical on every service with and without the overlay (a        #
@@ -262,6 +264,19 @@ identity_is() {
     fail "${1##*/}: IDENTITY_HEADER_MODE is not '$2' on exactly the 11 identity readers (or a reader lost base env keys)"
 }
 
+# static_shadow asserts the 11 identity readers get IDENTITY_STRICT_SHADOW from .env in
+# base, prod and cloud, and that no overlay sets it (ADR 0023 SS10: off unless .env says).
+static_shadow() {
+  local f
+  for f in prod cloud; do
+    jq -e -n --slurpfile b "${T}/base.json" --slurpfile p "${T}/${f}.json" --argjson r "$(identity_readers)" '
+      $r | map(. as $s | ($b[0].services[$s].environment | has("IDENTITY_STRICT_SHADOW"))
+        and $p[0].services[$s].environment.IDENTITY_STRICT_SHADOW == $b[0].services[$s].environment.IDENTITY_STRICT_SHADOW)
+      | all' >/dev/null || fail "${f}: IDENTITY_STRICT_SHADOW missing on an identity reader, or the overlay changes it"
+  done
+  ok "IDENTITY_STRICT_SHADOW reaches the 11 identity readers from .env; neither overlay sets it"
+}
+
 # static_identity asserts the prod overlay makes the 11 identity readers strict
 # and nothing else, and that PROD_IDENTITY_HEADER_MODE=compat reverts them.
 static_identity() {
@@ -480,6 +495,7 @@ static_overlay
 static_kong
 static_guards
 static_identity
+static_shadow
 static_held
 step "overlay strips the dev ports it lists (H-1)"
 static_ports
