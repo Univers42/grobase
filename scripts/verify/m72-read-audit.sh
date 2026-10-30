@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/13 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/13 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -80,6 +80,8 @@ PORT_OFF="${M72_PORT_OFF:-18973}"
 PGPW="postgres"
 TABLE="m72_audit_probe"
 TENANT="m72-tenant-$$"
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 ROWS=5 # exact seeded row count → returned_rows
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
@@ -104,6 +106,7 @@ payload() { # $1=op  $2=mask-json(or null)  -> stdout
 # POST a query to a router on 127.0.0.1:$port; echo the HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -179,6 +182,8 @@ step "2/6 boot scratch router with DATA_PLANE_AUDIT_READS=true (A · POSITIVE)"
 docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e DATA_PLANE_AUDIT_READS=true \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_ON}" "${PORT_ON}" || fail "POSITIVE router not ready (line: wait_ready DPR_ON)"
@@ -208,6 +213,8 @@ ok "(A) exactly ONE event=\"read\" with resource=${TABLE} returned_rows=${ROWS} 
 step "4/6 boot scratch router with DATA_PLANE_AUDIT_READS unset (B · PARITY/default)"
 docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_OFF}" "${PORT_OFF}" || fail "PARITY router not ready (line: wait_ready DPR_OFF)"

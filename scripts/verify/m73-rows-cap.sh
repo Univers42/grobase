@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/13 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/13 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -67,6 +67,8 @@ PORT="${M73_PORT:-18974}"
 PGPW="postgres"
 TABLE="m73_cap_probe"
 TENANT="m73-tenant-$$"
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 CAP=10   # max_rows in the POSITIVE mask
 COUNT=25 # seeded rows (> CAP, and < the server's 100 default list cap)
@@ -91,6 +93,7 @@ payload() { # $1=mask-json(or null)
 
 post_q() { # $1=body  -> echoes HTTP status, writes /tmp/m73_body.$$
   curl -s -o /tmp/m73_body.$$ -w '%{http_code}' -X POST "http://127.0.0.1:${PORT}/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$1"
 }
 
@@ -158,6 +161,8 @@ ok "postgres up; ${TABLE} seeded with ${COUNT} owner-stamped rows (> cap ${CAP},
 step "3/6 boot scratch router (the max_rows clamp is mask-driven per request)"
 docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled -e RUST_LOG=info \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -p "127.0.0.1:${PORT}:4011" "${SCRATCH_IMG}" >/dev/null
 for i in $(seq 1 60); do
   curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/v1/capabilities" 2>/dev/null && break

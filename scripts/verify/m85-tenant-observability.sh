@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -108,6 +108,8 @@ PGPW="postgres"
 TABLE_PROBE="m85_obs_probe" # the read/write probe table (bare, no RLS)
 TENANT_READ="m85-read-$$"   # the read event's tenant_id (ground truth)
 TENANT_WRITE="m85-write-$$" # the write event's tenant_id (ground truth)
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 N_CAP=512                   # the in-process per-service cap (must match the code)
 N_FLOOD=560                 # > N_CAP so the overflow sentinel must appear
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
@@ -144,6 +146,7 @@ payload() {
 # POST a query to a router on 127.0.0.1:$port; echo the HTTP status, body→BODY_TMP.
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
+    -H "X-Service-Token: ${SVC_TOKEN}" \
     -H 'Content-Type: application/json' -d "$2"
 }
 
@@ -291,6 +294,8 @@ step "3/9 boot scratch router DATA_PLANE_TENANT_OBS=1 (A · POSITIVE) on 127.0.0
 docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e DATA_PLANE_TENANT_OBS=1 \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_ON}" "${PORT_ON}" || fail "POSITIVE router not ready (line: wait_ready DPR_ON)"
@@ -316,6 +321,8 @@ ok "(A) BOTH the read and the write emitted a tenant_id=<id> log FIELD — Pilla
 step "4/9 boot scratch router with DATA_PLANE_TENANT_OBS unset (B · PARITY) on 127.0.0.1:${PORT_OFF}"
 docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_OFF}" "${PORT_OFF}" || fail "PARITY router not ready (line: wait_ready DPR_OFF)"
@@ -392,6 +399,8 @@ docker run -d --name "${DPR_CNT}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e DATA_PLANE_TENANT_OBS=1 \
   -e DATA_PLANE_TENANT_OBS_COUNTER=1 \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=warn \
   -p "127.0.0.1:${PORT_CNT}:4011" "${SCRATCH_IMG}" >/dev/null
 wait_ready "${DPR_CNT}" "${PORT_CNT}" || fail "COUNTER router not ready (line: wait_ready DPR_CNT)"

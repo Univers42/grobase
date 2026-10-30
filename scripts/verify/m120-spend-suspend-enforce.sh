@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -72,6 +72,8 @@ DPR_OFF="m120-dpr-off-$$" # (B) PARITY  arm router
 PORT_ON="${M120_PORT_ON:-18992}"
 PORT_OFF="${M120_PORT_OFF:-18993}"
 PGPW="postgres"
+# Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
+SVC_TOKEN="$(openssl rand -hex 24)"
 
 # Three DISTINCT tenant slugs: one for each honor set + one normal control.
 SLUG_SPEND="t-spend-over-$$"    # seeded into spend:over       → expect 402
@@ -108,7 +110,7 @@ payload_list() {
 
 post_q() { # $1=port  $2=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/query" \
-    -H 'Content-Type: application/json' -d "$2"
+    -H 'Content-Type: application/json' -H "X-Service-Token: ${SVC_TOKEN}" -d "$2"
 }
 
 wait_ready() { # $1=container  $2=port
@@ -191,6 +193,8 @@ docker run -d --name "${DPR_ON}" --network "${NET}" \
   -e DATA_PLANE_SUSPEND_READER=1 \
   -e DATA_PLANE_QUOTA_REFRESH_MS="${REFRESH_MS}" \
   -e REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_ON}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_ON}" "${PORT_ON}" || fail "ENFORCE router not ready (line: wait_ready DPR_ON)"
@@ -234,6 +238,8 @@ step "4/6 boot data-plane-router with both honor flags UNSET (B · PARITY) — s
 docker run -d --name "${DPR_OFF}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e REDIS_URL="${REDIS_INNET}" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_OFF}:4011" "${DPR_IMG}" >/dev/null
 wait_ready "${DPR_OFF}" "${PORT_OFF}" || fail "PARITY router not ready (line: wait_ready DPR_OFF)"

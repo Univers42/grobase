@@ -7,7 +7,7 @@
 #    By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/06/14 00:00:00 by dlesieur          #+#    #+#              #
-#    Updated: 2026/06/14 00:00:00 by dlesieur         ###   ########.fr        #
+#    Updated: 2026/10/30 07:00:00 by dlesieur         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 #
@@ -135,7 +135,7 @@ payload_credref_list() {
 post_q() { # $1=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' --max-time 8 \
     -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
-    -H 'Content-Type: application/json' -d "$1"
+    -H 'Content-Type: application/json' -H "X-Service-Token: ${SVC_TOKEN}" -d "$1"
 }
 
 health_ar() { curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:${PORT_AR}/health/live" 2>/dev/null || echo 000; }
@@ -354,6 +354,8 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_VAULT_TOKEN="${VAULT_TOKEN}" \
   -e DATA_PLANE_VAULT_DSN_PREFIX="data-plane/dsn" \
   -e DATA_PLANE_VAULT_DSN_FIELD="dsn" \
+  -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
+  -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr || fail "data-plane-router not ready (line: wait_dpr)"

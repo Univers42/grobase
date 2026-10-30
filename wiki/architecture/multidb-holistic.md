@@ -188,10 +188,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [x] Audit logs carry route, outcome and reason — never body, signature or token.
       *(`inbound_auth.rs:143,150`: `route` is the `MatchedPath` template, `reason` one of five
       fixed strings, `service_auth.rs:113-121`.)*
-- [ ] Before the compose default flips to ON: the 14 scratch-stack gates that boot their own
+- [x] Before the compose default flips to ON: the 14 scratch-stack gates that boot their own
       data plane and POST `/v1/query` or `/v1/transactions` unsigned (m72–m75, m80, m85, m88,
       m94, m98, m101, m103, m120–m122) pass the service token. They run with the flag unset
-      (off), so VM enforce does not touch them.
+      (off), so VM enforce does not touch them. *(Each scratch router gets a per-run
+      `INTERNAL_SERVICE_TOKEN` and `DATA_PLANE_INBOUND_AUTH=${…:-off}`; every script POST carries
+      `X-Service-Token`. `DATA_PLANE_INBOUND_AUTH=enforce` m73 and m122: ALL GATES GREEN.)*
 - [x] ADR 0007 records the residuals: one shared token (23 compose refs, measured) lets any
       platform service assert any identity (lifted by a `v2.<kid>` scheme later); replay
       inside the 120 s skew; inline DSN from any token holder.
