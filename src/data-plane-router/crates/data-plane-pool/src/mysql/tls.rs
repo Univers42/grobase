@@ -54,19 +54,6 @@ pub(super) fn ssl_posture(ssl: Option<&SslOpts>) -> TlsPosture {
     TlsPosture::Verified
 }
 
-/// `DATA_PLANE_TLS_CA_FILE`, read now so a bad path fails the open, not the first query.
-pub(super) fn tls_ca_pem() -> DataPlaneResult<Option<Vec<u8>>> {
-    let path = std::env::var("DATA_PLANE_TLS_CA_FILE").unwrap_or_default();
-    if path.is_empty() {
-        return Ok(None);
-    }
-    std::fs::read(&path)
-        .map(Some)
-        .map_err(|e| DataPlaneError::Backend {
-            message: format!("DATA_PLANE_TLS_CA_FILE read failed: {e}"),
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
