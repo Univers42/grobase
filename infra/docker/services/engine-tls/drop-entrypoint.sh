@@ -47,6 +47,10 @@ redis)
   set -- "$@" --tls-port 6380 --tls-cert-file "$dst/server.crt" --tls-key-file "$dst/server.key" \
     --tls-ca-cert-file "$dst/ca.pem" --tls-auth-clients no
   ;;
+mariadb)
+  # Replaces the self-signed cert MariaDB serves by default; require_secure_transport stays off.
+  set -- "$@" --ssl-cert="$dst/server.crt" --ssl-key="$dst/server.key" --ssl-ca="$dst/ca.pem"
+  ;;
 *)
   echo "engine TLS: no flag set for $name" >&2
   exit 1

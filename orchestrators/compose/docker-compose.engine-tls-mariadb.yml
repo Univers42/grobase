@@ -1,0 +1,35 @@
+# docker-compose.engine-tls-mariadb.yml — accept-mode TLS on mariadb with the CA-signed engine
+# cert (G5b, docs/adr/0012-g5b-engine-accept-tls.md). Opt-in: ENGINE_TLS_ENGINES lists mariadb
+# (env, or an ENGINE_TLS_ENGINES= line in .env.local; orchestrators/makes/00-config.mk).
+# ENGINE_TLS=1 alone never composes this file.
+#
+# MariaDB 11.4 already serves TLS by default, with a self-signed cert it generates in memory
+# that no client can verify. This overlay swaps in `scripts/certs/generate-engine-cert.sh
+# mariadb`, from a directory of its own (G5b-C5). Plaintext stays allowed (--skip-ssl clients).
+#
+# Caveat: this proves mariadb CAN serve a verifiable cert, not that any client checks it.
+# The pool and every consumer dial without require_ssl until each DSN asks for it.
+services:
+  mariadb:
+    user: "0"
+    # An overlay entrypoint clears the image CMD, and the image entrypoint dispatches on $1.
+    entrypoint:
+      ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh", "docker-entrypoint.sh"]
+    command: ["mariadbd"]
+    environment:
+      ENGINE_TLS_NAME: mariadb
+      ENGINE_TLS_UID: "100"
+      ENGINE_TLS_GID: "101"
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_MARIADB_CERT_DIR:-./certs/engine-tls/mariadb}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700
