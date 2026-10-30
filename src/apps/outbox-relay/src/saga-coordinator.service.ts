@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { redisUrlFrom } from '@mini-baas/common';
 import { MongoService, PostgresService } from '@mini-baas/database';
 import Redis from 'ioredis';
 
@@ -138,11 +139,14 @@ export class SagaCoordinatorService implements OnModuleDestroy {
 
   private async getRedis(): Promise<Redis> {
     if (!this.redis) {
-      this.redis = new Redis(this.config.get<string>('OUTBOX_REDIS_URL', 'redis://redis:6379'), {
-        lazyConnect: true,
-        enableOfflineQueue: false,
-        maxRetriesPerRequest: 1,
-      });
+      this.redis = new Redis(
+        redisUrlFrom((name) => this.config.get<string>(name), 'OUTBOX_REDIS_URL', 'REDIS_URL'),
+        {
+          lazyConnect: true,
+          enableOfflineQueue: false,
+          maxRetriesPerRequest: 1,
+        },
+      );
       await this.redis.connect();
     }
     return this.redis;
