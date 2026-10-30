@@ -20,10 +20,11 @@
 //   schema methods would only work as separate inherent blocks, not the trait —
 //   not worth fragmenting one cohesive port.
 
-use super::adapter::{dispatch_single, run_batch, SUPPORTED_OPS};
+use super::adapter::{dispatch_single, run_batch};
 use super::convert::{json_to_mysql_value, row_to_json};
 use super::error::{backend, ddl_backend};
 use super::schema::{build_mysql_ddl, normalize_mysql_type};
+use super::SUPPORTED_OPS;
 use super::*;
 use data_plane_core::{normalise_tls_version, normalise_version, EngineProbe, TlsPosture};
 

@@ -89,8 +89,8 @@ const RESERVED_COLUMNS: [&str; 1] = ["owner_id"];
 // surface them here either (a re-export nothing consumes would warn).
 pub use adapter::MysqlEngineAdapter;
 // `SUPPORTED_OPS` is read by the capability-honesty battery as
-// `crate::mysql::SUPPORTED_OPS`.
-#[cfg(test)]
+// `crate::mysql::SUPPORTED_OPS`. `pool` reads it here too, so a single-engine
+// build uses the re-export and never sees it as unused (grobase#84).
 pub(crate) use adapter::SUPPORTED_OPS;
 
 // The test module below reaches the security-critical helpers it exercises

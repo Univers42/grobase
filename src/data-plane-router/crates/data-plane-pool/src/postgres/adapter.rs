@@ -142,7 +142,7 @@ impl EngineAdapter for PostgresEngineAdapter {
     }
 
     fn supported_ops(&self) -> &'static [DataOperationKind] {
-        super::tx::SUPPORTED_OPS
+        super::SUPPORTED_OPS
     }
 
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
