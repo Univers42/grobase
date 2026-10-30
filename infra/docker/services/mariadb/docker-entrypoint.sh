@@ -27,6 +27,13 @@ DATABASE="${MARIADB_DATABASE:-${MYSQL_DATABASE:-}}"
 USER_NAME="${MARIADB_USER:-${MYSQL_USER:-}}"
 USER_PASSWORD="${MARIADB_PASSWORD:-${MYSQL_PASSWORD:-}}"
 
+# SQL literals for values from the environment: quote and backslash doubled, as in
+# ../mysql8/docker-entrypoint.sh. A password with a quote broke the bootstrap and could
+# inject SQL into it. The lines go through printf, never echo.
+# A trailing newline in a value is dropped by the command substitution.
+sql_str() { printf "'%s'" "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e "s/'/''/g")"; }
+sql_ident() { printf '`%s`' "$(printf '%s' "$1" | sed 's/`/``/g')"; }
+
 # Only the very first boot (empty datadir) runs initialization.
 if [ ! -d "$DATADIR/mysql" ]; then
   echo "[entrypoint] initializing fresh MariaDB datadir at $DATADIR"
@@ -49,17 +56,17 @@ if [ ! -d "$DATADIR/mysql" ]; then
     if [ -n "$ROOT_PASSWORD" ]; then
       # Set the password for root on both localhost and any-host so the
       # compose healthcheck (mysqladmin ping -u root -p…) works from 127.0.0.1.
-      echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '${ROOT_PASSWORD}';"
-      echo "CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${ROOT_PASSWORD}';"
+      printf '%s\n' "ALTER USER 'root'@'localhost' IDENTIFIED BY $(sql_str "$ROOT_PASSWORD");"
+      printf '%s\n' "CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY $(sql_str "$ROOT_PASSWORD");"
       echo "GRANT ALL ON *.* TO 'root'@'%' WITH GRANT OPTION;"
     fi
     if [ -n "$DATABASE" ]; then
-      echo "CREATE DATABASE IF NOT EXISTS \`${DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+      printf '%s\n' "CREATE DATABASE IF NOT EXISTS $(sql_ident "$DATABASE") CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
     fi
     if [ -n "$USER_NAME" ]; then
-      echo "CREATE USER IF NOT EXISTS '${USER_NAME}'@'%' IDENTIFIED BY '${USER_PASSWORD}';"
+      printf '%s\n' "CREATE USER IF NOT EXISTS $(sql_str "$USER_NAME")@'%' IDENTIFIED BY $(sql_str "$USER_PASSWORD");"
       if [ -n "$DATABASE" ]; then
-        echo "GRANT ALL ON \`${DATABASE}\`.* TO '${USER_NAME}'@'%';"
+        printf '%s\n' "GRANT ALL ON $(sql_ident "$DATABASE").* TO $(sql_str "$USER_NAME")@'%';"
       fi
     fi
     echo "FLUSH PRIVILEGES;"
