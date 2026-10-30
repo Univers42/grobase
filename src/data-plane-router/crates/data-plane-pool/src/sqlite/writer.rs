@@ -23,7 +23,7 @@ use data_plane_core::{
     BatchItemOutcome, BatchItemStatus, BatchSummary, DataPlaneError, DataPlaneResult, DataResult,
 };
 use rusqlite::types::Value as SqlValue;
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 
 use super::error::classify_sqlite_ddl_error;
 use super::exec::{exec_write, query_rows, run_plan};
@@ -92,6 +92,31 @@ impl Deferred {
             }
         }
     }
+}
+
+/// Switches a file to WAL once, before the writer thread and the first reader
+/// exist. Left to them, both switch a fresh file at the same moment and SQLite
+/// fails the loser with "database is locked" without calling the busy handler
+/// (its read transaction is already open): 7/40 sqlite test runs, and a writer
+/// that then fails every job until the pool is evicted. WAL persists in the
+/// file, so their own `journal_mode=WAL` is a read-only no-op afterwards.
+///
+/// Caveat: two pools opened at once on one file still race here; that fails
+/// the open, which the caller can retry, never the writer.
+pub(super) async fn enable_wal(path: &str, flags: OpenFlags) -> DataPlaneResult<()> {
+    if path == ":memory:" {
+        return Ok(());
+    }
+    let path = path.to_owned();
+    tokio::task::spawn_blocking(move || {
+        Connection::open_with_flags(&path, flags)?.pragma_update(None, "journal_mode", "WAL")
+    })
+    .await
+    .map_err(|e| e.to_string())
+    .and_then(|r| r.map_err(|e| e.to_string()))
+    .map_err(|e| DataPlaneError::Backend {
+        message: format!("sqlite wal setup failed: {e}"),
+    })
 }
 
 fn open_writer_conn(path: &str) -> Result<Connection, rusqlite::Error> {
