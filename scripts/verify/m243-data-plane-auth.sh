@@ -122,7 +122,9 @@ for pair in \
   "${ROUTES}/caller_policy_router_tests.rs|fn k7_shadow_serves_what_enforce_refuses" \
   "${ROUTES}/caller_policy_router_tests.rs|fn k5_a_refused_inline_dsn_is_never_dialled" \
   "${ROUTES}/caller_policy_router_tests.rs|fn k5_an_allowed_class_does_dial_its_inline_dsn" \
-  "${ROUTES}/caller_keys_tests.rs|fn k8_off_accepts_anything_and_a_sound_set_starts" \
+  "${ROUTES}/caller_keys_tests.rs|fn k8_off_accepts_unset_keys_and_a_sound_set_starts" \
+  "${ROUTES}/caller_keys_tests.rs|fn k8_off_still_refuses_a_short_or_padded_set_key" \
+  "${ROUTES}/caller_keys_tests.rs|fn k8_a_padded_or_blank_key_refuses_and_names_only_the_variable" \
   "${ROUTES}/caller_keys_tests.rs|fn k8_unset_empty_or_short_keys_refuse_to_start" \
   "${ROUTES}/caller_keys_tests.rs|fn k8_a_key_equal_to_another_or_to_the_legacy_token_refuses_to_start" \
   "${ROUTES}/caller_keys_tests.rs|fn k8_the_refusal_names_the_variable_never_the_value" \

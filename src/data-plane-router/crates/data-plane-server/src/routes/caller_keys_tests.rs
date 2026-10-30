@@ -41,10 +41,54 @@ fn caller_key(key: &'static str, problem: CallerKeyProblem) -> Option<ConfigErro
 }
 
 #[test]
-fn k8_off_accepts_anything_and_a_sound_set_starts() {
+fn k8_off_accepts_unset_keys_and_a_sound_set_starts() {
     let off = CallerPolicy::default();
     assert_eq!(off.validate("", ""), Ok(()));
     assert_eq!(enforced().validate(LEGACY, ""), Ok(()));
+    let mut off_with_keys = enforced();
+    off_with_keys.mode = CallerPolicyMode::Off;
+    assert_eq!(off_with_keys.validate(LEGACY, ""), Ok(()));
+}
+
+#[test]
+fn k8_off_still_refuses_a_short_or_padded_set_key() {
+    let p = CallerPolicy {
+        tenant_control_prev: "short".into(),
+        ..CallerPolicy::default()
+    };
+    assert_eq!(
+        refusal(&p),
+        caller_key(TENANT_CONTROL_PREV_KEY, CallerKeyProblem::TooShort)
+    );
+    let p = CallerPolicy {
+        query_router: format!("{QR} "),
+        ..CallerPolicy::default()
+    };
+    assert_eq!(
+        refusal(&p),
+        caller_key(QUERY_ROUTER_KEY, CallerKeyProblem::Padded)
+    );
+}
+
+#[test]
+fn k8_a_padded_or_blank_key_refuses_and_names_only_the_variable() {
+    let mut p = enforced();
+    p.query_router_prev = " ".into();
+    assert_eq!(
+        refusal(&p),
+        caller_key(QUERY_ROUTER_PREV_KEY, CallerKeyProblem::Padded)
+    );
+    let mut p = enforced();
+    p.tenant_control = format!("\t{TC}");
+    let err = refusal(&p).expect("refused");
+    assert_eq!(
+        Some(err.clone()),
+        caller_key(TENANT_CONTROL_KEY, CallerKeyProblem::Padded)
+    );
+    for rendered in [err.to_string(), format!("{err:?}")] {
+        assert!(rendered.contains(TENANT_CONTROL_KEY), "{rendered}");
+        assert!(!rendered.contains(TC), "{rendered}");
+    }
 }
 
 #[test]
@@ -58,7 +102,7 @@ fn k8_unset_empty_or_short_keys_refuse_to_start() {
     p.query_router = "   ".into();
     assert_eq!(
         refusal(&p),
-        caller_key(QUERY_ROUTER_KEY, CallerKeyProblem::Unset)
+        caller_key(QUERY_ROUTER_KEY, CallerKeyProblem::Padded)
     );
     let mut p = enforced();
     p.mode = CallerPolicyMode::Shadow;

@@ -140,15 +140,15 @@ impl CallerPolicy {
             .map(|at| CLASS_AT[at])
     }
 
-    /// K8: under shadow or enforce, both current keys are set, every set key is
-    /// at least 32 bytes, and no two keys (legacy included) are equal.
+    /// K8: in every mode a set key is unpadded and at least 32 bytes, because
+    /// G1a accepts it as a credential even under off. Under shadow or enforce
+    /// both current keys must also be set and no two keys (legacy included)
+    /// may be equal.
     ///
     /// # Errors
     /// `ConfigError::CallerKey` naming the first variable that fails.
     pub fn validate(&self, legacy: &str, legacy_prev: &str) -> Result<(), ConfigError> {
-        if self.mode == CallerPolicyMode::Off {
-            return Ok(());
-        }
+        let policy_on = self.mode != CallerPolicyMode::Off;
         let named = [
             (QUERY_ROUTER_KEY, self.query_router.as_str()),
             (TENANT_CONTROL_KEY, self.tenant_control.as_str()),
@@ -156,7 +156,10 @@ impl CallerPolicy {
             (TENANT_CONTROL_PREV_KEY, self.tenant_control_prev.as_str()),
         ];
         for (at, (key, value)) in named.iter().enumerate() {
-            check_shape(key, value, at < 2)?;
+            check_shape(key, value, policy_on && at < 2)?;
+        }
+        if !policy_on {
+            return Ok(());
         }
         let legacy_keys = [(LEGACY_KEY, legacy), (LEGACY_PREV_KEY, legacy_prev)];
         for (at, (key, value)) in named.iter().enumerate() {
@@ -171,14 +174,18 @@ fn refuse(key: &'static str, problem: CallerKeyProblem) -> Result<(), ConfigErro
     Err(ConfigError::CallerKey { key, problem })
 }
 
-/// A current key must be set; a `_PREV` may be empty (no rotation window).
+/// An empty key is refused only when `required`. A padded one is refused even
+/// when all whitespace: the keyring would hold it verbatim as a live short key.
 fn check_shape(key: &'static str, value: &str, required: bool) -> Result<(), ConfigError> {
-    if value.trim().is_empty() {
+    if value.is_empty() {
         return if required {
             refuse(key, CallerKeyProblem::Unset)
         } else {
             Ok(())
         };
+    }
+    if value != value.trim() {
+        return refuse(key, CallerKeyProblem::Padded);
     }
     if value.len() < MIN_KEY_BYTES {
         return refuse(key, CallerKeyProblem::TooShort);
