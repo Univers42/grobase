@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:28:57 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:28:59 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,7 @@
 //! parameters so they unit-test without a DB. Used only by [`super::adapter`]'s
 //! `open_pool`.
 
+use super::sslmode;
 use data_plane_core::{DataPlaneError, DataPlaneResult, TlsPosture};
 use std::sync::Arc;
 
@@ -35,12 +36,10 @@ pub(super) enum TlsMode {
 /// (no more accept-any-cert — closes the MITM hole), unless the operator pins a
 /// lower floor. Returns `None` for a non-TLS DSN (the local NoTls parity path).
 pub(super) fn effective_tls_mode(dsn: &str, max_security: bool) -> Option<TlsMode> {
-    let asked = if dsn.contains("sslmode=verify-full") || dsn.contains("sslmode=verify-ca") {
-        Some(TlsMode::Verify)
-    } else if dsn.contains("sslmode=require") {
-        Some(TlsMode::Require)
-    } else {
-        None
+    let asked = match sslmode::sslmode(dsn).as_deref() {
+        Some("verify-full" | "verify-ca") => Some(TlsMode::Verify),
+        Some("require") => Some(TlsMode::Require),
+        _ => None,
     };
     match (asked, max_security) {
         // Max mode: `require` is upgraded to real verification.
@@ -67,8 +66,11 @@ pub(super) fn tls_posture(mode: Option<TlsMode>) -> TlsPosture {
 /// ([`rustls_connector`] with [`TlsMode::Verify`], chosen from the ORIGINAL
 /// DSN); `require` keeps the handshake mandatory, never a plaintext fallback.
 pub(super) fn wire_dsn(dsn: &str) -> String {
-    dsn.replace("sslmode=verify-full", "sslmode=require")
-        .replace("sslmode=verify-ca", "sslmode=require")
+    sslmode::rewrite_sslmode(
+        dsn,
+        |mode| mode == "verify-full" || mode == "verify-ca",
+        "require",
+    )
 }
 
 /// Track C / C1: the connection-pooler endpoint to dial, from

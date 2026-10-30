@@ -309,8 +309,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         stays `NoTls`, `SECURITY_MODE=max` verifies; ADR 0014): m258 `require` + `verify-full`
         on TLSv1.3 with `pg_stat_ssl.ssl`, a host outside the SANs refused with no fallback;
         m184 plaintext still green. Not on the VM (R-TLS11): no live DSN sets `sslmode` yet.
-  - [ ] The pool's `conn.rs` finds `sslmode` by substring, so a password holding
-        `sslmode=verify-full` is misread as the mode: port realtime's parser (`producer/tls.rs`).
+  - [x] The pool's `conn.rs` found `sslmode` by substring, so a password holding
+        `sslmode=verify-full` was misread as the mode and rewritten: `postgres/sslmode.rs`
+        now parses it like realtime's `producer/tls.rs`; 101 postgres unit tests, CI m27 TLS leg.
 - [ ] m247: `pg_stat_ssl` 100 % encrypted; each engine refuses a plaintext client;
       descriptor (G4) reports `tls: verified` per mount.
 - [ ] Rollout on the VM is a separate, confirmed window (`vm-is-the-cloud`): every
