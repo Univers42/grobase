@@ -32,8 +32,8 @@
 //! pool wiring (`adapter`/`pool`), the pure plan/SQL builders (`query`), the
 //! value conversion (`convert`), the blocking executors (`exec`), the
 //! single-writer GROUP-COMMIT machinery (`writer`), the per-connection
-//! hardening every connection gets (`harden`), the structured-DDL builders
-//! (`schema`), and the error classifiers (`error`). Cross-module symbols stay
+//! hardening every connection gets (`harden`), the opt-in path confinement
+//! (`root`), the structured-DDL builders (`schema`), and the error classifiers (`error`). Cross-module symbols stay
 //! `pub(super)`/`pub(crate)`; the crate-facing surface is only the facade
 //! re-exported below.
 
@@ -45,6 +45,7 @@ mod exec;
 mod harden;
 mod pool;
 mod query;
+mod root;
 mod schema;
 mod writer;
 

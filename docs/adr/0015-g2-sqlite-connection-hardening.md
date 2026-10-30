@@ -38,9 +38,8 @@ one mount could reach nano, pb and every other tenant.
 
 - **It does not isolate tenants.** Any `/v1` caller can still put `sqlite:///tmp/<other>.db`
   in the body `inline_dsn` until G1 enforce and mount provenance land.
-- **No root confinement yet.** `DATA_PLANE_SQLITE_ROOT` and the writer's
-  `SQLITE_OPEN_NOFOLLOW` are G2-S1b. Under that root a `tenant_id` from the body is still
-  spoofable before G1 enforce.
+- **Root confinement is opt-in** (G2-S1b, below). Under the root a `tenant_id` from the body
+  is still spoofable before G1 enforce: it confines a path, not a tenant.
 - **Symlinks and hardlinks** to a server file under another name pass the name check, and the
   reader pool follows a symlink (deadpool-sqlite hard-codes `Connection::open`; a custom
   Manager is the escape hatch). Both carry a `Caveat:` in the code.
@@ -59,3 +58,27 @@ one mount could reach nano, pb and every other tenant.
   `raw_attach_is_refused_on_the_read_and_the_write_path`).
 - `scripts/verify/m27-conformance.sh sqlite`: 12 passed, 8 skipped, 0 failed, unchanged.
   Wall time, warm-up then 5 runs per tree: median 0.724 s before, 0.701 s after (−3%, noise).
+
+## Addendum — G2-S1b: opt-in root confinement (2026-10-30, S10–S12)
+
+- **`DATA_PLANE_SQLITE_ROOT`** (`sqlite/root.rs`), read once when the adapter is built.
+  Unset: no check, writer flags unchanged (S11, tested). Set to an absolute existing
+  directory: a file mount must be `<root>/<tenant_id>/<file>`, with `tenant_id` one segment
+  of `[A-Za-z0-9_-]`, at most 64 bytes, checked before any `mkdir`. The tenant directory is
+  created 0700 on first use (never the root), must canonicalize to `<root>/<tenant_id>`, and a
+  symlinked database file is refused. Set but not an absolute existing directory: every file
+  mount is refused and boot logs an error. `:memory:` always passes.
+- **Writer `SQLITE_OPEN_NOFOLLOW`** whenever the root is set (S12). The reader pool keeps
+  deadpool-sqlite's flags and follows a symlink swapped in after the check (`Caveat:` in
+  `root.rs`); hard links and the `-wal`/`-shm` sidecars are not checked.
+- **WAL bootstrap.** Found while gating this: since S1a moved the pragmas into
+  `post_create`, a fresh file's writer and first reader raced to switch to WAL and the loser
+  failed with "database is locked" (7/40 runs), killing the writer. `open_pool` now switches
+  the file to WAL once before either exists (separate commit).
+
+Evidence (rust toolchain image, 2026-10-30): `cargo test --workspace` plus the dynamodb
+sqlite leg 1138 passed, 0 failed; clippy `-D warnings` clean; `cargo test -p data-plane-pool
+--features dynamodb --lib sqlite` 46 passed, 0/40 red in a loop. Mutations: writer flags
+always default → 2 root tests red; `confine` not called → the confined adapter test red; no
+WAL bootstrap → the race test red 5/5. `m27-conformance.sh sqlite` 12 passed, 8 skipped, 0
+failed; median 0.745 s before, 0.735 s after (noise).
