@@ -66,6 +66,14 @@ pub enum ConfigError {
     /// `DATA_PLANE_DIAL_GUARD` is not `off`, `shadow` or `enforce`. Refused for
     /// the same reason: a typo must not leave tenant dials unguarded.
     UnknownDialGuardMode,
+    /// `DATA_PLANE_CALLER_POLICY` is not `off`, `shadow` or `enforce` (D1).
+    UnknownCallerPolicyMode,
+    /// A caller key fails the startup check while the caller policy is on
+    /// (D1, ADR 0023). `key` and `problem` are static, so no value is carried.
+    CallerKey {
+        key: &'static str,
+        problem: CallerKeyProblem,
+    },
     /// Required secrets are unset or empty in a strict environment. `keys` is
     /// `&'static str`, so only key names can ever appear here — never a value.
     MissingSecrets {
@@ -89,6 +97,15 @@ impl fmt::Display for ConfigError {
                 f,
                 "DATA_PLANE_DIAL_GUARD is not a known mode (allowed: off, shadow, enforce)"
             ),
+            Self::UnknownCallerPolicyMode => write!(
+                f,
+                "DATA_PLANE_CALLER_POLICY is not a known mode (allowed: off, shadow, enforce)"
+            ),
+            Self::CallerKey { key, problem } => write!(
+                f,
+                "{key} {} (DATA_PLANE_CALLER_POLICY is shadow or enforce)",
+                problem.describe()
+            ),
             Self::MissingSecrets { environment, keys } => write!(
                 f,
                 "missing required configuration: {} ({ENVIRONMENT_KEY}={})",
@@ -100,6 +117,25 @@ impl fmt::Display for ConfigError {
 }
 
 impl std::error::Error for ConfigError {}
+
+/// Why a caller key was refused at startup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallerKeyProblem {
+    Unset,
+    TooShort,
+    /// Equal to the named variable's value, so the two callers share a class.
+    SameAs(&'static str),
+}
+
+impl CallerKeyProblem {
+    fn describe(self) -> String {
+        match self {
+            Self::Unset => "is unset or empty".to_string(),
+            Self::TooShort => "is shorter than 32 bytes".to_string(),
+            Self::SameAs(other) => format!("equals {other}"),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

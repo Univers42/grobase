@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:31:53 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/29 21:11:50 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 16:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,6 +23,9 @@
 
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
+
+mod keyring;
+pub use keyring::KeyRing;
 
 /// True when `SERVICE_TOKEN_MODE=hmac` (case-insensitive).
 #[must_use]
@@ -43,7 +46,7 @@ pub fn prev_service_token() -> String {
 
 /// Constant-time compare (no early-out on the first mismatch) so verify timing
 /// does not leak how many bytes matched.
-fn ct_eq(a: &str, b: &str) -> bool {
+pub(crate) fn ct_eq(a: &str, b: &str) -> bool {
     let (a, b) = (a.as_bytes(), b.as_bytes());
     if a.len() != b.len() {
         return false;
@@ -152,32 +155,12 @@ impl ServiceAuthVerifier<'_> {
         if self.current.is_empty() {
             return Err(ServiceAuthDenial::NoTokenConfigured);
         }
-        if !self.hmac {
-            let presented = header("x-service-token").ok_or(ServiceAuthDenial::Missing)?;
-            let cur_ok = ct_eq(presented, self.current);
-            let prev_ok = !self.prev.is_empty() && ct_eq(presented, self.prev);
-            return if cur_ok || prev_ok {
-                Ok(())
-            } else {
-                Err(ServiceAuthDenial::Mismatch)
-            };
-        }
-        let presented = header("x-service-auth").ok_or(ServiceAuthDenial::Missing)?;
-        let ts = match presented.split('.').collect::<Vec<_>>().as_slice() {
-            ["v1", ts, _] => ts
-                .parse::<i64>()
-                .map_err(|_| ServiceAuthDenial::Malformed)?,
-            _ => return Err(ServiceAuthDenial::Malformed),
+        let ring = KeyRing {
+            keys: &[self.current, self.prev],
+            hmac: self.hmac,
+            skew_secs: self.skew_secs,
         };
-        if ts < now - self.skew_secs || ts > now + self.skew_secs {
-            return Err(ServiceAuthDenial::Stale);
-        }
-        let SignedRequest { method, path, body } = *request;
-        if verify_service_auth_at(presented, self.current, self.prev, method, path, body, ts) {
-            Ok(())
-        } else {
-            Err(ServiceAuthDenial::Mismatch)
-        }
+        ring.identify(header, request, now).map(|_| ())
     }
 }
 

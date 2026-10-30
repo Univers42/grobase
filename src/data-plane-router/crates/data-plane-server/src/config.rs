@@ -6,12 +6,13 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:32:57 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/10/29 21:11:50 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 16:00:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 use crate::environment::{ConfigError, Environment, ENVIRONMENT_KEY};
-use crate::routes::{InboundAuth, InboundAuthMode, INBOUND_AUTH_KEY};
+use crate::routes::{CallerPolicy, CallerPolicyMode, InboundAuth, InboundAuthMode};
+use crate::routes::{CALLER_POLICY_KEY, INBOUND_AUTH_KEY};
 use data_plane_pool::{DialGuardMode, DIAL_GUARD_KEY};
 
 #[derive(Clone)]
@@ -99,6 +100,10 @@ pub struct ServerConfig {
     /// G1a — who may call the internal `/v1/*` routes (`routes/inbound_auth.rs`).
     /// From `DATA_PLANE_INBOUND_AUTH` (`off` default, `shadow`, `enforce`).
     pub inbound_auth: InboundAuth,
+    /// D1 — which caller class may call which `/v1/*` route (ADR 0023,
+    /// `routes/caller_policy.rs`). From `DATA_PLANE_CALLER_POLICY` (`off`
+    /// default, `shadow`, `enforce`) and the `DATA_PLANE_KEY_*` caller keys.
+    pub caller_policy: CallerPolicy,
     /// G2 — what the pgwire and MySQL adapters do with a Tenant dial to a
     /// denied address (ADR 0019). From `DATA_PLANE_DIAL_GUARD` (`off` default,
     /// `shadow`, `enforce`).
@@ -238,8 +243,9 @@ impl ServerConfig {
     ///
     /// # Errors
     /// `ConfigError::UnknownEnvironment`, `ConfigError::UnknownInboundAuthMode`,
-    /// `ConfigError::UnknownDialGuardMode`, or `ConfigError::MissingSecrets`
-    /// naming every missing key (never a value).
+    /// `ConfigError::UnknownDialGuardMode`, `ConfigError::UnknownCallerPolicyMode`,
+    /// `ConfigError::CallerKey`, or `ConfigError::MissingSecrets` naming every
+    /// missing key (never a value).
     pub fn try_from_env() -> Result<Self, ConfigError> {
         let environment = Environment::parse(&read_env(ENVIRONMENT_KEY, ""))?;
         if InboundAuthMode::parse(&read_env(INBOUND_AUTH_KEY, "")).is_none() {
@@ -248,7 +254,15 @@ impl ServerConfig {
         if DialGuardMode::parse(&read_env(DIAL_GUARD_KEY, "")).is_none() {
             return Err(ConfigError::UnknownDialGuardMode);
         }
+        if CallerPolicyMode::parse(&read_env(CALLER_POLICY_KEY, "")).is_none() {
+            return Err(ConfigError::UnknownCallerPolicyMode);
+        }
         let config = Self::from_env();
+        let legacy = (
+            &config.internal_service_token,
+            &config.inbound_auth.prev_token,
+        );
+        config.caller_policy.validate(legacy.0, legacy.1)?;
         config.require_secrets(environment, cfg!(not(feature = "nano")))?;
         Ok(config)
     }
@@ -350,6 +364,7 @@ impl ServerConfig {
             tenant_control_url: read_env("TENANT_CONTROL_URL", "http://tenant-control:3022"),
             internal_service_token: read_env("INTERNAL_SERVICE_TOKEN", ""),
             inbound_auth: InboundAuth::from_env(),
+            caller_policy: CallerPolicy::from_env(),
             dial_guard: DialGuardMode::parse(&read_env(DIAL_GUARD_KEY, "")).unwrap_or_default(),
             bypass_enabled: matches!(
                 read_env("DATA_PLANE_BYPASS_ENABLED", "false")
@@ -535,6 +550,7 @@ impl std::fmt::Debug for ServerConfig {
             )
             .field("bypass_enabled", &self.bypass_enabled)
             .field("inbound_auth", &self.inbound_auth)
+            .field("caller_policy", &self.caller_policy)
             .field("dial_guard", &self.dial_guard)
             .field("metering", &self.metering)
             .field("metering_flush_ms", &self.metering_flush_ms)
@@ -762,5 +778,20 @@ mod tests {
         let shadow = ServerConfig::try_from_env().expect("shadow is a mode");
         assert_eq!(shadow.dial_guard, DialGuardMode::Shadow);
         std::env::remove_var(DIAL_GUARD_KEY);
+        std::env::set_var(CALLER_POLICY_KEY, "enforcing");
+        assert_eq!(
+            ServerConfig::try_from_env().err(),
+            Some(ConfigError::UnknownCallerPolicyMode),
+            "a caller-policy typo must not read as off"
+        );
+        std::env::set_var(CALLER_POLICY_KEY, "enforce");
+        assert!(
+            matches!(
+                ServerConfig::try_from_env(),
+                Err(ConfigError::CallerKey { .. })
+            ),
+            "K8: enforce with no caller keys refuses to start"
+        );
+        std::env::remove_var(CALLER_POLICY_KEY);
     }
 }
