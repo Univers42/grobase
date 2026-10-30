@@ -110,8 +110,8 @@ TENANT_READ="m85-read-$$"   # the read event's tenant_id (ground truth)
 TENANT_WRITE="m85-write-$$" # the write event's tenant_id (ground truth)
 # Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
 SVC_TOKEN="$(openssl rand -hex 24)"
-N_CAP=512                   # the in-process per-service cap (must match the code)
-N_FLOOD=560                 # > N_CAP so the overflow sentinel must appear
+N_CAP=512   # the in-process per-service cap (must match the code)
+N_FLOOD=560 # > N_CAP so the overflow sentinel must appear
 DSN_INNET="postgres://postgres:${PGPW}@${PG}:5432/postgres"
 BODY_TMP="$(mktemp)"
 BASELINE_METRICS="$(mktemp)" # the OFF-router /metrics capture (parity baseline)
