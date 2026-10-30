@@ -13,6 +13,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { Counter, register } from 'prom-client';
+import { requestIdUuid } from './request-id';
 
 /** One row of the `public.audit_log` table written per mutating HTTP request. */
 export interface AuditEntry {
@@ -88,7 +89,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
            (request_id, actor_id, actor_role, action, resource, payload, ip, user_agent)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`,
         [
-          entry.requestId,
+          requestIdUuid(entry.requestId),
           entry.actorId ?? null,
           entry.actorRole ?? null,
           entry.action,
@@ -102,7 +103,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
       this.auditFailures.inc();
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(
-        `audit_log insert failed (req=${entry.requestId} action=${entry.action} resource=${entry.resource}): ${message}`,
+        `audit_log insert failed (req=${requestIdUuid(entry.requestId)} raw=${entry.requestId.slice(0, 128)} action=${entry.action} resource=${entry.resource}): ${message}`,
       );
     }
   }

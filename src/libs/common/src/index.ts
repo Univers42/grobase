@@ -29,6 +29,7 @@ export * from './security/service-auth';
 export * from './middleware/idempotency.middleware';
 export * from './middleware/api-key.middleware';
 export * from './audit/audit.service';
+export * from './audit/request-id';
 export * from './audit/audit.interceptor';
 export * from './audit/audit.module';
 export * from './pipes/validation.pipe';

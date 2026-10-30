@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
 import type { AdapterOp, QueryResult } from '@mini-baas/database';
+import { isUuid, requestIdUuid } from '@mini-baas/common';
 
 interface OutboxEventInput {
   aggregate: string;
@@ -50,7 +51,6 @@ interface QueryOutboxInput {
 }
 
 const MUTATING_OPS = new Set<AdapterOp>(['insert', 'update', 'delete', 'upsert', 'batch']);
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class OutboxService implements OnModuleDestroy {
@@ -109,7 +109,7 @@ export class OutboxService implements OnModuleDestroy {
           event.aggregateId,
           event.eventType,
           JSON.stringify(event.payload),
-          this.uuidOrNull(event.requestId),
+          this.requestIdOrNull(event.requestId),
           this.uuidOrNull(event.actorId),
           event.targetEngine ?? null,
           event.targetResource ?? null,
@@ -129,7 +129,7 @@ export class OutboxService implements OnModuleDestroy {
             event.aggregateId,
             event.eventType,
             JSON.stringify(event.payload),
-            this.uuidOrNull(event.requestId),
+            this.requestIdOrNull(event.requestId),
             this.uuidOrNull(event.actorId),
           ],
         );
@@ -147,7 +147,7 @@ export class OutboxService implements OnModuleDestroy {
           event.aggregateId,
           event.eventType,
           JSON.stringify(event.payload),
-          this.uuidOrNull(event.requestId),
+          this.requestIdOrNull(event.requestId),
           this.uuidOrNull(event.actorId),
           event.targetEngine ?? null,
           event.targetResource ?? null,
@@ -167,7 +167,7 @@ export class OutboxService implements OnModuleDestroy {
             event.aggregateId,
             event.eventType,
             JSON.stringify(event.payload),
-            this.uuidOrNull(event.requestId),
+            this.requestIdOrNull(event.requestId),
             this.uuidOrNull(event.actorId),
           ],
         );
@@ -220,7 +220,11 @@ export class OutboxService implements OnModuleDestroy {
     return undefined;
   }
 
+  private requestIdOrNull(value?: string): string | null {
+    return value ? requestIdUuid(value) : null;
+  }
+
   private uuidOrNull(value?: string): string | null {
-    return value && UUID_RE.test(value) ? value : null;
+    return value && isUuid(value) ? value : null;
   }
 }
