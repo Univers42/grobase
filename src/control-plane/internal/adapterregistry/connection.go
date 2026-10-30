@@ -52,7 +52,10 @@ func (s *Service) GetConnection(ctx context.Context, userID, id string) (Connect
 	if err != nil {
 		return ConnectionResult{}, err
 	}
-	result := ConnectionResult{Engine: row.engine, ConnectionString: conn, Isolation: row.isolation, Revision: row.revision}
+	result := ConnectionResult{
+		Engine: row.engine, ConnectionString: conn, Isolation: row.isolation, Revision: row.revision,
+		Location: describeDSN(row.engine, conn).location,
+	}
 	return s.stampMountOverrides(ctx, userID, result, row), nil
 }
 

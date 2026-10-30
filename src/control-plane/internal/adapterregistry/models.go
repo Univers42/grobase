@@ -236,4 +236,9 @@ type ConnectionResult struct {
 	// planner narrows by it (403 capability_gated) and the token bucket reads
 	// rps/burst (429). Nil when tiering is disabled (parity).
 	CapabilityOverrides map[string]any `json:"capability_overrides,omitempty"`
+	// Location is the descriptor classifier's placement of an inline DSN
+	// (network | platform | file | memory | unknown). The query-router's live
+	// probe hides the server version of a "platform" mount (devil G4 P9). Empty
+	// for a cred-ref mount: its DSN never reaches the control plane.
+	Location string `json:"location,omitempty"`
 }
