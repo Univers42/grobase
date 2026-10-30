@@ -224,6 +224,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:?unset - run make env}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       INTERNAL_SERVICE_TOKEN_PREV: ${ADAPTER_REGISTRY_SERVICE_TOKEN_PREV:-}
+      # D1 (ADR 0023): signs data-plane admin calls; empty falls back to the shared
+      # token. Only tenant-control holds it.
+      DATA_PLANE_KEY_TENANT_CONTROL: ${DATA_PLANE_KEY_TENANT_CONTROL:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
       # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
       # JWT_ALG=RS256 + JWKS_URL (e.g. GoTrue's .well-known/jwks.json once it

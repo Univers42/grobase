@@ -101,6 +101,32 @@
         "webhook-dispatcher"
       ]
     },
+    "DATA_PLANE_KEY_QUERY_ROUTER": {
+      "$comment": "D1 (ADR 0023): query-router's own data-plane signing key, independent of ADAPTER_REGISTRY_SERVICE_TOKEN. Optional: DATA_PLANE_CALLER_POLICY is off by default; under shadow/enforce the data plane refuses to start without it. Its _PREV is set by hand only during a rotation.",
+      "category": "SECRET",
+      "format": "hex64",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "core/DATA_PLANE_KEY_QUERY_ROUTER",
+      "consumers": [
+        "data-plane-router-rust",
+        "query-router"
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
+    },
+    "DATA_PLANE_KEY_TENANT_CONTROL": {
+      "$comment": "D1 (ADR 0023): tenant-control's own data-plane signing key, independent of ADAPTER_REGISTRY_SERVICE_TOKEN. Optional: DATA_PLANE_CALLER_POLICY is off by default; under shadow/enforce the data plane refuses to start without it. Its _PREV is set by hand only during a rotation.",
+      "category": "SECRET",
+      "format": "hex64",
+      "required_in": [],
+      "compose_required": false,
+      "vault42_path": "core/DATA_PLANE_KEY_TENANT_CONTROL",
+      "consumers": [
+        "data-plane-router-rust",
+        "tenant-control"
+      ],
+      "built_by": "scripts/env/generate-env.sh (written into .env.secrets)"
+    },
     "ANON_KEY": {
       "category": "PUBLIC",
       "format": "jwt-hs256",
