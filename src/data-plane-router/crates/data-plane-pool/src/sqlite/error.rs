@@ -56,6 +56,14 @@ pub(super) fn backend(e: rusqlite::Error) -> DataPlaneError {
     }
 }
 
+/// A mount path refused by shape (G2-S1). The message names the shape, never
+/// the path, which may carry a secret.
+pub(super) fn path_refused(shape: &str) -> DataPlaneError {
+    DataPlaneError::Backend {
+        message: format!("sqlite mount path refused: {shape}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

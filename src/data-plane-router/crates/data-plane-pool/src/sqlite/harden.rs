@@ -22,12 +22,14 @@
 //! Plain `VACUUM` is refused too: SQLite runs it as `ATTACH ... AS vacuum_db`
 //! (sqlite3.c `sqlite3RunVacuum`), which both the limit and the authorizer stop.
 
-use data_plane_core::{DataPlaneError, DataPlaneResult};
+use data_plane_core::DataPlaneResult;
 use rusqlite::config::DbConfig;
 use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 use rusqlite::limits::Limit;
 use rusqlite::Connection;
 use std::path::Path;
+
+use super::error::path_refused;
 
 /// Pragmas whose WRITE either changes the whole process (`*_directory`,
 /// `*_heap_limit`), switches a guard below off (`writable_schema`,
@@ -108,14 +110,11 @@ fn authorize(ctx: AuthContext<'_>) -> Authorization {
 /// error names the path's SHAPE, never its value (it may carry a secret).
 ///
 /// Caveat: the server-file check matches the file NAME. A symlink or hard
-/// link to `nano_meta.db` under another name passes; the opt-in
-/// `DATA_PLANE_SQLITE_ROOT` confinement (S1b) is the escape hatch.
+/// link to `nano_meta.db` under another name passes. The opt-in
+/// `DATA_PLANE_SQLITE_ROOT` confinement ([`super::root`]) refuses the symlink,
+/// not the hard link.
 pub(super) fn refuse_unsafe_path(path: &str) -> DataPlaneResult<()> {
-    let refuse = |shape: &str| {
-        Err(DataPlaneError::Backend {
-            message: format!("sqlite mount path refused: {shape}"),
-        })
-    };
+    let refuse = |shape: &str| Err(path_refused(shape));
     // SQLite is built with SQLITE_USE_URI, so `file:` picks the VFS and
     // the open mode whatever flags the caller passes.
     if path.starts_with("file:") {

@@ -21,23 +21,27 @@ use data_plane_core::{
     EngineCapabilities, EngineHealth, EnginePool,
 };
 use deadpool_sqlite::{Config as SqliteConfig, Hook, HookError, Pool, Runtime};
-use rusqlite::OpenFlags;
 use std::sync::Arc;
 
 use crate::resolver::MountResolver;
 
 use super::harden::{harden, refuse_unsafe_path, tune};
 use super::pool::SqlitePool;
+use super::root::{sqlite_path, SqliteRoot};
 use super::writer::{enable_wal, writer_loop};
 
 pub struct SqliteEngineAdapter {
     resolver: Arc<dyn MountResolver>,
+    root: SqliteRoot,
 }
 
 impl SqliteEngineAdapter {
     #[must_use]
     pub fn new(resolver: Arc<dyn MountResolver>) -> Self {
-        Self { resolver }
+        Self {
+            resolver,
+            root: SqliteRoot::from_env(),
+        }
     }
 }
 
@@ -59,7 +63,9 @@ impl EngineAdapter for SqliteEngineAdapter {
         let dsn = self.resolver.resolve_dsn(&mount).await?;
         let path = sqlite_path(&dsn);
         refuse_unsafe_path(&path)?;
-        enable_wal(&path, OpenFlags::default()).await?;
+        self.root.confine(&path, &mount.tenant_id)?;
+        let writer_flags = self.root.writer_flags();
+        enable_wal(&path, writer_flags).await?;
         let pool = reader_pool(&path)?;
 
         // Dedicated writer thread (single-writer + GROUP COMMIT): one OS
@@ -71,7 +77,7 @@ impl EngineAdapter for SqliteEngineAdapter {
         let writer_path = path.clone();
         std::thread::Builder::new()
             .name(format!("sqlite-writer-{}", mount.id))
-            .spawn(move || writer_loop(&writer_path, jobs))
+            .spawn(move || writer_loop(&writer_path, writer_flags, jobs))
             .map_err(|e| DataPlaneError::Backend {
                 message: format!("sqlite writer thread spawn failed: {e}"),
             })?;
@@ -95,8 +101,8 @@ impl EngineAdapter for SqliteEngineAdapter {
 /// only the first checkout, so a second reader is as locked down as the first.
 ///
 /// Caveat: deadpool-sqlite opens with `Connection::open(path)` and no flags,
-/// so a reader follows a symlink at `path`; a custom Manager is the way to
-/// pass `SQLITE_OPEN_NOFOLLOW` (the writer can, S1b).
+/// so a reader follows a symlink swapped in at `path` after the root check; a
+/// custom Manager is the way to pass `SQLITE_OPEN_NOFOLLOW` (the writer does).
 fn reader_pool(path: &str) -> DataPlaneResult<Pool> {
     let failed = |e: String| DataPlaneError::Backend {
         message: format!("sqlite pool create failed: {e}"),
@@ -118,46 +124,9 @@ fn reader_pool(path: &str) -> DataPlaneResult<Pool> {
         .map_err(|e| failed(e.to_string()))
 }
 
-/// Parse a `sqlite:` DSN to a file path (or `:memory:`).
-fn sqlite_path(dsn: &str) -> String {
-    let s = dsn
-        .strip_prefix("sqlite://")
-        .or_else(|| dsn.strip_prefix("sqlite:"))
-        .unwrap_or(dsn);
-    if s.is_empty() || s == ":memory:" {
-        ":memory:".to_string()
-    } else {
-        s.to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn dsn_parsing() {
-        assert_eq!(sqlite_path("sqlite:///var/lib/x.db"), "/var/lib/x.db");
-        assert_eq!(sqlite_path("sqlite::memory:"), ":memory:");
-        assert_eq!(sqlite_path("sqlite://"), ":memory:");
-        assert_eq!(sqlite_path("/abs/path.db"), "/abs/path.db");
-    }
-
-    // ── DSN parsing edge cases ───────────────────────────────────────────────
-
-    #[test]
-    fn dsn_parsing_edge_cases() {
-        assert_eq!(sqlite_path("sqlite:"), ":memory:");
-        assert_eq!(
-            sqlite_path("sqlite://relative/db.sqlite"),
-            "relative/db.sqlite"
-        );
-        assert_eq!(sqlite_path(""), ":memory:");
-        assert_eq!(sqlite_path(":memory:"), ":memory:");
-        assert_eq!(sqlite_path("sqlite:///tmp/a b.db"), "/tmp/a b.db");
-    }
-
-    // ── hardening reaches every connection (G2-S1) ──────────────────────────
 
     use crate::resolver::EnvMountResolver;
     use data_plane_core::{
@@ -303,6 +272,24 @@ mod tests {
             assert!(adapter().open_pool(mount(&dsn)).await.is_err(), "{dsn}");
         }
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn a_confined_adapter_opens_only_its_own_tenant_directory() {
+        let dir = scratch("confined");
+        let adapter = SqliteEngineAdapter {
+            root: SqliteRoot::from_value(Some(dir.clone().into())),
+            ..adapter()
+        };
+        let foreign = format!("sqlite://{}/u/m.db", dir.display());
+        assert!(adapter.open_pool(mount(&foreign)).await.is_err());
+        let own = format!("sqlite://{}/t/m.db", dir.display());
+        let pool = adapter.open_pool(mount(&own)).await.unwrap();
+        pool.execute_raw(raw("CREATE TABLE t (id INTEGER)", false), identity())
+            .await
+            .unwrap();
+        assert!(dir.join("t/m.db").exists() && !dir.join("u").exists());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

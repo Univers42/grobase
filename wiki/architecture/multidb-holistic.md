@@ -220,9 +220,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       isolation. Open: any `/v1` caller can still name `sqlite:///tmp/<other>.db` in the
       body `inline_dsn` until G1 enforce and provenance; nano/pb raw paths are unhardened
       (U5, one call to `harden_sqlite_connection`); plain `VACUUM` is now refused.
-- [ ] SQLite confinement (G2-S1b): opt-in `DATA_PLANE_SQLITE_ROOT`, path under
-      `<root>/<tenant>/`, writer opened with `SQLITE_OPEN_NOFOLLOW` (S10, S12). `tenant_id` is
-      spoofable from the body until G1 enforce, so the root confines a path, not a tenant.
+- [x] SQLite confinement (G2-S1b, S10–S12, ADR 0015). Opt-in `DATA_PLANE_SQLITE_ROOT`:
+      a file mount must sit directly in `<root>/<tenant>/` (tenant id `[A-Za-z0-9_-]{1,64}`,
+      dir created 0700, symlinked dir or file refused), the writer opens with
+      `SQLITE_OPEN_NOFOLLOW`, a root that is set but not an absolute existing directory refuses
+      every file mount. Unset is unchanged. `tenant_id` is spoofable from the body until G1
+      enforce, so the root confines a path, not a tenant. Open: S2 VM count before promotion;
+      the reader pool still follows a swapped symlink.
 - [ ] N-22: adapter-registry identity HMAC on by default; Vault ref namespaced
       `{prefix}/{tenant_id}/{reference}` server-side; DSN check inside `Validate`.
 - [ ] m230 extended with a canary password through register and error paths in Rust, Go

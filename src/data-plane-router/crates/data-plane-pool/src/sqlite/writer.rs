@@ -119,15 +119,24 @@ pub(super) async fn enable_wal(path: &str, flags: OpenFlags) -> DataPlaneResult<
     })
 }
 
-fn open_writer_conn(path: &str) -> Result<Connection, rusqlite::Error> {
-    let conn = Connection::open(path)?;
+/// `flags` is `OpenFlags::default()` (what `Connection::open` passes) unless a
+/// sqlite root is set, which adds `SQLITE_OPEN_NOFOLLOW`.
+pub(super) fn open_writer_conn(
+    path: &str,
+    flags: OpenFlags,
+) -> Result<Connection, rusqlite::Error> {
+    let conn = Connection::open_with_flags(path, flags)?;
     tune(&conn)?;
     harden(&conn)?;
     Ok(conn)
 }
 
-pub(super) fn writer_loop(path: &str, mut jobs: tokio::sync::mpsc::UnboundedReceiver<WriteJob>) {
-    let conn = match open_writer_conn(path) {
+pub(super) fn writer_loop(
+    path: &str,
+    flags: OpenFlags,
+    mut jobs: tokio::sync::mpsc::UnboundedReceiver<WriteJob>,
+) {
+    let conn = match open_writer_conn(path, flags) {
         Ok(c) => c,
         Err(e) => {
             // Fail every job with the open error; senders see Backend.
