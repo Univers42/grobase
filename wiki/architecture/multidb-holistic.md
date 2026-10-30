@@ -305,8 +305,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.
   - [x] G5a C6 (local, 2026-10-30): Debezium sessions + walsender on TLSv1.3 under the
         overlay; the outbox slot decodes past an m247 probe in 1 s.
-  - [ ] realtime's Postgres producer dials `NoTls` (`realtime-db-postgres`
-        `producer/lifecycle.rs:109`): give it a TLS connector before any plaintext refusal.
+  - [x] realtime's Postgres producer dials TLS when the DSN asks (`sslmode` parsed, `prefer`
+        stays `NoTls`, `SECURITY_MODE=max` verifies; ADR 0014): m258 `require` + `verify-full`
+        on TLSv1.3 with `pg_stat_ssl.ssl`, a host outside the SANs refused with no fallback;
+        m184 plaintext still green. Not on the VM (R-TLS11): no live DSN sets `sslmode` yet.
+  - [ ] The pool's `conn.rs` finds `sslmode` by substring, so a password holding
+        `sslmode=verify-full` is misread as the mode: port realtime's parser (`producer/tls.rs`).
 - [ ] m247: `pg_stat_ssl` 100 % encrypted; each engine refuses a plaintext client;
       descriptor (G4) reports `tls: verified` per mount.
 - [ ] Rollout on the VM is a separate, confirmed window (`vm-is-the-cloud`): every
