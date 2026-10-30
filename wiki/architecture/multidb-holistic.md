@@ -246,8 +246,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - [x] `GET /databases/{id}/descriptor`: engine, host (or file for SQLite), database,
       isolation, credential mode (inline/vault/cmek), requested TLS, last health. Never a
       secret, never a password, never the raw DSN.
-- [ ] Descriptor: server version, negotiated/verified TLS and capability flags — need a
-      live probe; the descriptor reads the row only and never dials (G5 fills TLS).
+- [x] Live probe `GET /query/v1/{id}/probe`: server version and the TLS posture the pool
+      connected with (ADR 0013, devil P1–P12). Off by default (`DATA_PLANE_PROBE=1`);
+      platform versions masked, static mounts 404. Evidence: develop 0d5c8921, data-plane
+      workspace 1110 tests pass, m246 static PASS, conformance `probe` record.
+  - [ ] Live m27 run per engine with the probe on (needs the flag decided on the VM).
+  - [ ] Capability flags in the descriptor.
 - [x] `PATCH /databases/{id}`: rename and rotate the credential (inline DSN or vault ref;
       TLS params travel in the DSN). The id stays, so `baas:<dbId>` bindings survive.
 - [x] Same through the self-serve `/v1/tenants/me/mounts/{id}` surface (scope `write`,
