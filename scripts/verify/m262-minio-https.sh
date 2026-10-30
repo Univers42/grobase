@@ -38,7 +38,10 @@ render() {
   local out="$1" f
   local -a files=(-f "${ROOT}/docker-compose.yml")
   shift
-  for f in "$@"; do files+=(-f "${ROOT}/${f}"); done
+  for f in "$@"; do
+    [[ "${f}" == /* ]] || f="${ROOT}/${f}"
+    files+=(-f "${f}")
+  done
   ENGINE_TLS_MINIO_CERT_DIR="${WORK}/minio" docker compose --project-directory "${ROOT}" "${files[@]}" \
     --profile '*' config --format json >"${WORK}/${out}" 2>"${WORK}/render.err" ||
     fail "compose cannot render ${out}: $(head -c 300 "${WORK}/render.err")"
@@ -68,11 +71,21 @@ static_opt_in() {
   ok "MH1/MH10/MH15: opt-in only, cloud companion only with CLOUD=1, never in PROD_FILES or on the monolith"
 }
 
+# cloud_stub copies the cloud overlay with its flags.env.cloud env_file pointed at a
+# one-key stub, as m195 does: the real file is gitignored and absent on a fresh clone.
+cloud_stub() {
+  printf 'M262_CLOUD_SENTINEL=1\n' >"${WORK}/flags.env.cloud"
+  sed "s#infra/config/cloud/flags\.env\.cloud#${WORK}/flags.env.cloud#g" "${ROOT}/${CLOUD_BASE}" >"${WORK}/cloud.yml"
+  printf '%s' "${WORK}/cloud.yml"
+}
+
 static_renders() {
+  local cloud
+  cloud="$(cloud_stub)"
   render base.json
   render tls.json "${OVERLAY}"
-  render cloud-base.json "${CLOUD_BASE}"
-  render cloud-tls.json "${CLOUD_BASE}" "${OVERLAY}" "${CLOUD_TLS}"
+  render cloud-base.json "${cloud}"
+  render cloud-tls.json "${cloud}" "${OVERLAY}" "${CLOUD_TLS}"
   render both.json "${OVERLAY}" orchestrators/compose/docker-compose.engine-tls-redis.yml
   [[ "$(plain_count base.json)" -gt 0 && "$(plain_count cloud-base.json)" -gt "$(plain_count base.json)" ]] ||
     fail "the base renders name no plaintext minio endpoint: the count below is vacuous"
