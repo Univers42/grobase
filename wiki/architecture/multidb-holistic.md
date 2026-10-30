@@ -260,9 +260,14 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       engine container; compose turns on server TLS: Postgres `ssl=on`, Mongo
       `requireTLS`, Cockroach secure mode, Redis TLS port + ACL password, MySQL/MariaDB
       `require_secure_transport`, MSSQL force encryption, MinIO/Trino HTTPS.
+  - [x] G5a — Postgres accepts TLS behind `ENGINE_TLS=1` (overlay, own cert script, key on
+        tmpfs, fail-closed without cert); default byte-identical (ADR 0011; m247 static + live
+        A/B/C; CI postgres leg twice). Accept mode only — plaintext refusal is a later step.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [ ] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext.
+  - [x] The pool opens `sslmode=verify-full`/`verify-ca` Postgres mounts (tokio-postgres
+        0.7 refused them; `conn::wire_dsn`); m27 postgres over verify-full 12 passed / 0 failed.
 - [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.
 - [ ] m247: `pg_stat_ssl` 100 % encrypted; each engine refuses a plaintext client;
       descriptor (G4) reports `tls: verified` per mount.
