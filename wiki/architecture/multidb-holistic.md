@@ -35,7 +35,7 @@ same 10 engines.
 | cross-engine join | N — `Federate` lowered to NotImplemented (`plan.rs:343-353`) ||||||||||
 
 1. The `mysql` image is Alpine MariaDB (`infra/docker/services/mysql/Dockerfile`, live
-   `version()` = 11.4.12-MariaDB). Oracle MySQL 8 is never run, so "MySQL" is unproven.
+   `version()` = 11.4.12-MariaDB). Oracle MySQL 8.4 runs in CI as the `mysql8` m27 leg (G3).
 2. Opt-in build (`--features dynamodb` + `DYNAMODB_ENGINE_ENABLED`). The repo default
    forward list omits it (`orchestrators/compose/base/data-plane.yml:10`); the VM
    overrides it. A fresh clone does not reproduce the deployed engine set.
@@ -228,7 +228,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       1052 passed / 0 failed; m27 rc=0 on sqlite, postgresql, mysql, mongodb, mariadb,
       cockroachdb, mssql, redis, http.
 - [x] Typed-value round-trip in the battery (feeds G7). `type_round_trip` in engine-conformance (`src/type_checks.rs`) ports m249's 12 cases and gap ledger to the pool surface; a gap that starts passing fails, and `mysql` picks its ledger by `SELECT VERSION()` (MariaDB vs Oracle MySQL). Local 2026-10-30, all 9 engines rc=0: postgresql/cockroachdb 1 gap (c_int), mysql+mariadb 4, mongodb 4, sqlite 7; mssql/redis/http SKIP (no schema_ddl).
-- [ ] Add a real Oracle MySQL 8 service (profile `mysql8`) so MySQL ≠ MariaDB is proven.
+- [x] Add a real Oracle MySQL 8 service (profile `mysql8`) so MySQL ≠ MariaDB is proven.
+      `infra/docker/services/mysql8`: Oracle's 8.4.9 glibc minimal tarball, sha256-pinned,
+      on bookworm-slim, uid 999. m27 runs it behind the `mysql` descriptor and asserts
+      `mysqld --version` is MySQL Community Server. Local 2026-10-30: 12/12 PASS, ledger
+      3 gaps (c_int, c_ts, c_uuid; JSON is a real type on MySQL). It found one adapter bug,
+      now fixed: CREATE TABLE left PK columns nullable, which MariaDB coerces and MySQL
+      refuses (ERROR 1171); `mysql_column_clause` now renders a PK column NOT NULL.
 - [x] Wire existing unwired gates: m22, m26, m88, m131, m174, m176, m181. Static legs m22/m26/m181/m176 run in the CI static job (m22, m26 and m181 were stale after the engine split into directories and the multi-line PK selector; fixed with the same strictness). Scratch gates m131 and m88 joined the `--enterprise` battery (local 2026-10-30: m131 7/7, m88 8/8, rc=0). m174 stays a VM live gate: it needs the extra-engines seed on a stack and SKIPs without Kong.
 - [x] The dynamodb opt-in is in the env schema and `.env.example`: `DYNAMODB_ENGINE_ENABLED`,
       `DATA_PLANE_FEATURES`, `DATA_PLANE_IMAGE_SUFFIX` (infra/config/env/schema.json says
@@ -336,7 +342,9 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       dimension / SRID yet; int8 reads past 2^53 still travel as JSON numbers, so JS
       rounds them (only written keys keep their digits); PG interval writes are not
       parsed (interval is read-only in osionos); BSON has no date-only type, so a
-      Mongo `date` describes back as `datetime`. One ~70 s control-plane stall on the
+      Mongo `date` describes back as `datetime`. On MariaDB and Oracle MySQL the datetime
+      bind is type-blind (an RFC 3339 string is refused, ERROR 1292) and a uuid column is
+      CHAR(36), described as text. One ~70 s control-plane stall on the
       VM (2026-10-30 00:14–00:15 CET: data-plane forwards 502 at 5 s, then tenant-control
       503 at 8 s) failed two m249 runs; no container restarted, cause not found, and it
       did not recur in the next runs.

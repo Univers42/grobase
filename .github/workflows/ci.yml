@@ -323,6 +323,7 @@ jobs:
           - { service: mongo,        context: infra/docker/services/mongo }
           - { service: mongo-init,   context: infra/docker/services/mongo-init }
           - { service: mysql,        context: infra/docker/services/mysql }
+          - { service: mysql8,       context: infra/docker/services/mysql8 }
           - { service: mariadb,      context: infra/docker/services/mariadb }
           - { service: minio,        context: infra/docker/services/minio }
           - { service: mc,           context: infra/docker/services/mc }
@@ -1509,6 +1510,8 @@ jobs:
           - { engine: postgresql, services: postgres, tls: postgres }
           - { engine: redis, services: redis }
           - { engine: mysql, services: mysql, profile: data-plane }
+          # Oracle MySQL 8.4 (`mysql` is MariaDB): m27 also asserts mysqld is MySQL Community Server.
+          - { engine: mysql8, services: mysql8, profile: mysql8 }
           - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane }
           # ENGINE_TLS_ENGINES=mongo (ADR 0012): the replica set initiates under the overlay,
           # and m247 proves verified TLS, SAN refusal and the drop to uid 999.

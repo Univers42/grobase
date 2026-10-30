@@ -42,6 +42,7 @@ volumes:
   postgres-data:
   mongo-data:
   mysql-data:
+  mysql8-data:
   cockroach-data:
   mssql-data:
   dynamodb-data: # dynamodb-local — persistent workspace databases (was -inMemory, lost on restart)
