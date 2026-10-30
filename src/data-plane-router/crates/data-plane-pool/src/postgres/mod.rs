@@ -60,7 +60,8 @@ mod tx;
 pub use adapter::{PgDialect, PostgresEngineAdapter};
 // `SUPPORTED_OPS` lives in `tx` (beside the dispatch match it guards); the
 // capability-honesty battery reads it as `crate::postgres::SUPPORTED_OPS`.
-#[cfg(test)]
+// The descriptor reads it here too, so a single-engine build uses the
+// re-export and never sees it as unused (grobase#84).
 pub(crate) use tx::SUPPORTED_OPS;
 
 /// A JSON value boxed as a Postgres parameter whose wire encoding adapts to the

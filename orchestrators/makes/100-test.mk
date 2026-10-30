@@ -56,6 +56,11 @@ test-lint-shell: ## Lint shell — bash -n + shellcheck (host binary, else pinne
 test-lint-rust: _rust-toolchain ## Lint Rust — cargo clippy -D warnings, BOTH workspaces (data plane + realtime, in Docker)
 	@$(CARGO_DPR) sh -c 'rustup component add clippy >/dev/null 2>&1 || true; cargo clippy --workspace --all-targets -- -D warnings' \
 		&& echo -e "$(_G)✓ rust clippy data-plane (zero warnings)$(_0)"
+	@# Each engine alone, all targets: the workspace run enables every feature, so a
+	@# re-export only a seven-engine test reads went unseen (grobase#84).
+	@$(CARGO_DPR) sh -c 'for f in postgres mysql mssql redis sqlite mongodb http dynamodb; do \
+		cargo clippy -p data-plane-pool --no-default-features --features $$f --all-targets -- -D warnings || exit 1; done' \
+		&& echo -e "$(_G)✓ rust clippy data-plane-pool per engine (zero warnings)$(_0)"
 	@$(CARGO_REALTIME) sh -c 'rustup component add clippy >/dev/null 2>&1 || true; cargo clippy --workspace --all-targets -- -D warnings' \
 		&& echo -e "$(_G)✓ rust clippy realtime (zero warnings)$(_0)"
 
