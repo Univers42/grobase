@@ -428,6 +428,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         fails a wrong password, go-redis/ioredis/Debezium refuse it and hold `user=app`, CLIENT
         LIST 0 `user=default`, boots under TLS+ACL; default render byte-identical. CI job
         `redis-acl` green on develop 6234d587 (CI 41086854436). Stage 2 (`default off`) needs its own ruling.
+  - [x] G5 minio — `ENGINE_TLS_ENGINES=minio`: HTTPS only, no plaintext listener (hard cutover,
+        ADR 0030); every in-network client verifies the CA (Node, Go, mc, trino's JVM, Kong),
+        default render byte-identical. CI job `minio-https` (m262) green on develop and main
+        1e5b83a4 (CI 41094750114). VM HTTPS stays blocked (V1–V6).
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
@@ -443,6 +447,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
   - [x] ADR 0017 Dynamo: under max the DSN endpoint is pinned on the service builder (env and
         profile endpoints can't redirect it) and a non-https endpoint is refused before load.
 - [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.
+  - [~] G5 data plane — `ENGINE_TLS_ENGINES=data-plane` (accept mode, ADR 0031, devil PwC
+        DT1–DT18): the router adds rustls :4012 (ring only, HTTP/1.1, 10 s handshake) beside
+        plaintext :4011; query-router and tenant-control dial https with `ca.pem` only. m263
+        live green locally three times 2026-10-30 (s_client refusals, uid 65532 on a 0400 key,
+        both tenant-control clients and Node with and without their trust knob); 8 static
+        mutants killed. CI job `data-plane-tls` pending; Kong stays on :4011; no VM change.
   - [x] G5a C6 (local, 2026-10-30): Debezium sessions + walsender on TLSv1.3 under the
         overlay; the outbox slot decodes past an m247 probe in 1 s.
   - [x] realtime's Postgres producer dials TLS when the DSN asks (`sslmode` parsed, `prefer`
