@@ -49,6 +49,17 @@ pub(super) fn effective_tls_mode(dsn: &str, max_security: bool) -> Option<TlsMod
     }
 }
 
+/// The DSN tokio-postgres is handed: `sslmode=verify-full`/`verify-ca` become
+/// `require`. tokio-postgres 0.7 knows only disable/prefer/require and refuses
+/// the verify modes as "invalid connection string", so a mount asking for
+/// verification could never open. Verification is the connector's job
+/// ([`rustls_connector`] with [`TlsMode::Verify`], chosen from the ORIGINAL
+/// DSN); `require` keeps the handshake mandatory, never a plaintext fallback.
+pub(super) fn wire_dsn(dsn: &str) -> String {
+    dsn.replace("sslmode=verify-full", "sslmode=require")
+        .replace("sslmode=verify-ca", "sslmode=require")
+}
+
 /// Track C / C1: the connection-pooler endpoint to dial, from
 /// `DATA_PLANE_POOLER_URL`. `None` (unset/blank) is the default → the direct
 /// path, byte-parity. A set value is a full DSN whose host:port is the pooler
@@ -282,6 +293,27 @@ mod tests {
         );
         assert_eq!(pooler_authority("postgres:///db").as_deref(), None);
         assert_eq!(pooler_authority("redis://x:6379").as_deref(), None);
+    }
+
+    #[test]
+    fn verify_modes_reach_tokio_postgres_as_require() {
+        use super::{effective_tls_mode, wire_dsn, TlsMode};
+        use std::str::FromStr;
+        for dsn in [
+            "postgres://u:p@postgres:5432/db?sslmode=verify-full",
+            "postgres://u:p@postgres:5432/db?sslmode=verify-ca&application_name=x",
+            "host=postgres user=u sslmode=verify-full",
+        ] {
+            assert!(
+                tokio_postgres::Config::from_str(dsn).is_err(),
+                "{dsn} parses as-is"
+            );
+            let cfg = tokio_postgres::Config::from_str(&wire_dsn(dsn)).expect(dsn);
+            assert_eq!(cfg.get_ssl_mode(), tokio_postgres::config::SslMode::Require);
+            assert_eq!(effective_tls_mode(dsn, false), Some(TlsMode::Verify));
+        }
+        let plain = "postgres://u:p@postgres:5432/db?sslmode=prefer";
+        assert_eq!(wire_dsn(plain), plain);
     }
 
     #[test]
