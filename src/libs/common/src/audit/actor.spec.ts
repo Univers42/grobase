@@ -7,9 +7,9 @@ import { auditActor } from './actor';
 import { AuditService } from './audit.service';
 import { isUuid } from './request-id';
 
-const SUB = '0b6f5c1e-3a2d-4f8b-9c7e-1d2a3b4c5d6e';
-const TENANT = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
-const KEY = '827ad2d7-b516-4e5e-ae5e-81d30136430f';
+const SUB = '00000000-0000-4000-8000-000000000001';
+const TENANT = '00000000-0000-4000-8000-000000000002';
+const KEY_ID = '00000000-0000-4000-8000-000000000003';
 
 function identity(
   authMethod: VerifiedAuthMethod,
@@ -31,7 +31,7 @@ function identity(
 describe('auditActor (ADR 0020 mapping)', () => {
   it.each([
     ['kong-hmac user:<uuid>', identity('kong-hmac', `user:${SUB}`, 'admin'), SUB, 'admin'],
-    ['kong-hmac api-key:<id>', identity('kong-hmac', `api-key:${KEY}`), null, 'authenticated'],
+    ['kong-hmac api-key:<id>', identity('kong-hmac', `api-key:${KEY_ID}`), null, 'authenticated'],
     ['kong-hmac empty api-key:', identity('kong-hmac', 'api-key:'), null, 'authenticated'],
     ['kong-hmac bare user:', identity('kong-hmac', 'user:'), null, 'authenticated'],
     ['kong-hmac user:not-a-uuid', identity('kong-hmac', 'user:not-a-uuid'), null, 'authenticated'],
@@ -85,7 +85,7 @@ describe('AuditService.record actor_id and payload', () => {
   it.each(['kong-hmac', 'jwt', 'legacy-header', 'service-token', 'mtls'] as const)(
     'binds $2 as a UUID or NULL for %s',
     async (method) => {
-      for (const userId of [`user:${SUB}`, `api-key:${KEY}`, SUB, 'x', undefined]) {
+      for (const userId of [`user:${SUB}`, `api-key:${KEY_ID}`, SUB, 'x', undefined]) {
         const params = await insertParams({
           requestId: 'req-1',
           ...auditActor(identity(method, userId)),
