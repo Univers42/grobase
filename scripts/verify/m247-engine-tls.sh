@@ -20,7 +20,7 @@
 # only certs/engines (never the CA key) and refuses a missing directory, the
 # key goes to a tmpfs, and nothing that runs on every host mints the cert.
 #
-# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis|mariadb, default postgres): three
+# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis|mariadb|mysql, default postgres): three
 # throwaway boots of the real service under compose project m247, each torn down
 # with its volume. Postgres:
 #   A  no overlay        → SHOW ssl = off (byte-identical default)
@@ -35,7 +35,7 @@
 # refused there) while 6379 stays plaintext, and PID 1 as uid 100.
 # MariaDB: leg A finds the default already on TLS with a cert our CA does not sign; B swaps
 # in the engine cert (verified session, SAN legs via openssl -starttls mysql, --skip-ssl
-# still connects) and PID 1 runs as uid 100.
+# still connects) and PID 1 runs as uid 100. The mysql service is MariaDB too: the same legs.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -54,9 +54,9 @@ OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
 postgres) LIVE_OVERLAY="${OVERLAY}" ;;
-mongo | redis | mariadb) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
+mongo | redis | mariadb | mysql) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
 *)
-  printf 'M247_ENGINE=%s: expected postgres, mongo, redis or mariadb\n' "${ENGINE}" >&2
+  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb or mysql\n' "${ENGINE}" >&2
   exit 2
   ;;
 esac
@@ -315,19 +315,20 @@ redis_live_checks() {
   pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /data"
 }
 
-# The mariadb client inside the server container as root; $1 the host, rest client flags.
+# The mariadb client inside the server container (mariadb, or mysql: MariaDB too) as root;
+# $1 the host, rest client flags.
 # The password travels as MYSQL_PWD, never in argv.
 mariadb_in() {
   local host="$1"
   shift
-  docker exec -e MYSQL_PWD m247-mariadb mariadb --no-defaults -h "${host}" -u root -N -B "$@" \
+  docker exec -e MYSQL_PWD "m247-${ENGINE}" mariadb --no-defaults -h "${host}" -u root -N -B "$@" \
     -e "SHOW SESSION STATUS LIKE 'Ssl_version'"
 }
 
-# openssl s_client to m247-mariadb:3306 verifying the host name $1 against the minted CA.
+# openssl s_client to m247-<engine>:3306 verifying the host name $1 against the minted CA.
 mariadb_tls_as() {
   local ip
-  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' m247-mariadb)"
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "m247-${ENGINE}")"
   timeout 10 openssl s_client -starttls mysql -connect "${ip}:3306" -CAfile "${WORK}/track-binocle-local-ca.pem" \
     -verify_hostname "$1" </dev/null 2>&1 || true
 }
@@ -335,40 +336,46 @@ mariadb_tls_as() {
 mariadb_live_checks() {
   live_setup
   MYSQL_PWD="$(openssl rand -hex 16)"
+  # Both services' variables: mariadb reads MARIADB_*, the mysql service MYSQL_*.
   export MYSQL_PWD MARIADB_ROOT_PASSWORD="${MYSQL_PWD}" MARIADB_PASSWORD="${MYSQL_PWD}"
-  export ENGINE_TLS_MARIADB_CERT_DIR="${WORK}/mariadb"
+  export MYSQL_ROOT_PASSWORD="${MYSQL_PWD}" MYSQL_PASSWORD="${MYSQL_PWD}"
+  local cert_dir="${WORK}/${ENGINE}"
+  export ENGINE_TLS_MARIADB_CERT_DIR="${cert_dir}" ENGINE_TLS_MYSQL_CERT_DIR="${cert_dir}"
   local verify=(--ssl-ca=/etc/engine-tls/ca.pem --ssl-verify-server-cert) out
 
   step "live A: no overlay → MariaDB's own TLS, a cert nothing verifies"
   mint_ca
-  boot_or_fail "the default mariadb did not become healthy"
-  [[ "$(mariadb_in mariadb --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client did not get plaintext"
-  out="$(mariadb_tls_as mariadb)"
+  boot_or_fail "the default ${ENGINE} did not become healthy"
+  [[ "$(mariadb_in "${ENGINE}" --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client did not get plaintext"
+  out="$(mariadb_tls_as "${ENGINE}")"
   [[ "${out}" == *"Verify return code:"* && "${out}" != *"Verify return code: 0 (ok)"* ]] ||
     fail "the default cert verifies against the local CA, or no TLS was served"
   pass "default serves TLS with a cert the local CA does not sign; --skip-ssl is plaintext"
   down
 
-  refuses_without_cert "${ENGINE_TLS_MARIADB_CERT_DIR}"
+  refuses_without_cert "${cert_dir}"
 
   step "live B: overlay + cert → a cert that verifies, plaintext still allowed"
-  mint_cert "${ENGINE_TLS_MARIADB_CERT_DIR}"
-  boot_or_fail "mariadb with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
-  [[ "$(mariadb_in mariadb "${verify[@]}")" == Ssl_version$'\t'TLSv1.[23] ]] || fail "a verified session failed"
+  mint_cert "${cert_dir}"
+  boot_or_fail "${ENGINE} with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
+  [[ "$(mariadb_in "${ENGINE}" "${verify[@]}")" == Ssl_version$'\t'TLSv1.[23] ]] || fail "a verified session failed"
   pass "verified session against the CA (--ssl-verify-server-cert)"
-  [[ "$(mariadb_tls_as mariadb)" == *"Verify return code: 0 (ok)"* ]] || fail "openssl could not verify mariadb as host mariadb"
-  out="$(mariadb_tls_as m247-mariadb)"
+  [[ "$(mariadb_tls_as "${ENGINE}")" == *"Verify return code: 0 (ok)"* ]] || fail "openssl could not verify ${ENGINE} as host ${ENGINE}"
+  out="$(mariadb_tls_as "m247-${ENGINE}")"
   [[ "${out}" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
-  pass "the served cert verifies as mariadb, and a host name outside the SANs is refused"
-  [[ "$(mariadb_in mariadb --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client is refused (accept mode must allow it)"
+  pass "the served cert verifies as ${ENGINE}, and a host name outside the SANs is refused"
+  [[ "$(mariadb_in "${ENGINE}" --skip-ssl)" == Ssl_version$'\t' ]] || fail "a --skip-ssl client is refused (accept mode must allow it)"
   pass "a --skip-ssl client still connects, unencrypted"
-  [[ "$(docker exec m247-mariadb awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
-  [[ "$(docker exec m247-mariadb stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
+  [[ "$(docker exec "m247-${ENGINE}" awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
+  [[ "$(docker exec "m247-${ENGINE}" stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
     fail "the key copy is not 600 uid 100"
-  [[ -z "$(docker exec m247-mariadb find /var/lib/mysql -name '*.pem' -o -name '*.key')" ]] ||
+  [[ -z "$(docker exec "m247-${ENGINE}" find /var/lib/mysql -name '*.pem' -o -name '*.key')" ]] ||
     fail "a key or cert landed in /var/lib/mysql"
   pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /var/lib/mysql"
 }
+
+# The mysql service is MariaDB 11.4 built from its own Dockerfile: the same legs.
+mysql_live_checks() { mariadb_live_checks; }
 
 # --- stack ------------------------------------------------------------------
 

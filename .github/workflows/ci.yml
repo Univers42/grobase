@@ -1510,6 +1510,8 @@ jobs:
           - { engine: postgresql, services: postgres, tls: postgres }
           - { engine: redis, services: redis }
           - { engine: mysql, services: mysql, profile: data-plane }
+          # ENGINE_TLS_ENGINES=mysql: the same swap on the mysql service (MariaDB 11.4 as well).
+          - { engine: mysql, services: mysql, profile: data-plane, tls: mysql, build: mysql }
           # Oracle MySQL 8.4 (`mysql` is MariaDB): m27 also asserts mysqld is MySQL Community Server.
           - { engine: mysql8, services: mysql8, profile: mysql8 }
           - { engine: mongodb, services: mongo-keyfile mongo mongo-init, profile: data-plane }
