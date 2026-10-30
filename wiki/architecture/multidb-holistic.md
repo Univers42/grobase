@@ -167,11 +167,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       runtime resolves secrets with its own `FUNCTION_SECRETS_TOKEN`, shared-token fallback
       (`secrets-token.test.ts`, `TestResolveAuthorized`, `m243-secrets-token-live.sh`).
       Open: F1 step 4 (devil BLOCK, lift conditions in ADR 0023); VM shadow window first.
-- [ ] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
+- [~] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
       the default outside `NODE_ENV=production`, trusts raw `x-baas-*` headers
-      (`request-identity.ts:41,364`). Ruled 2026-10-30 (devil PwC SS1–SS24): measure with an
-      additive `IDENTITY_STRICT_SHADOW` flag first, then a ≥24 h VM window with zero
-      `would_reject` before the flip.
+      (`request-identity.ts:43`). Ruled 2026-10-30 (devil PwC SS1–SS24): measure first.
+      Shadow built (SS1–SS12): `IDENTITY_STRICT_SHADOW` judges each compat raw-header accept
+      as strict would (`strict-shadow.spec.ts`, m195 render, m202 shadow sidecar). Open: a
+      ≥24 h VM window with zero `would_reject` (SS13–SS24, own window), then the flip.
 - [x] Query-router `POST /:dbId/schema/ddl` is authorized before any lookup.
       *Superseded design:* the PDP `ddl` decision and an explicit `ddl` key scope were
       ruled out by [ADR 0009](../../docs/adr/0009-query-router-ddl-requires-api-key-write-scope.md)

@@ -31,6 +31,12 @@
 #  it is where strict is hardest. Needs the stack up (`make up`) with          #
 #  storage-router built from this tree and recreated from the current compose. #
 #                                                                              #
+#    (4) IDENTITY_STRICT_SHADOW: a third, compat instance with the shadow on   #
+#        answers every probe as compat does, and its would_reject verdicts    #
+#        agree with what strict actually did — the raw header (strict 401) is #
+#        no_bearer, a Kong-shaped session (strict 2xx) logs nothing — and no  #
+#        log line carries a user id                                            #
+#                                                                              #
 #  Ponytail: one service stands in for the Nest fleet. They share             #
 #  resolveRequestIdentity from libs/common, so a service that wires its own    #
 #  guard instead would pass here and still 401 in strict — grep for guards    #
@@ -42,6 +48,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SR=mini-baas-storage-router
 STRICT_PORT=3099
+SHADOW_PORT=3098
 MAIN=dist/apps/storage-router/apps/storage-router/src/main.js
 RUNG=dist/apps/storage-router/libs/common/src/identity/user-jwt.js
 cyan() { printf '\033[0;36m%s\033[0m\n' "$*"; }
@@ -58,21 +65,25 @@ sr_env() { docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${SR}"
 # sr_has NAME succeeds when the container's env sets NAME, without reading it.
 sr_has() { docker exec "${SR}" sh -c "[ -n \"\${$1:-}\" ]"; }
 
-# start_sidecar runs a strict storage-router on STRICT_PORT inside the
-# container and waits for it to listen; exec keeps the pid file honest.
+# start_sidecar NAME PORT VAR=VALUE... runs a second storage-router on PORT inside
+# the container with those overrides and waits for it to listen; exec keeps the
+# pid file honest.
 start_sidecar() {
-  docker exec -d -e IDENTITY_HEADER_MODE=strict -e PORT="${STRICT_PORT}" "${SR}" \
-    sh -c "echo \$\$ >/tmp/m202.pid; exec node ${MAIN} >/tmp/m202.log 2>&1"
+  local name="$1" port="$2" kv envs=()
+  shift 2
+  for kv in "$@"; do envs+=(-e "${kv}"); done
+  docker exec -d "${envs[@]}" -e PORT="${port}" "${SR}" \
+    sh -c "echo \$\$ >/tmp/${name}.pid; exec node ${MAIN} >/tmp/${name}.log 2>&1"
   for _ in $(seq 1 30); do
-    docker exec "${SR}" grep -q "listening on :${STRICT_PORT}" /tmp/m202.log 2>/dev/null && return 0
+    docker exec "${SR}" grep -q "listening on :${port}" "/tmp/${name}.log" 2>/dev/null && return 0
     sleep 1
   done
   return 1
 }
 
-# stop_sidecar kills the strict process and removes its files; PID 1 is untouched.
-stop_sidecar() {
-  docker exec "${SR}" sh -c '[ -f /tmp/m202.pid ] && kill "$(cat /tmp/m202.pid)"; rm -f /tmp/m202.pid /tmp/m202.log' \
+# stop_sidecars kills both extra processes and removes their files; PID 1 is untouched.
+stop_sidecars() {
+  docker exec "${SR}" sh -c 'for n in m202 m202s; do [ -f /tmp/$n.pid ] && kill "$(cat /tmp/$n.pid)"; rm -f /tmp/$n.pid /tmp/$n.log; done' \
     >/dev/null 2>&1 || true
 }
 
@@ -80,7 +91,7 @@ stop_sidecar() {
 # sidecar and the compat instance, from inside the container. Prints one
 # "<case> <port> <status>" line per probe and never prints a token.
 run_probes() {
-  docker exec -e STRICT_PORT="${STRICT_PORT}" "${SR}" node -e '
+  docker exec -e STRICT_PORT="${STRICT_PORT}" -e SHADOW_PORT="${SHADOW_PORT}" "${SR}" node -e '
 const crypto = require("node:crypto");
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const sign = (claims, key) => {
@@ -95,20 +106,21 @@ const claims = (sub, iss) => ({ sub, iss, role: "authenticated", exp: Math.floor
   });
   const session = (await su.json()).access_token;
   if (!session) return console.log(`signup none ${su.status}`);
+  const sub = JSON.parse(Buffer.from(session.split(".")[1], "base64url").toString()).sub;
   const cases = {
     session: { authorization: `Bearer ${session}` },
     raw: { "x-user-id": "00000000-0000-4000-8000-0000000000ff", "x-baas-tenant-id": "m202" },
     xapp: { authorization: `Bearer ${sign(claims("victim-tenant", "grobase-realtime"), process.env.JWT_SECRET)}` },
     wrongsecret: { authorization: `Bearer ${sign(claims("m202-forged", process.env.GOTRUE_JWT_ISSUER), crypto.randomBytes(32))}` },
+    kongshaped: { authorization: `Bearer ${session}`, "x-user-id": sub, "x-user-role": "authenticated" },
   };
   for (const [name, headers] of Object.entries(cases)) {
-    for (const port of [process.env.STRICT_PORT, "3040"]) {
+    for (const port of [process.env.STRICT_PORT, "3040", process.env.SHADOW_PORT]) {
       const r = await fetch(`http://127.0.0.1:${port}/storage/v1/bucket`, { headers });
       console.log(`${name} ${port} ${r.status}`);
     }
   }
-  const sub = JSON.parse(Buffer.from(session.split(".")[1], "base64url").toString()).sub;
-  const kong = { ...cases.session, "x-user-id": sub, "x-user-role": "authenticated" };
+  const kong = cases.kongshaped;
   const at = (port, path) => `http://127.0.0.1:${port}/storage/v1/${path}`;
   await fetch(at("3040", "bucket/m202"), { method: "POST", headers: kong });
   const put = await fetch(at("3040", "object/m202/continuity.txt"), {
@@ -158,9 +170,12 @@ VERIFIERS="$(grep '^ *GOTRUE_JWT_ISSUER: ' <<<"${RENDERED}" | grep -vc ': null$'
 ok "${VERIFIERS} services share one issuer: ${GOTRUE_ISS}"
 
 step "2/2 live — strict accepts a real session and refuses everything else"
-stop_sidecar
-trap stop_sidecar EXIT
-start_sidecar || fail "the strict instance never listened on :${STRICT_PORT} (see /tmp/m202.log in ${SR})"
+stop_sidecars
+trap stop_sidecars EXIT
+start_sidecar m202 "${STRICT_PORT}" IDENTITY_HEADER_MODE=strict ||
+  fail "the strict instance never listened on :${STRICT_PORT} (see /tmp/m202.log in ${SR})"
+start_sidecar m202s "${SHADOW_PORT}" IDENTITY_HEADER_MODE=compat IDENTITY_STRICT_SHADOW=1 ||
+  fail "the shadow instance never listened on :${SHADOW_PORT} (see /tmp/m202s.log in ${SR})"
 OUT="$(run_probes)"
 grep -q '^signup none' <<<"${OUT}" && fail "GoTrue signup returned no session (${OUT#signup none })"
 grep -q '^error' <<<"${OUT}" && fail "probe crashed: ${OUT#error }"
@@ -192,5 +207,24 @@ case "$(status otheruser "${STRICT_PORT}")" in
 2*) fail "another user read the object in strict ($(status otheruser "${STRICT_PORT}")); continuity above proves nothing" ;;
 esac
 ok "an object written under compat is its owner's in strict, and nobody else's ($(status otheruser "${STRICT_PORT}"))"
+
+step "shadow — compat answers unchanged, verdicts agree with strict, no value logged"
+for c in session raw xapp wrongsecret kongshaped; do
+  [ "$(status "${c}" "${SHADOW_PORT}")" = "$(status "${c}" 3040)" ] ||
+    fail "the shadow instance answered ${c} with $(status "${c}" "${SHADOW_PORT}"), compat with $(status "${c}" 3040)"
+done
+case "$(status kongshaped "${STRICT_PORT}")" in
+2*) ;;
+*) fail "a Kong-shaped session got $(status kongshaped "${STRICT_PORT}") in strict; the shadow's accept below would be vacuous" ;;
+esac
+# The message ends at the first quote (storage-router logs JSON) or escape (Nest's colours).
+LINES="$(docker exec "${SR}" cat /tmp/m202s.log 2>/dev/null | grep -ao $'identity: would_reject[^"\x1b]*')"
+REASONS="$(grep -ao 'reason=[a-z_]*' <<<"${LINES}" | sort -u | tr '\n' ' ')"
+[ "${REASONS}" = "reason=no_bearer " ] ||
+  fail "shadow verdicts '${REASONS}', want only reason=no_bearer (raw → strict 401; Kong-shaped → strict 2xx, no line)"
+# The grammar leaves no room for a value: service, route template, reason, field names.
+! grep -avE '^identity: would_reject service=[a-z-]+ route=/[^ ]* reason=[a-z_]+( fields=[A-Za-z,]+)?$' <<<"${LINES}" ||
+  fail "a shadow log line carries more than service, route, reason and field names"
+ok "5 probes answered as compat; raw → no_bearer (strict 401), Kong-shaped → no line (strict $(status kongshaped "${STRICT_PORT}")); no user id logged"
 
 printf '\033[0;32m[M202] OK — strict identity mode is serviceable for real traffic\033[0m\n'
