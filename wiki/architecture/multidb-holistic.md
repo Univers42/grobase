@@ -376,8 +376,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         `MSSQL_TLS_*` env (no mssql.conf write), forceencryption 0, root → setpriv uid 999;
         m247 mssql A/B/C green locally 2026-10-30, m27 mssql under the overlay 9 passed /
         3 skipped / 0 failed; CI mssql leg twice.
-  - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
-        consumers); today plaintext.
+  - [ ] Clients verify mongo's certs (mongosh, mongo-init, mongo-api); today plaintext.
+  - [x] D3 — the Rust redis clients verify redis's cert: the pool engine and the server's
+        limiter/quota/metering link dial `rediss://` through rustls with the system store plus
+        `DATA_PLANE_TLS_CA_FILE` (ADR 0024). m260 green locally 2026-10-30 on the G5b overlay:
+        the CA verifies, a wrong CA and a name outside the SANs are refused, an empty store
+        fails closed, plaintext 6379 unchanged, honor-set refresh over rediss. Compose defaults
+        stay `redis://…:6379` (opt-in by DSN). realtime-gateway presence stays plaintext (R12).
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
