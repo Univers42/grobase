@@ -454,14 +454,15 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         both tenant-control clients and Node with and without their trust knob); 8 static
         mutants killed. CI job `data-plane-tls` green on develop edd33807 (run 41134396240);
         Kong stays on :4011; no VM change.
-  - [~] G5 Node pg clients — `ENGINE_TLS_ENGINES=pg-clients` (ADR 0032, devil PwC NP1–NP12,
+  - [x] G5 Node pg clients — `ENGINE_TLS_ENGINES=pg-clients` (ADR 0032, devil PwC NP1–NP12,
         W1–W6): the nine Node services that dial the central Postgres get
         `sslmode=verify-full&sslrootcert=` on `DATABASE_URL` and a read-only `ca.pem`; make's
         preflight refuses `?`/`#`, a non-empty `AUDIT_DATABASE_URL`, a wrong CA, <30 days or a
         SAN miss. m264 live green locally three times 2026-10-30 (one from fresh images): all
         nine on TLSv1.3 by container IP, outbox and audit rows land; under an unrelated CA the
         six PostgresModule services refuse and the other three lose the event/row with a WARN.
-        CI job `pg-clients-tls` pending. Go clients, the pooler and the VM are out of scope.
+        CI job `pg-clients-tls` green on develop bee884c0 (run 41139389933). Go clients, the
+        pooler and the VM are out of scope.
   - [x] G5a C6 (local, 2026-10-30): Debezium sessions + walsender on TLSv1.3 under the
         overlay; the outbox slot decodes past an m247 probe in 1 s.
   - [x] realtime's Postgres producer dials TLS when the DSN asks (`sslmode` parsed, `prefer`
