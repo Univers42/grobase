@@ -29,6 +29,7 @@ pub(crate) enum DenyClass {
     // Only the engine dials (scope.rs) refuse by name, socket or lookup;
     // http reports its own messages for those.
     #[cfg(any(
+        feature = "dynamodb",
         feature = "mssql",
         feature = "mysql",
         feature = "postgres",
@@ -40,6 +41,7 @@ pub(crate) enum DenyClass {
     #[cfg(feature = "redis")]
     Tls,
     #[cfg(any(
+        feature = "dynamodb",
         feature = "mssql",
         feature = "mysql",
         feature = "postgres",
@@ -49,9 +51,14 @@ pub(crate) enum DenyClass {
     // A SQL Server `host\instance` needs SQL Browser to find its port.
     #[cfg(feature = "mssql")]
     NamedInstance,
+    // A DynamoDB Tenant mount without static keys would use the default AWS
+    // credential chain, whose IMDS dial is an IP literal no resolver sees.
+    #[cfg(feature = "dynamodb")]
+    DefaultCredentials,
 }
 
 #[cfg(any(
+    feature = "dynamodb",
     feature = "mssql",
     feature = "mysql",
     feature = "postgres",
@@ -74,6 +81,8 @@ impl DenyClass {
             Self::Unresolved => "unresolved",
             #[cfg(feature = "mssql")]
             Self::NamedInstance => "named_instance",
+            #[cfg(feature = "dynamodb")]
+            Self::DefaultCredentials => "default_credentials",
         }
     }
 }
