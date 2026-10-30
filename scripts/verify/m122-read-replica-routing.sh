@@ -83,6 +83,12 @@ PORT_DPR="${M122_PORT_DPR:-18993}"
 PGPW="postgres"
 # Throwaway per run: the scratch data plane checks it when DATA_PLANE_INBOUND_AUTH is not off.
 SVC_TOKEN="$(openssl rand -hex 24)"
+# D1 (ADR 0023): the probe signs its /v1 calls as the query-router with a
+# throwaway key the scratch data plane also gets; DATA_PLANE_CALLER_POLICY=enforce
+# runs it under the caller policy (default off).
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
+svc_scratch_caller_keys
 PROBE_TABLE="m122_probe"
 
 # A single REAL tenant identity (UUID used as both id + slug elsewhere; here it is
@@ -123,7 +129,7 @@ payload_insert() { # $1 = new row id
 post_q() { # $1=body
   curl -s -o "${BODY_TMP}" -w '%{http_code}' --max-time 8 \
     -X POST "http://127.0.0.1:${PORT_DPR}/v1/query" \
-    -H 'Content-Type: application/json' -H "X-Service-Token: ${SVC_TOKEN}" -d "$1"
+    -H 'Content-Type: application/json' -H "X-Service-Token: ${DATA_PLANE_KEY_QUERY_ROUTER}" -d "$1"
 }
 
 wait_dpr() {
@@ -200,6 +206,7 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_READ_REPLICA=1 \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr || fail "data-plane-router (flag ON) not ready (line: wait_dpr ON)"
@@ -249,6 +256,7 @@ docker run -d --name "${DPR}" --network "${NET}" \
   -e DATA_PLANE_ROUTER_PRODUCT_MODE=enabled \
   -e INTERNAL_SERVICE_TOKEN="${SVC_TOKEN}" \
   -e DATA_PLANE_INBOUND_AUTH="${DATA_PLANE_INBOUND_AUTH:-off}" \
+  "${SVC_CALLER_ENV[@]}" \
   -e RUST_LOG=info \
   -p "127.0.0.1:${PORT_DPR}:4011" "${DPR_IMG}" >/dev/null
 wait_dpr || fail "data-plane-router (flag OFF) not ready (line: wait_dpr OFF)"

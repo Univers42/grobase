@@ -60,6 +60,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# D1 (ADR 0023): live data-plane calls sign as the query-router.
+# shellcheck source=../lib/service-auth.sh
+. "${SCRIPT_DIR}/../lib/service-auth.sh"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
@@ -308,7 +311,7 @@ JSON
   }
 
   step "live: POST /v1/schema on a postgresql mount returns tables + columns"
-  body=$(curl -fsS -X POST "${RUST_URL}/v1/schema" \
+  body=$(svc_curl_as query_router -fsS -X POST "${RUST_URL}/v1/schema" \
     -H 'Content-Type: application/json' \
     -d "$(envelope postgresql "${PG_DSN}")") ||
     fail "POST /v1/schema (postgresql) failed"
@@ -322,7 +325,7 @@ JSON
   pass "postgresql schema descriptor has the contract shape"
 
   step "live: POST /v1/schema on a redis mount is a clean 422 unsupported_capability"
-  code=$(curl -s -o /tmp/m22-redis-schema.json -w '%{http_code}' -X POST "${RUST_URL}/v1/schema" \
+  code=$(svc_curl_as query_router -s -o /tmp/m22-redis-schema.json -w '%{http_code}' -X POST "${RUST_URL}/v1/schema" \
     -H 'Content-Type: application/json' \
     -d "$(envelope redis "redis://redis:6379")")
   [[ "${code}" == "422" ]] || fail "redis schema must be 422, got ${code}"
@@ -355,7 +358,7 @@ JSON
   }
 
   step "live: DDL create_table on scratch table ${SCRATCH}"
-  body=$(curl -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
+  body=$(svc_curl_as query_router -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope postgresql "${PG_DSN}" "{
       \"op\": \"create_table\", \"table\": \"${SCRATCH}\",
@@ -369,7 +372,7 @@ JSON
   pass "create_table applied"
 
   step "live: DDL add_column extra (text) on ${SCRATCH}"
-  body=$(curl -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
+  body=$(svc_curl_as query_router -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope postgresql "${PG_DSN}" "{
       \"op\": \"add_column\", \"table\": \"${SCRATCH}\",
@@ -379,7 +382,7 @@ JSON
   pass "add_column applied"
 
   step "live: describe shows the new table, the added column, and auto owner_id"
-  body=$(curl -fsS -X POST "${RUST_URL}/v1/schema" \
+  body=$(svc_curl_as query_router -fsS -X POST "${RUST_URL}/v1/schema" \
     -H 'Content-Type: application/json' \
     -d "$(envelope postgresql "${PG_DSN}")") || fail "post-DDL describe failed"
   echo "${body}" | grep -q "\"name\":\"${SCRATCH}\"" || fail "describe missing table ${SCRATCH}"
@@ -392,7 +395,7 @@ JSON
     psql -U "${PG_USER}" -d "${PG_DB}" \
     -c "INSERT INTO public.${SCRATCH} (id, note) VALUES (1, 'abc')" >/dev/null ||
     fail "seeding the incompatible row failed"
-  code=$(curl -s -o /tmp/m22-ddl-409.json -w '%{http_code}' -X POST "${RUST_URL}/v1/schema/ddl" \
+  code=$(svc_curl_as query_router -s -o /tmp/m22-ddl-409.json -w '%{http_code}' -X POST "${RUST_URL}/v1/schema/ddl" \
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope postgresql "${PG_DSN}" "{
       \"op\": \"alter_column_type\", \"table\": \"${SCRATCH}\",
@@ -404,7 +407,7 @@ JSON
   pass "incompatible alter_column_type rejected with 409 conflict (data preserved)"
 
   step "live: DDL drop_column extra on ${SCRATCH}"
-  body=$(curl -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
+  body=$(svc_curl_as query_router -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope postgresql "${PG_DSN}" "{ \"op\": \"drop_column\", \"table\": \"${SCRATCH}\", \"column_name\": \"extra\" }")") ||
     fail "DDL drop_column failed"
@@ -412,7 +415,7 @@ JSON
   pass "drop_column applied"
 
   step "live: DDL drop_table ${SCRATCH}"
-  body=$(curl -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
+  body=$(svc_curl_as query_router -fsS -X POST "${RUST_URL}/v1/schema/ddl" \
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope postgresql "${PG_DSN}" "{ \"op\": \"drop_table\", \"table\": \"${SCRATCH}\" }")") ||
     fail "DDL drop_table failed"
@@ -420,7 +423,7 @@ JSON
   pass "drop_table applied"
 
   step "live: DDL on a redis mount is a clean 422 unsupported_capability"
-  code=$(curl -s -o /tmp/m22-redis-ddl.json -w '%{http_code}' -X POST "${RUST_URL}/v1/schema/ddl" \
+  code=$(svc_curl_as query_router -s -o /tmp/m22-redis-ddl.json -w '%{http_code}' -X POST "${RUST_URL}/v1/schema/ddl" \
     -H 'Content-Type: application/json' \
     -d "$(ddl_envelope redis "redis://redis:6379" "{ \"op\": \"drop_table\", \"table\": \"t\" }")")
   [[ "${code}" == "422" ]] || fail "redis DDL must be 422, got ${code}"
