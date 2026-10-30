@@ -124,8 +124,10 @@ impl EnginePool for MssqlPool {
         run_plan(&mut conn, &plan).await
     }
 
-    // ponytail: irreducible introspection — one information_schema query then a
-    //   straight row→ColumnSchema materialization; nothing to factor out.
+    // Three catalog reads (columns, primary keys, foreign keys) joined in memory:
+    // describe is an admin path, not the query hot path.
+    // Caveat: tables match by bare name across schemas — two schemas holding a
+    //   same-named table merge their columns and keys into one entry.
     async fn describe_schema(
         &self,
         identity: RequestIdentity,
@@ -146,6 +148,17 @@ impl EnginePool for MssqlPool {
             .into_first_result()
             .await
             .map_err(backend)?;
+        let pks = key_columns(&mut conn, PK_SQL, 2).await?;
+        let mut fks: BTreeMap<(String, String), ForeignKeyRef> = BTreeMap::new();
+        for cols in key_columns(&mut conn, FK_SQL, 4).await? {
+            if let [table, column, ref_table, ref_column] = cols.as_slice() {
+                let target = ForeignKeyRef {
+                    table: ref_table.clone(),
+                    column: ref_column.clone(),
+                };
+                fks.insert((table.clone(), column.clone()), target);
+            }
+        }
 
         let mut tables: BTreeMap<String, Vec<ColumnSchema>> = BTreeMap::new();
         for row in rows {
@@ -163,7 +176,7 @@ impl EnginePool for MssqlPool {
                     nullable: nullable.eq_ignore_ascii_case("YES"),
                     default: None,
                     enum_values: None,
-                    references: None,
+                    references: fks.remove(&(table.to_string(), col.to_string())),
                     inferred: false,
                 });
         }
@@ -172,13 +185,55 @@ impl EnginePool for MssqlPool {
             tables: tables
                 .into_iter()
                 .map(|(name, columns)| TableSchema {
+                    primary_key: pks
+                        .iter()
+                        .filter(|k| k[0] == name)
+                        .map(|k| k[1].clone())
+                        .collect(),
                     name,
-                    primary_key: vec![],
                     columns,
                 })
                 .collect(),
         })
     }
+}
+
+// Primary-key columns in key order, (table, column).
+const PK_SQL: &str = "SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME \
+     FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc \
+     JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu \
+       ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME AND kcu.TABLE_NAME = tc.TABLE_NAME \
+     WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY' \
+     ORDER BY kcu.TABLE_NAME, kcu.ORDINAL_POSITION";
+
+// Foreign-key column pairs, (table, column, referenced table, referenced column).
+const FK_SQL: &str = "SELECT OBJECT_NAME(fkc.parent_object_id), \
+       COL_NAME(fkc.parent_object_id, fkc.parent_column_id), \
+       OBJECT_NAME(fkc.referenced_object_id), \
+       COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) \
+     FROM sys.foreign_key_columns fkc";
+
+/// Runs a catalog query whose first `width` columns are all names.
+async fn key_columns(
+    conn: &mut bb8::PooledConnection<'_, ConnectionManager>,
+    sql: &str,
+    width: usize,
+) -> DataPlaneResult<Vec<Vec<String>>> {
+    let rows = conn
+        .query(sql, &[])
+        .await
+        .map_err(backend)?
+        .into_first_result()
+        .await
+        .map_err(backend)?;
+    Ok(rows
+        .iter()
+        .map(|row| {
+            (0..width)
+                .map(|i| row.get::<&str, _>(i).unwrap_or("").to_string())
+                .collect()
+        })
+        .collect())
 }
 
 impl MssqlPool {

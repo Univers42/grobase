@@ -32,6 +32,8 @@ use data_plane_core::{
 };
 use serde_json::{json, Value};
 
+mod schema_checks;
+
 const RESOURCE: &str = "conf_probe";
 
 /// Outcome of one conformance run.
@@ -160,10 +162,35 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
     }
     if caps.introspect {
         report.record("introspect", check_introspect(&*pool, &id).await);
+        report.record(
+            "fk_introspect",
+            schema_checks::check_fk_introspection(&*pool, &id, &engine).await,
+        );
     } else {
         report.skip("introspect", "descriptor: introspect=false");
     }
+    if caps.schema_ddl && caps.introspect {
+        report.record(
+            "ddl_round_trip",
+            schema_checks::check_ddl_round_trip(&*pool, &id).await,
+        );
+    } else {
+        report.skip(
+            "ddl_round_trip",
+            "descriptor: schema_ddl or introspect=false",
+        );
+    }
     report.record("honesty", check_honesty(&*pool, &id, &caps).await);
+    let begin = TxBeginRequest {
+        identity: id.clone(),
+        mount: mount.clone(),
+        isolation: None,
+        timeout_ms: None,
+    };
+    report.record(
+        "route_honesty",
+        schema_checks::check_route_honesty(&*pool, &id, &caps, begin).await,
+    );
 
     // Teardown (best effort).
     if let Some(drop_sql) = scratch_drop_sql(&engine) {
@@ -693,7 +720,11 @@ fn num(row: &Value, field: &str) -> Option<f64> {
     })
 }
 
-async fn raw(pool: &dyn EnginePool, sql: &str, id: &RequestIdentity) -> Result<(), String> {
+pub(crate) async fn raw(
+    pool: &dyn EnginePool,
+    sql: &str,
+    id: &RequestIdentity,
+) -> Result<(), String> {
     pool.execute_raw(
         RawStatement {
             statement: sql.to_string(),
