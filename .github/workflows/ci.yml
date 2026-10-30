@@ -1658,6 +1658,32 @@ jobs:
           docker build -q -t "$M260_IMAGE" infra/docker/services/redis
           bash scripts/verify/m260-redis-client-tls.sh
 
+  # ─── Redis ACL password, stage 1 (G5, ADR 0028) ────────────────
+  # REDIS_ACL=1 gives redis an app user (password = REDIS_PASSWORD, sha256 in argv only) and
+  # every declared *REDIS*_URL plus the Debezium sink its login; the default render stays
+  # byte-identical. go-redis, ioredis and Debezium refuse a wrong password and log in as app,
+  # CLIENT LIST counts 0 user=default, and redis boots under the ACL and TLS overlays together.
+  redis-acl:
+    name: Redis ACL password (m261)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # Built from this commit, as for m260: the TLS boot needs the image's setpriv.
+      - name: redis ACL password (m261)
+        env:
+          M261_IMAGE: m261-local/grobase-redis:ci
+        run: |
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          docker build -q -t "$M261_IMAGE" infra/docker/services/redis
+          bash scripts/verify/m261-redis-acl.sh
+
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
   # plane, so the realtime workspace drifted red unnoticed (issue #19). Both
