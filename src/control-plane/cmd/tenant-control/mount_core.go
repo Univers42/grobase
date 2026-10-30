@@ -29,10 +29,16 @@ import (
 // The tenant service-token guard carries a RotationNotice so a request still
 // authenticated by INTERNAL_SERVICE_TOKEN_PREV is counted and warned once.
 func (b *bootCtx) mountCore() {
+	policy, err := tenants.ParseCallerPolicy(os.Getenv("DATA_PLANE_CALLER_POLICY"))
+	if err != nil {
+		b.log.Error("tenant-control refuses to start", "err", err)
+		os.Exit(1)
+	}
 	tenants.Mount(b.mux, tenants.Deps{
 		Svc: b.svc, ServiceToken: b.cfg.ServiceToken, JWT: b.jwtVerifier, Reconciler: b.reconciler,
 		Rotation:       serviceauth.NewRotationNotice(b.log, b.m),
 		KongServiceKey: os.Getenv("KONG_SERVICE_API_KEY"),
+		CallerPolicy:   policy,
 	})
 	metering.Mount(b.mux, b.db, b.cfg.ServiceToken)
 }

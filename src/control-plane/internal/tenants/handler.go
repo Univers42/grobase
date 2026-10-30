@@ -56,6 +56,9 @@ type Deps struct {
 	// KongServiceKey is KONG_SERVICE_API_KEY; empty turns off the apikey arm of
 	// the /v1/admin/{migrate,rotate} relay.
 	KongServiceKey string
+	// CallerPolicy is DATA_PLANE_CALLER_POLICY, parsed once at boot; under enforce
+	// the relay refuses the service-token arm (admin_relay_policy.go).
+	CallerPolicy CallerPolicy
 }
 
 // Mount registers the tenant control-plane routes on mux.
@@ -66,7 +69,10 @@ type Deps struct {
 // matched before the {id} parameterised one because net/http mux gives
 // precedence to the most-specific pattern.
 func Mount(mux *http.ServeMux, d Deps) {
-	rt := &routes{svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler, rotation: d.Rotation, kongServiceKey: d.KongServiceKey}
+	rt := &routes{
+		svc: d.Svc, serviceToken: d.ServiceToken, jwt: d.JWT, reconciler: d.Reconciler,
+		rotation: d.Rotation, kongServiceKey: d.KongServiceKey, callerPolicy: d.CallerPolicy,
+	}
 
 	mux.HandleFunc("POST /v1/tenants", rt.requireServiceToken(rt.create))
 	mux.HandleFunc("GET /v1/tenants", rt.requireServiceToken(rt.list))
@@ -98,6 +104,7 @@ type routes struct {
 	reconciler     *provision.Reconciler
 	rotation       *serviceauth.RotationNotice
 	kongServiceKey string
+	callerPolicy   CallerPolicy
 }
 
 const msgInvalidJSON = "invalid JSON"

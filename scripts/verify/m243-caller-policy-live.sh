@@ -22,6 +22,8 @@
 #   200: tenant-control migrate with an inline DSN · the Kong relay
 #        (tenant-control /v1/admin/migrate, apikey arm) · query-router
 #        /v1/query with an inline DSN · a dial control that postgres does log.
+#   relay's service-token arm (devil D1-P1): 401 under enforce · 200 and one
+#        would_deny line under shadow · an unknown policy refuses boot.
 #
 # Containers, network and keys are per run (suffix $$) and removed by the EXIT
 # trap; keys reach `docker run` by name only (-e NAME), never on argv. It never
@@ -120,15 +122,21 @@ boot_data_plane() {
 # The relay arm needs tenant-control up; 1 = it never became ready. Its boot
 # check wants public.tenants (migration 032); the relay never reads it, so a
 # one-table stand-in is enough here.
-boot_tenant_control() {
-  docker exec "${PG}" psql -U postgres -qc \
-    'create table if not exists public.tenants (id text primary key, name text, plan text)' >/dev/null
+# tc_start <policy> — (re)start the scratch tenant-control under that caller policy.
+tc_start() {
+  docker rm -fv "${TCC}" >/dev/null 2>&1 || true
   docker run -d --name "${TCC}" --network "${NET}" \
     -e TENANT_CONTROL_PORT=3022 -e SERVICE_TOKEN_MODE -e INTERNAL_SERVICE_TOKEN \
     -e DATABASE_URL="postgres://postgres:${POSTGRES_PASSWORD}@${PG}:5432/postgres?sslmode=disable" \
-    -e RUST_DATA_PLANE_URL="http://${DPR}:4011" \
+    -e RUST_DATA_PLANE_URL="http://${DPR}:4011" -e DATA_PLANE_CALLER_POLICY="$1" \
     -e DATA_PLANE_KEY_TENANT_CONTROL -e KONG_SERVICE_API_KEY \
     -p "127.0.0.1:${TC_PORT}:3022" "${TC_IMG}" >/dev/null
+}
+
+boot_tenant_control() {
+  docker exec -e PGOPTIONS='-c client_min_messages=warning' "${PG}" psql -U postgres -qc \
+    'create table if not exists public.tenants (id text primary key, name text, plan text)' >/dev/null
+  tc_start "$1"
   wait_ready "http://127.0.0.1:${TC_PORT}/health/live" "${TCC}"
 }
 
@@ -214,26 +222,8 @@ positive_arms() {
   pass "dial control: postgres logs an allowed class's connect (the 0 above counts)"
 }
 
-# relay <apikey> <table> — status of tenant-control's Kong relay of a migrate
-# whose body claims a forged identity (tenant t2, no roles).
-relay() {
-  local body
-  body="$(envelope t2 "$(mount_json relay-"$2" t1 postgres)" "$(migrate_tail "$2")")"
-  body="${body/\"roles\":\[\"service_role\"\]/\"roles\":[]}"
-  curl -s -o "${BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:${TC_PORT}/v1/admin/migrate" \
-    -H 'Content-Type: application/json' -H "apikey: $1" -d "${body}"
-}
-
-relay_arms() {
-  local got
-  got="$(relay "$(openssl rand -hex 32)" m243_relay_bad)"
-  [ "${got}" = 401 ] || fail "relay with a wrong apikey: want 401, got ${got}"
-  pass "relay with a wrong apikey → 401"
-  got="$(relay "${KONG_SERVICE_API_KEY}" m243_relay)"
-  [ "${got}" = 200 ] || fail "relay migrate: want 200, got ${got} — $(head -c 200 "${BODY}")"
-  has_table m243_relay || fail "the relayed migrate created no table"
-  pass "Kong relay (tenant-control apikey arm, signed with its own key) → 200"
-}
+# shellcheck source=../lib/lib-m243-relay.sh
+. "${ROOT}/scripts/lib/lib-m243-relay.sh"
 
 step "build scratch images and boot postgres, the data plane (enforce) and tenant-control"
 build_images || fail "scratch image build failed"
@@ -247,9 +237,34 @@ negative_arms
 step "200: each caller's own routes serve, inline DSNs where the table allows"
 positive_arms
 
-step "200: the Kong admin relay through tenant-control"
-if boot_tenant_control; then
+# The service-token arm under each policy (devil D1-P1); tenant-control is already up
+# under enforce.
+relay_policy_arms() {
+  local got
+  got="$(relay_token m243_relay_token)"
+  if [ "${got}" != 401 ] || ! grep -q 'DATA_PLANE_CALLER_POLICY=enforce' "${BODY}"; then
+    fail "enforce: service-token relay want 401 naming the policy, got ${got} — $(head -c 200 "${BODY}")"
+  fi
+  ! has_table m243_relay_token || fail "a refused service-token relay created its table"
+  pass "enforce: the relay refuses the service token (401 naming the policy, no table)"
+  boot_tenant_control shadow || fail "tenant-control did not start under shadow"
+  got="$(relay_token m243_relay_shadow)"
+  [ "${got}" = 200 ] && has_table m243_relay_shadow || fail "shadow: service-token relay want 200 + table, got ${got}"
+  got="$(docker logs "${TCC}" 2>&1 | grep -c 'would_deny' || true)"
+  [ "${got}" = 1 ] || fail "shadow: want exactly 1 would_deny line, got ${got}"
+  pass "shadow: the service token still relays (200) with one would_deny line"
+  tc_start enforced
+  got="$(timeout 60 docker wait "${TCC}" || echo hung)"
+  if [ "${got}" = 0 ] || [ "${got}" = hung ] || ! docker logs "${TCC}" 2>&1 | grep -q 'want off, shadow or enforce'; then
+    fail "DATA_PLANE_CALLER_POLICY=enforced did not refuse boot (exit ${got})"
+  fi
+  pass "DATA_PLANE_CALLER_POLICY=enforced: tenant-control refuses to start (exit ${got})"
+}
+
+step "200: the Kong admin relay through tenant-control; its service-token arm per policy"
+if boot_tenant_control enforce; then
   relay_arms
+  relay_policy_arms
 else
   printf '  SKIP Kong relay arm: scratch tenant-control did not start (TestAdminRelaySignsTheDataPlaneHopWithItsOwnKey covers the signing)\n'
 fi

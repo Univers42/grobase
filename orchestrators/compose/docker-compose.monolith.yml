@@ -1222,6 +1222,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/postgres}
       INTERNAL_SERVICE_TOKEN: ${ADAPTER_REGISTRY_SERVICE_TOKEN:-}
       SERVICE_TOKEN_MODE: ${SERVICE_TOKEN_MODE:-hmac}
+      DATA_PLANE_CALLER_POLICY: ${DATA_PLANE_CALLER_POLICY:-off}
       # User-JWT verification (audit O2). Default HS256 with JWT_SECRET. Set
       # JWT_ALG=RS256 + JWKS_URL (e.g. GoTrue's .well-known/jwks.json once it
       # issues RS256) to verify asymmetric tokens against rotating public keys —

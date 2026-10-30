@@ -157,11 +157,13 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       overclaimed and broke provisioning.)*
 - [ ] VM: `DATA_PLANE_CALLER_POLICY` shadow → enforce, after G1 enforce, with zero
       `would_deny` over its own window (human go).
-- [ ] D1 enforce precondition 1 ([ADR 0023](../../docs/adr/0023-data-plane-per-caller-keys.md#enforce-preconditions)):
-      tenant-control's admin relay drops its `service_token` arm while
-      `DATA_PLANE_CALLER_POLICY` is on, or gets its own key. Until then, functions-runtime
-      (which holds `INTERNAL_SERVICE_TOKEN`) can drive `/v1/admin/migrate` as tenant_control
-      with any `inline_dsn` under enforce (`admin_relay.go:51,69`). Needs its own devil ruling.
+- [~] D1 enforce precondition 1 ([ADR 0023](../../docs/adr/0023-data-plane-per-caller-keys.md#enforce-preconditions)):
+      functions-runtime holds `INTERNAL_SERVICE_TOKEN`, so under enforce it could reach
+      `/v1/admin/migrate` as tenant_control with any `inline_dsn`. Relay half done (devil
+      PwC 2026-10-30): tenant-control reads `DATA_PLANE_CALLER_POLICY`; enforce refuses the
+      relay's `service_token` arm, shadow logs `would_deny`, an unknown value refuses boot
+      (`admin_relay_policy_test.go`, m243 relay legs). Open: the `/v1/provision` door
+      (`ensureSchema`, `dataplane.go:76`) needs its own devil ruling; VM shadow window first.
 - [ ] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
       the default outside `NODE_ENV=production`, trusts raw `x-baas-*` headers
       (`request-identity.ts:41,364`).

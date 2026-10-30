@@ -159,7 +159,13 @@ got="$(key_holders)"
 ! key_holders | grep -q '^functions-runtime|' || fail "functions-runtime holds a caller key"
 need "${COMPOSE}/data-plane.yml" 'DATA_PLANE_CALLER_POLICY: \$\{DATA_PLANE_CALLER_POLICY:-off\}' \
   "the caller policy does not default to off"
-pass "query-router QR only · tenant-control TC only · functions-runtime none · policy off"
+# devil D1-P1: tenant-control reads the same value, or its relay and the data plane
+# would judge one request under two policies.
+for file in "${COMPOSE}/control-plane.yml" "${ROOT}/orchestrators/compose/docker-compose.monolith.yml"; do
+  need "${file}" 'DATA_PLANE_CALLER_POLICY: \$\{DATA_PLANE_CALLER_POLICY:-off\}' \
+    "tenant-control does not get the caller policy in ${file##*/}"
+done
+pass "query-router QR only · tenant-control TC only · functions-runtime none · policy off on both hops"
 
 step "static: the generator mints both caller keys, never a _PREV (K9)"
 gen="${ROOT}/scripts/env/generate-env.sh"

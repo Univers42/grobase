@@ -243,6 +243,9 @@ services:
       # relay (POST /v1/admin/*, ADR 0008) and the /admin/v1/databases* registry
       # relay (devil D2 N3). Empty = only the service token works.
       KONG_SERVICE_API_KEY: ${KONG_SERVICE_API_KEY:-}
+      # D1 (ADR 0023): the value the data plane reads, so one .env line judges both
+      # hops; under enforce the relay refuses the service token (admin_relay_policy.go).
+      DATA_PLANE_CALLER_POLICY: ${DATA_PLANE_CALLER_POLICY:-off}
       # ABAC seam: the provisioning reconciler self-verifies seeded roles/policies
       # via permission-engine's POST /permissions/decide (service-token gated).
       # Role/policy SEEDING works without this (direct SQL); only Decide() needs it.

@@ -100,6 +100,25 @@ weakens `off` or `shadow`, so the code ships with the policy off.
    `inline_dsn`, which is the very class split this ADR makes. The fix is one of two: drop the
    `service_token` arm while the policy is on, or give the relay its own credential. Either fix
    needs its own devil ruling before enforce.
+
+   **Relay half met** (devil PROCEED-WITH-CONDITIONS, 2026-10-30). tenant-control reads the
+   same `DATA_PLANE_CALLER_POLICY` the data plane does (`base/control-plane.yml`,
+   `docker-compose.monolith.yml`, static check in `m243-data-plane-auth.sh`). It parses the
+   value once at boot like `InboundAuthMode::parse` and refuses to start on an unknown value
+   (`admin_relay_policy.go`). Under `enforce` the relay never takes the `service_token` arm,
+   `INTERNAL_SERVICE_TOKEN_PREV` included, and answers 401 naming the policy. The apikey arm
+   still serves, also when both credentials are sent. Under `shadow` the token still relays
+   and logs one `admin relay: would_deny` line per request (route, arm, never the token).
+   Evidence: `admin_relay_policy_test.go` and the relay legs of `m243-caller-policy-live.sh`.
+
+   **Still open: the provision door.** `POST /v1/provision` (`handler.go:83`,
+   `requireServiceToken`) calls `reconcileSchema` (`provision.go:128`), which calls
+   `ensureSchema` (`dataplane.go:62-81`). That signs `/v1/admin/migrate` as `tenant_control`
+   with the caller's `connection_string` as `inline_dsn` (`dataplane.go:76`). The statement
+   is fixed (`CREATE SCHEMA IF NOT EXISTS <sanitized schema>`), so it cannot run arbitrary
+   SQL. It can still make the data plane dial any DSN as `tenant_control`. This door needs
+   its own devil ruling before enforce. Before any VM enforce: a VM shadow window with zero
+   `would_deny` lines, then a fresh ruling together with precondition 2.
 2. **`IDENTITY_HEADER_MODE=strict` on every service that reads identity.** In compat mode,
    `src/libs/common/src/identity/request-identity.ts:41` trusts raw `x-baas-*` headers. Compat
    is the default whenever `NODE_ENV` is not `production` (`request-identity.ts:364`). A caller

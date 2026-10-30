@@ -29,7 +29,7 @@ func (rt *routes) adminRelay(path string) http.HandlerFunc {
 		}
 		arm := rt.adminRelayCaller(r)
 		if arm == "" {
-			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token or service API key required")
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", rt.adminRelayAuthHint())
 			return
 		}
 		body, tenant, err := withServiceIdentity(raw, arm)
@@ -58,15 +58,28 @@ func (rt *routes) adminRelay(path string) http.HandlerFunc {
 
 // adminRelayCaller names the credential that authenticated r, or "" when none
 // did. The apikey arm exists only on these two routes and only when
-// KONG_SERVICE_API_KEY is set; there is deliberately no Bearer arm.
+// KONG_SERVICE_API_KEY is set; there is deliberately no Bearer arm. Off keeps the
+// historic order; shadow and enforce try the apikey first, so a caller sending both
+// is never counted as would_deny. Enforce never takes the service_token arm.
 func (rt *routes) adminRelayCaller(r *http.Request) string {
-	if rt.rotation.Accept(r, rt.serviceToken) {
+	if rt.callerPolicy == CallerPolicyOff && rt.rotation.Accept(r, rt.serviceToken) {
 		return "service_token"
 	}
 	if serviceauth.SecureCompare(r.Header.Get("apikey"), rt.kongServiceKey) {
 		return "kong_service_key"
 	}
+	if rt.callerPolicy == CallerPolicyShadow && rt.rotation.Accept(r, rt.serviceToken) {
+		rt.svc.log.Warn(adminRelayWouldDeny, "route", r.Pattern, "arm", "service_token", "policy", "shadow")
+		return "service_token"
+	}
 	return ""
+}
+
+func (rt *routes) adminRelayAuthHint() string {
+	if rt.callerPolicy == CallerPolicyEnforce {
+		return "service API key required: DATA_PLANE_CALLER_POLICY=enforce refuses the service token on this route"
+	}
+	return "service token or service API key required"
 }
 
 // withServiceIdentity replaces only the "identity" member of the envelope, so
