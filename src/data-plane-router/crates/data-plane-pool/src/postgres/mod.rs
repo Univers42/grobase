@@ -46,6 +46,7 @@ mod pool;
 mod query;
 mod schema;
 mod search;
+mod sslmode;
 mod tx;
 
 // ── crate-facing facade ──────────────────────────────────────────────────────
