@@ -282,6 +282,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
   - [x] G5b `mysql` service (MariaDB 11.4, `data-plane` profile) — `ENGINE_TLS_ENGINES=mysql`,
         `command: ["mysqld"]` restated, root → setpriv uid 100; m247 mysql A/B/C green locally
         2026-10-30, m27 mysql under the overlay 12 passed / 0 failed; CI mysql leg twice.
+  - [x] G5b mssql — `ENGINE_TLS_ENGINES=mssql`: sqlservr serves the CA-signed cert from
+        `MSSQL_TLS_*` env (no mssql.conf write), forceencryption 0, root → setpriv uid 999;
+        m247 mssql A/B/C green locally 2026-10-30, m27 mssql under the overlay 9 passed /
+        3 skipped / 0 failed; CI mssql leg twice.
   - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
         consumers); today plaintext.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.

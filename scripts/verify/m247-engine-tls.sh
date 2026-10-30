@@ -20,7 +20,7 @@
 # only certs/engines (never the CA key) and refuses a missing directory, the
 # key goes to a tmpfs, and nothing that runs on every host mints the cert.
 #
-# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis|mariadb|mysql, default postgres): three
+# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis|mariadb|mysql|mssql, default postgres): three
 # throwaway boots of the real service under compose project m247, each torn down
 # with its volume. Postgres:
 #   A  no overlay        → SHOW ssl = off (byte-identical default)
@@ -36,6 +36,9 @@
 # MariaDB: leg A finds the default already on TLS with a cert our CA does not sign; B swaps
 # in the engine cert (verified session, SAN legs via openssl -starttls mysql, --skip-ssl
 # still connects) and PID 1 runs as uid 100. The mysql service is MariaDB too: the same legs.
+# MSSQL: leg A finds a self-signed cert a CA-trusting sqlcmd refuses; B serves the engine cert
+# (verified -N m session, a name outside the SANs refused, an unencrypted client still in)
+# and PID 1 runs as the image's mssql user.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -54,14 +57,16 @@ OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
 postgres) LIVE_OVERLAY="${OVERLAY}" ;;
-mongo | redis | mariadb | mysql) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
+mongo | redis | mariadb | mysql | mssql) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
 *)
-  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb or mysql\n' "${ENGINE}" >&2
+  printf 'M247_ENGINE=%s: expected postgres, mongo, redis, mariadb, mysql or mssql\n' "${ENGINE}" >&2
   exit 2
   ;;
 esac
-PROFILE=data-plane
-[[ "${ENGINE}" != mariadb ]] || PROFILE="engines-extra"
+case "${ENGINE}" in
+mariadb | mssql) PROFILE="engines-extra" ;;
+*) PROFILE=data-plane ;;
+esac
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 fail() {
@@ -376,6 +381,57 @@ mariadb_live_checks() {
 
 # The mysql service is MariaDB 11.4 built from its own Dockerfile: the same legs.
 mysql_live_checks() { mariadb_live_checks; }
+
+# sqlcmd from a throwaway root container of the server's image on the m247 network, trusting
+# the minted CA: the server container runs non-root and cannot add a CA to its store.
+# $1 the host name, $2 the -N mode (m verifies, o asks for no encryption); prints encrypt_option.
+mssql_as() {
+  local image
+  image="$(docker inspect -f '{{.Config.Image}}' "m247-${ENGINE}")"
+  docker run --rm --network m247_mini-baas --user 0 -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" \
+    -v "${WORK}/track-binocle-local-ca.pem:/ca.pem:ro" -e HOST="$1" -e MODE="$2" \
+    --entrypoint /bin/bash "${image}" -c '
+      cp /ca.pem /usr/local/share/ca-certificates/m247.crt && update-ca-certificates >/dev/null 2>&1
+      extra=(); [[ "${MODE}" == o ]] && extra=(-C)
+      /opt/mssql-tools18/bin/sqlcmd -S "${HOST}" -U sa -N "${MODE}" "${extra[@]}" -h -1 -b -l 10 \
+        -Q "SET NOCOUNT ON; SELECT encrypt_option FROM sys.dm_exec_connections WHERE session_id=@@SPID"' 2>&1 |
+    tr -d '\r' | sed 's/^ *//; s/ *$//' | head -3
+}
+
+mssql_live_checks() {
+  live_setup
+  MSSQL_SA_PASSWORD="A1a!$(openssl rand -hex 12)"
+  export MSSQL_SA_PASSWORD
+  local cert_dir="${WORK}/${ENGINE}" uid
+  export ENGINE_TLS_MSSQL_CERT_DIR="${cert_dir}"
+
+  step "live A: no overlay → a self-signed cert the local CA does not verify"
+  mint_ca
+  boot_or_fail "the default mssql did not become healthy"
+  [[ "$(mssql_as mssql m)" == *"certificate verify failed"* ]] || fail "the default cert verifies against the local CA"
+  pass "default cert refused by a client that trusts only the local CA"
+  down
+
+  refuses_without_cert "${cert_dir}"
+
+  step "live B: overlay + cert → a cert that verifies, unencrypted clients still allowed"
+  mint_cert "${cert_dir}"
+  boot_or_fail "mssql with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
+  [[ "$(mssql_as mssql m)" == TRUE ]] || fail "a verified session (-N m, CA trusted) failed"
+  pass "verified session as host mssql, encrypt_option TRUE"
+  [[ "$(mssql_as "m247-${ENGINE}" m)" != TRUE ]] || fail "a name outside the SANs was not refused"
+  pass "a host name outside the SANs is refused"
+  [[ "$(mssql_as mssql o)" == FALSE ]] || fail "a client asking for no encryption is refused (accept mode must allow it)"
+  pass "a client asking for no encryption still connects, encrypt_option FALSE"
+  uid="$(docker exec "m247-${ENGINE}" id -u mssql)"
+  [[ "$(docker exec "m247-${ENGINE}" awk '/^Uid:/ {print $2}' /proc/1/status)" == "${uid}" ]] || fail "PID 1 is not the mssql user (G5b-C3)"
+  [[ "$(docker exec "m247-${ENGINE}" stat -c '%a %u' /run/engine-tls/server.key)" == "600 ${uid}" ]] ||
+    fail "the key copy is not 600 mssql"
+  [[ -z "$(docker exec "m247-${ENGINE}" find /var/opt/mssql -name 'server.*' -o -name '*.pem')" ]] ||
+    fail "a key or cert landed in /var/opt/mssql"
+  ! docker exec "m247-${ENGINE}" grep -qi tls /var/opt/mssql/mssql.conf || fail "mssql.conf in the volume carries TLS settings"
+  pass "PID 1 is mssql (uid ${uid}), the key is 600 on tmpfs, the volume holds no cert and no TLS setting"
+}
 
 # --- stack ------------------------------------------------------------------
 
