@@ -113,15 +113,19 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 - Static evidence (VM, read-only, 2026-10-29): `trino-route` `paths: [/sql]` carries
   key-auth + jwt with `anonymous` and no `acl` (`kong.yml:851-879`); Trino has no
   authentication configured; its catalog connects as `${ENV:POSTGRES_USER}`.
-- [ ] Read-only probe through the WAF with the public anon key, status codes only —
-      **needs an explicit human go**.
+- [x] Read-only probe through the WAF with the public anon key, status codes only —
+      2026-10-30 (blanket go): no key 401, anon key **200** on `/sql/v1/info`, so the
+      door was open live.
 - [x] Repo: `acl allow [baas-admin]` on `trino-route` (ba9f9adb). No caller of `/sql`
       exists in grobase, the SDKs, osionos or the groot apps; the service key still passes.
 - [x] m206 lists `/sql` as service-only: anon key → 403 by the acl, service key passes.
       Against the old `kong.yml` it fails "trino-route (/sql) is service-only but not acl
       baas-admin". Runs in CI's Security gates job (`run-gate-battery.sh m206-kong-admin-acl`).
-- [ ] VM rollout only in a confirmed window — the VM's `kong.yml` carries uncommitted
-      operator edits, so the change is merged by hand, never overwritten.
+- [x] VM rollout only in a confirmed window — the VM's `kong.yml` carries uncommitted
+      operator edits, so the change is merged by hand, never overwritten. Done
+      2026-10-30 12:27Z: 4-line acl block inserted in place, render diff exactly those
+      lines, `kong config parse` OK, `kong reload` (no restart). Re-probe: anon 403,
+      service key 200, rest/auth unchanged.
 
 **G2a · DEFAULT expressions: allowlist, not blocklist** — part of m244, first PR
 - [x] One validator, `data-plane-core::default_expr` (5594134e), replaces the blocklist:
