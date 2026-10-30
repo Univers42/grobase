@@ -1,0 +1,43 @@
+# docker-compose.engine-tls-pg-clients.yml — the Node services that dial the central Postgres
+# verify its certificate (G5, docs/adr/0032-g5-node-pg-clients-verify-full.md).
+#
+# Composed only by ENGINE_TLS_ENGINES=pg-clients beside ENGINE_TLS=1 (make refuses either
+# alone, and any COMPOSE_FILE but docker-compose.yml). The server stays in accept mode: every
+# other client, the Go and Rust ones included, keeps its current sslmode.
+#
+# Trust is scoped to DATABASE_URL: `sslmode=verify-full&sslrootcert=` is read per connection
+# by pg 8.20, so the tenant-mount clients in sqlro and schema-service keep their own DSNs.
+# Not PGSSLMODE (process-wide in pg) and not NODE_EXTRA_CA_CERTS (the data-plane and minio
+# overlays own it). The suffix is appended, so make refuses a DATABASE_URL that already has
+# a query string, and a non-empty AUDIT_DATABASE_URL, which this file cannot rewrite
+# (scripts/certs/check-pg-clients-tls.sh).
+#
+# Caveat: query-router (outbox, automations), mongo-api and storage-router (audit) connect
+# lazily and only WARN on a failed pool, so a wrong CA or an engine.pem that expires while
+# they run drops outbox events and audit rows with no crash. make checks the cert before
+# compose starts (verify, 30 days left, the DSN host in its SANs); nothing re-checks a
+# running stack. A DATABASE_URL host outside the SANs fails verify-full by design. m264
+# drives the outbox and audit pools by hand in the real containers, not through the
+# controller → DI wiring; the automations pool is covered only by sharing DATABASE_URL (W6).
+
+x-pg-client: &pg-client
+  environment:
+    DATABASE_URL: "${DATABASE_URL:?unset - run make env}?sslmode=verify-full&sslrootcert=/etc/engine-pg-ca/ca.pem"
+  volumes:
+    - type: bind
+      source: ${ENGINE_TLS_CERT_DIR:-./certs/engines}/ca.pem
+      target: /etc/engine-pg-ca/ca.pem
+      read_only: true
+      bind:
+        create_host_path: false
+
+services:
+  query-router: *pg-client
+  outbox-relay: *pg-client
+  permission-engine: *pg-client
+  schema-service: *pg-client
+  gdpr-service: *pg-client
+  newsletter-service: *pg-client
+  session-service: *pg-client
+  mongo-api: *pg-client
+  storage-router: *pg-client

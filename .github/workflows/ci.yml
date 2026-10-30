@@ -1744,6 +1744,31 @@ jobs:
           bash scripts/certs/generate-localhost-cert.sh
           bash scripts/ci/retry-on-429.sh bash scripts/verify/m263-data-plane-tls.sh
 
+  # ─── Node pg clients verify-full overlay (G5, ADR 0032) ────────
+  # ENGINE_TLS_ENGINES=pg-clients suffixes DATABASE_URL with sslmode=verify-full for the nine
+  # Node services that dial Postgres. Static legs (opt-in, derived dialer set, render diff,
+  # preflight refusals), then the nine built from this commit against a TLS Postgres: TLSv1.3
+  # per container, outbox/audit writes, and the silent loss under an unrelated CA.
+  pg-clients-tls:
+    name: Node pg clients verify-full (m264)
+    runs-on: ubuntu-latest
+    needs: [shellcheck]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Annotate gate failures
+        run: echo "::add-matcher::.github/gate-matcher.json"
+      # M264_REUSE_IMAGES unset: the nine images are built from this commit.
+      - name: pg clients verify-full overlay (m264)
+        env:
+          M264_LIVE: "1"
+        run: |
+          bash scripts/env/assemble-env.sh
+          bash scripts/certs/generate-localhost-cert.sh
+          bash scripts/ci/retry-on-429.sh bash scripts/verify/m264-pg-clients-tls.sh
+
   # ─── Rust lint (both workspaces) ───────────────────────────────
   # clippy ran nowhere in CI, and `make test-lint-rust` covered only the data
   # plane, so the realtime workspace drifted red unnoticed (issue #19). Both

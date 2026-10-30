@@ -53,6 +53,17 @@ endif
 ifneq ($(and $(filter data-plane,$(ENGINE_TLS_ENGINES)),$(filter-out docker-compose.yml,$(COMPOSE_FILE))),)
 $(error ENGINE_TLS_ENGINES=data-plane supports only COMPOSE_FILE=docker-compose.yml, not $(COMPOSE_FILE) (ADR 0031))
 endif
+# pg-clients points the Node services' DATABASE_URL at the accept-mode server with
+# verify-full (ADR 0032 NP1): without ENGINE_TLS=1 nothing serves TLS, and the monolith and
+# the editions were never rendered against it.
+ifneq ($(filter pg-clients,$(ENGINE_TLS_ENGINES)),)
+ifneq ($(ENGINE_TLS),1)
+$(error ENGINE_TLS_ENGINES=pg-clients needs ENGINE_TLS=1, the accept-mode Postgres it verifies (ADR 0032))
+endif
+ifneq ($(filter-out docker-compose.yml,$(COMPOSE_FILE)),)
+$(error ENGINE_TLS_ENGINES=pg-clients supports only COMPOSE_FILE=docker-compose.yml, not $(COMPOSE_FILE) (ADR 0032))
+endif
+endif
 # REDIS_ACL=1 (env, or a REDIS_ACL= line in .env.local) composes the Redis ACL overlay,
 # stage 1 (docker-compose.redis-acl.yml, ADR 0028): redis gains the app user, every redis
 # consumer dials it with REDIS_PASSWORD. Separate from ENGINE_TLS_ENGINES; it composes with
