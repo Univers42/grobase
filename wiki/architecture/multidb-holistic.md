@@ -333,13 +333,19 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
   - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
         consumers); today plaintext.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
-- [ ] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
-      "no sslmode" into `verify-full`, not plaintext.
+- [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
+      "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
   - [x] G5b-C10 — mysql/mariadb mounts: `SECURITY_MODE=max` refuses `verify_ca=false` /
         `verify_identity=false` (parsed options, so percent-encoded keys are caught) and trusts
         `DATA_PLANE_TLS_CA_FILE`; 3 unit tests.
   - [x] The pool opens `sslmode=verify-full`/`verify-ca` Postgres mounts (tokio-postgres
         0.7 refused them; `conn::wire_dsn`); m27 postgres over verify-full 12 passed / 0 failed.
+  - [x] MSSQL under max ignores `DATA_PLANE_TLS_INSECURE` (`mssql/adapter.rs:126-131`).
+  - [x] ADR 0017 Postgres/CockroachDB: under max a missing or `prefer` sslmode verifies with
+        `ssl_mode=Require` pinned, `disable`/`allow` refused at `open_pool`; live 2026-10-30
+        against an `ssl=off` boot → refused, a CA-signed boot → `Verified` TLSv1.3.
+  - [x] ADR 0017 Dynamo: under max the DSN endpoint is pinned on the service builder (env and
+        profile endpoints can't redirect it) and a non-https endpoint is refused before load.
 - [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.
   - [x] G5a C6 (local, 2026-10-30): Debezium sessions + walsender on TLSv1.3 under the
         overlay; the outbox slot decodes past an m247 probe in 1 s.
