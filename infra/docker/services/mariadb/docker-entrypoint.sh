@@ -42,6 +42,10 @@ if [ ! -d "$DATADIR/mysql" ]; then
   BOOTSTRAP="$(mktemp)"
   {
     echo "FLUSH PRIVILEGES;"
+    # mariadb-install-db also creates root@<container hostname>, @127.0.0.1 and @::1 with no
+    # authentication: a client resolving to the container's own name got root without a
+    # password (measured 2026-10-30, 11.4.13). Root keeps localhost and % only.
+    echo "DELETE FROM mysql.global_priv WHERE User = 'root' AND Host NOT IN ('localhost', '%');"
     if [ -n "$ROOT_PASSWORD" ]; then
       # Set the password for root on both localhost and any-host so the
       # compose healthcheck (mysqladmin ping -u root -p…) works from 127.0.0.1.
