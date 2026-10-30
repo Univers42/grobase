@@ -212,6 +212,9 @@ impl EngineAdapter for MysqlEngineAdapter {
         };
         let ssl_opts =
             super::tls::mysql_ssl_opts(base_opts.ssl_opts(), crate::tls::max_security(), ca_pem)?;
+        // The probe's TLS label comes from the options the pool is opened WITH
+        // (devil G4 P4) — read them before the builder takes `ssl_opts`.
+        let tls = super::tls::ssl_posture(ssl_opts.as_ref());
         let opts: Opts = OptsBuilder::from_opts(base_opts)
             .pool_opts(pool_opts)
             .ssl_opts(ssl_opts)
@@ -241,6 +244,7 @@ impl EngineAdapter for MysqlEngineAdapter {
             pool,
             namespace,
             shared_resources,
+            tls,
         }))
     }
 

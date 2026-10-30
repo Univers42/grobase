@@ -25,6 +25,7 @@ use super::convert::{json_to_mysql_value, row_to_json};
 use super::error::{backend, ddl_backend};
 use super::schema::{build_mysql_ddl, normalize_mysql_type};
 use super::*;
+use data_plane_core::{normalise_tls_version, normalise_version, EngineProbe, TlsPosture};
 
 /// A pooled MySQL connection set bound to a single mount.
 pub struct MysqlPool {
@@ -47,6 +48,10 @@ pub struct MysqlPool {
     /// catalog readable across owners). Empty unless `DATA_PLANE_PER_TABLE_ISOLATION`
     /// is ON and the mount opted in → byte-parity (every table owner-scoped).
     pub(super) shared_resources: std::sync::Arc<[String]>,
+    /// The TLS posture this pool connected WITH — the parsed options
+    /// `open_pool` handed to the driver, never the DSN text and never the
+    /// server's answer (devil G4 P4). The probe reports it verbatim.
+    pub(super) tls: TlsPosture,
 }
 
 impl MysqlPool {
@@ -192,6 +197,41 @@ impl EnginePool for MysqlPool {
             .map_err(|e| DataPlaneError::Backend {
                 message: format!("mysql pool disconnect failed: {e}"),
             })
+    }
+
+    /// Read-only probe: the server version, plus the TLS posture this pool
+    /// CONNECTED with — the connector's options, never the server's word
+    /// (devil G4 P4). Two read-only statements on ONE checkout; the
+    /// per-tenant `USE` directive is skipped (the probe reads server state,
+    /// not tenant data).
+    async fn probe(&self) -> DataPlaneResult<EngineProbe> {
+        let mut conn = self
+            .pool
+            .get_conn()
+            .await
+            .map_err(|_| DataPlaneError::Backend {
+                message: "probe: pool checkout failed".into(),
+            })?;
+        let server_version = match conn.query_first::<String, _>("SELECT VERSION()").await {
+            Ok(Some(raw)) => normalise_version(&raw),
+            _ => "unknown".into(),
+        };
+        let tls_version = if self.tls == TlsPosture::Plaintext {
+            None
+        } else {
+            match conn
+                .query_first::<(String, String), _>("SHOW SESSION STATUS LIKE 'Ssl_version'")
+                .await
+            {
+                Ok(Some((_, value))) => normalise_tls_version(&value),
+                _ => None,
+            }
+        };
+        Ok(EngineProbe {
+            server_version,
+            tls: self.tls,
+            tls_version,
+        })
     }
 
     async fn execute_raw(
