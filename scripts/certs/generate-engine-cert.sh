@@ -18,6 +18,7 @@
 #   generate-engine-cert.sh redis      ENGINE_TLS_ENGINES="redis" (ADR 0012)
 #   generate-engine-cert.sh mariadb    ENGINE_TLS_ENGINES="mariadb" (ADR 0012)
 #   generate-engine-cert.sh mysql      ENGINE_TLS_ENGINES="mysql" (ADR 0012)
+#   generate-engine-cert.sh mysql8     ENGINE_TLS_ENGINES="mysql8" (ADR 0026)
 #   generate-engine-cert.sh mssql      ENGINE_TLS_ENGINES="mssql" (ADR 0012)
 # Output, under ENGINE_TLS_CERT_DIR (default certs/engines for postgres,
 # certs/engine-tls/<engine> for the others): engine.pem, engine-key.pem (0600)
@@ -60,12 +61,16 @@ mysql)
   SANS="DNS:mysql,DNS:mini-baas-mysql,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/mysql"}
   ;;
+mysql8)
+  SANS="DNS:mysql8,DNS:mini-baas-mysql8,DNS:localhost,IP:127.0.0.1"
+  OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/mysql8"}
+  ;;
 mssql)
   SANS="DNS:mssql,DNS:mini-baas-mssql,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/mssql"}
   ;;
 *)
-  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql or mssql.\n' "$ENGINE" >&2
+  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8 or mssql.\n' "$ENGINE" >&2
   exit 2
   ;;
 esac
