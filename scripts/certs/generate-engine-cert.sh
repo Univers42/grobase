@@ -15,6 +15,7 @@
 # signed by the local CA that generate-localhost-cert.sh owns. Usage:
 #   generate-engine-cert.sh            postgres, ENGINE_TLS=1 (ADR 0011)
 #   generate-engine-cert.sh mongo      ENGINE_TLS_ENGINES="mongo" (ADR 0012)
+#   generate-engine-cert.sh redis      ENGINE_TLS_ENGINES="redis" (ADR 0012)
 # Output, under ENGINE_TLS_CERT_DIR (default certs/engines for postgres,
 # certs/engine-tls/<engine> for the others): engine.pem, engine-key.pem (0600)
 # and ca.pem, the public CA a client verifies against. The CA key never leaves
@@ -44,8 +45,12 @@ mongo)
   SANS="DNS:mongo,DNS:mini-baas-mongo,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/mongo"}
   ;;
+redis)
+  SANS="DNS:redis,DNS:mini-baas-redis,DNS:localhost,IP:127.0.0.1"
+  OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/redis"}
+  ;;
 *)
-  printf 'Unknown engine %s: expected postgres or mongo.\n' "$ENGINE" >&2
+  printf 'Unknown engine %s: expected postgres, mongo or redis.\n' "$ENGINE" >&2
   exit 2
   ;;
 esac

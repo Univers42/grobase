@@ -1,0 +1,33 @@
+# docker-compose.engine-tls-redis.yml — accept-mode TLS on redis (G5b,
+# docs/adr/0012-g5b-engine-accept-tls.md). Opt-in: ENGINE_TLS_ENGINES lists redis (env, or an
+# ENGINE_TLS_ENGINES= line in .env.local; orchestrators/makes/00-config.mk). ENGINE_TLS=1
+# alone never composes this file. Recreating redis drops every consumer's connection.
+#
+# TLS is served on 6380 inside the network and never published: 6379 keeps its loopback
+# publish and stays plaintext. The cert comes from `scripts/certs/generate-engine-cert.sh
+# redis`, in a directory of its own (G5b-C5).
+#
+# Caveat: this proves redis CAN serve TLS, not that any client uses it. Every consumer still
+# dials redis://…:6379, and the pool's redis crate cannot dial rediss:// at all (G5b-C9).
+services:
+  redis:
+    user: "0"
+    # The self-built image has no ENTRYPOINT: the wrapper execs the compose command itself.
+    entrypoint: ["/bin/sh", "/usr/local/bin/engine-tls-drop.sh"]
+    environment:
+      ENGINE_TLS_NAME: redis
+      ENGINE_TLS_UID: "100"
+      ENGINE_TLS_GID: "101"
+    volumes:
+      - type: bind
+        source: ${ENGINE_TLS_REDIS_CERT_DIR:-./certs/engine-tls/redis}
+        target: /etc/engine-tls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./infra/docker/services/engine-tls/drop-entrypoint.sh
+        target: /usr/local/bin/engine-tls-drop.sh
+        read_only: true
+    tmpfs:
+      - /run/engine-tls:mode=0700

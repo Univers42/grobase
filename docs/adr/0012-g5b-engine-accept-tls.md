@@ -1,6 +1,6 @@
 # 0012 — Mongo, Redis and MySQL/MariaDB accept TLS, each behind its own opt-in
 
-Status: ruled PROCEED-WITH-CONDITIONS (2026-10-30, C1–C15). Code: mongo. Redis and
+Status: ruled PROCEED-WITH-CONDITIONS (2026-10-30, C1–C15). Code: mongo, redis.
 MySQL/MariaDB follow, one engine per commit (C12). Not on the VM: C13.
 
 ## Problem
@@ -34,6 +34,9 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
   2. It copies the key into the tmpfs `/run/engine-tls` (0700) at 600, owned by the image's uid.
   3. It then runs `exec setpriv --reuid --regid --clear-groups` into the image's own entrypoint.
   - m247 live asserts that PID 1's `Uid` is the image uid, and checks the copy's mode and owner.
+  - The self-built Alpine redis image only had BusyBox's `setpriv`, which has no `--reuid`,
+    `--regid` or `--clear-groups`. Its Dockerfile adds Alpine's `setpriv` package (33 KiB).
+    An image without it fails closed: the wrapper checks for `--reuid` before it copies a key.
 - **Flags are appended, never restated (C4).** Mongo and Redis add their flags to `"$@"`, the
   compose `command`. MySQL/MariaDB will restate `command: ["mysqld"]` / `["mariadbd"]` because
   they have none.
@@ -48,7 +51,10 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
   - `--tlsCAFile`
   - `--tlsAllowConnectionsWithoutCertificates`
   The initdb `mongod` the entrypoint starts on a fresh volume binds 127.0.0.1 without TLS, as
-  before.
+  before. Redis:
+  - `--tls-port 6380` with the cert, key and CA files, and `--tls-auth-clients no`
+  - 6379 stays plaintext. 6380 is never published: the overlay has no `ports`, and m247
+    static checks that.
 - **Fail closed (C8).** An engine selected without a cert exits, and the message names
   `generate-engine-cert.sh <engine>`.
 
@@ -65,9 +71,20 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
     - PID 1 is uid 999;
     - nothing lands in `/data/db`.
   Measured locally on 2026-10-30: all green. The Postgres legs are re-run unchanged.
+  `M247_ENGINE=redis` runs the same three legs:
+  - **A:** `tls-port` is 0.
+  - **C:** the container refuses to start without a cert.
+  - **B:** a verified `redis-cli --tls` PING on 6380 works; 6379 still answers plaintext;
+    plaintext on 6380 is refused; PID 1 is uid 100; nothing lands in `/data`.
+  - `redis-cli` verifies the chain but never the host name, so the SAN legs run
+    `openssl s_client -verify_hostname` from the host: `redis` verifies and `m247-redis` is
+    refused with "hostname mismatch".
+  - `M247_IMAGE` points the boots at a local build, so a test never retags the image a
+    running stack uses. Measured locally on 2026-10-30: all green.
 - **CI (C11).** The `mongodb` engine-conformance leg runs twice: as before, and with `tls: mongo`.
   The `tls: mongo` run initiates the replica set under the overlay, runs m27 and then runs m247
-  live.
+  live. Redis has no conformance leg. A CI step builds its image from the commit and runs the
+  m247 redis legs.
 - **Renewal.** Re-run `generate-engine-cert.sh <engine>`, then recreate that engine. The script
   says when it issued a new cert.
 - **The VM (C13).** No pin or rollout outside a confirmed G5 window, one engine per window. A
@@ -76,8 +93,12 @@ the other engines broke four of G5a's premises, all measured on 2026-10-30 again
 
 ## Not done here
 
-- **No client verifies mongo's cert yet.** mongosh, mongo-init, mongo-api and the pool still dial
-  plaintext, which accept mode allows. Moving them is the next G5 step.
+- **No client verifies mongo's or redis's cert yet.** mongosh, mongo-init, mongo-api, the pool and
+  every redis consumer still dial plaintext, which accept mode allows. Moving them is the next G5
+  step.
+- **The published redis image lacks `setpriv` until a main push republishes it.** Until then,
+  `ENGINE_TLS_ENGINES=redis` on a host that pulls `:latest` fails closed with the wrapper's
+  message; `make build` fixes it.
 - **Pool Redis TLS is out of scope (C9).** redis 0.27.6 is built without a TLS feature. It needs
   its own ruling.
 - **Oracle mysql8 TLS needs its own ruling (C14).** `auto_generate_certs` writes keys into the

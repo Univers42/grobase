@@ -20,7 +20,7 @@
 # only certs/engines (never the CA key) and refuses a missing directory, the
 # key goes to a tmpfs, and nothing that runs on every host mints the cert.
 #
-# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo, default postgres): three
+# Live (M247_LIVE=1, docker; M247_ENGINE=postgres|mongo|redis, default postgres): three
 # throwaway boots of the real service under compose project m247, each torn down
 # with its volume. Postgres:
 #   A  no overlay        → SHOW ssl = off (byte-identical default)
@@ -31,6 +31,8 @@
 #   C  overlay, no cert  → the container refuses to start and names the script
 # Mongo: the same three legs with mongosh (verified --tls, a name outside the SANs,
 # a default plaintext client), plus PID 1 running as uid 999, never root (G5b-C3).
+# Redis: the same with redis-cli on 6380 (verified --tls, a name outside the SANs, plaintext
+# refused there) while 6379 stays plaintext, and PID 1 as uid 100.
 #
 # Stack (M247_STACK=1, a running stack composed with ENGINE_TLS=1): which
 # clients and walsenders negotiated TLS, by application_name, and every logical
@@ -49,9 +51,9 @@ OVERLAY="orchestrators/compose/docker-compose.engine-tls.yml"
 ENGINE="${M247_ENGINE:-postgres}"
 case "${ENGINE}" in
 postgres) LIVE_OVERLAY="${OVERLAY}" ;;
-mongo) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
+mongo | redis) LIVE_OVERLAY="orchestrators/compose/docker-compose.engine-tls-${ENGINE}.yml" ;;
 *)
-  printf 'M247_ENGINE=%s: expected postgres or mongo\n' "${ENGINE}" >&2
+  printf 'M247_ENGINE=%s: expected postgres, mongo or redis\n' "${ENGINE}" >&2
   exit 2
   ;;
 esac
@@ -99,11 +101,13 @@ g5b_static_checks() {
     grep -q 'create_host_path: false' "${overlay}" || fail "${name}: the cert bind would be created root-owned"
     grep -q '/run/engine-tls:mode=0700' "${overlay}" || fail "${name}: the key copy is not on a 0700 tmpfs"
     grep -q "ENGINE_TLS_NAME: ${name}$" "${overlay}" || fail "${name}: the wrapper is not told which engine it runs"
-    ! grep -Eqi "^ *- .*tls" <(sed -n "/^  ${name}:/,/^  [a-z]/p" "${ROOT}/orchestrators/compose/base/data-engines.yml") ||
+    ! grep -Eqi -- "--tls|^ *- .*tls" <(sed -n "/^  ${name}:/,/^  [a-z]/p" "${ROOT}/orchestrators/compose/base/data-engines.yml") ||
       fail "the default ${name} service sets a TLS flag (G5b-C2)"
   done
   grep -q 'exec setpriv --reuid="$uid" --regid="$gid" --clear-groups' \
     "${ROOT}/infra/docker/services/engine-tls/drop-entrypoint.sh" || fail "the wrapper does not drop root (G5b-C3)"
+  ! grep -q '^    ports:' "${ROOT}/orchestrators/compose/docker-compose.engine-tls-redis.yml" ||
+    fail "redis publishes its TLS port (G5b-C6: in-network only)"
   pass "per-engine overlays, sibling cert directories, root dropped before the engine starts"
 }
 
@@ -147,6 +151,8 @@ live_setup() {
   trap cleanup EXIT
   # No host port and names of their own: never collides with a running stack.
   printf 'services:\n  %s:\n    container_name: m247-%s\n    ports: !reset []\n' "${ENGINE}" "${ENGINE}" >"${WORK}/rename.yml"
+  # M247_IMAGE tests a local build without retagging the image a running stack uses.
+  [[ -z "${M247_IMAGE:-}" ]] || printf '    image: %s\n' "${M247_IMAGE}" >>"${WORK}/rename.yml"
   [[ "${ENGINE}" != mongo ]] ||
     printf '  mongo-keyfile:\n    container_name: m247-mongo-keyfile\n' >>"${WORK}/rename.yml"
   # M247_SUBNET pins the throwaway network for a daemon whose default pools are spent.
@@ -248,6 +254,56 @@ mongo_live_checks() {
     fail "the key copies are not 600 uid 999"
   [[ -z "$(docker exec m247-mongo find /data/db -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data/db"
   pass "PID 1 is uid 999, keys are 600 uid 999 on tmpfs, nothing in /data/db"
+}
+
+# redis-cli inside the server container; $1 the host, rest redis-cli flags then the command.
+redis_in() {
+  local host="$1"
+  shift
+  docker exec m247-redis redis-cli -h "${host}" "$@"
+}
+
+# openssl s_client to m247-redis:6380 verifying the host name $1 against the minted CA.
+redis_tls_as() {
+  local ip
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' m247-redis)"
+  timeout 10 openssl s_client -connect "${ip}:6380" -CAfile "${ENGINE_TLS_REDIS_CERT_DIR}/ca.pem" \
+    -verify_hostname "$1" -verify_return_error </dev/null 2>&1 || true
+}
+
+redis_live_checks() {
+  live_setup
+  export ENGINE_TLS_REDIS_CERT_DIR="${WORK}/redis"
+  local verify=(-p 6380 --tls --cacert /etc/engine-tls/ca.pem) out
+
+  step "live A: no overlay → plaintext only"
+  boot_or_fail "the default redis did not become healthy"
+  [[ "$(redis_in redis CONFIG GET tls-port | tail -1)" == 0 ]] || fail "the default boot listens for TLS"
+  pass "tls-port 0"
+  down
+
+  refuses_without_cert "${ENGINE_TLS_REDIS_CERT_DIR}"
+
+  step "live B: overlay + cert → TLS on 6380 that verifies, 6379 unchanged"
+  mint_cert "${ENGINE_TLS_REDIS_CERT_DIR}"
+  boot_or_fail "redis with the engine cert did not become healthy" -f "${ROOT}/${LIVE_OVERLAY}"
+  [[ "$(redis_in redis "${verify[@]}" PING)" == PONG ]] || fail "a verified --tls PING on 6380 failed"
+  pass "verified --tls PING on 6380 against the CA"
+  # redis-cli checks the chain but never the host name (hiredis), so the SAN legs use
+  # openssl from the host against the container's address.
+  [[ "$(redis_tls_as redis)" == *"Verify return code: 0 (ok)"* ]] || fail "openssl could not verify redis as host redis"
+  out="$(redis_tls_as m247-redis)"
+  [[ "${out}" == *"hostname mismatch"* ]] || fail "a name outside the SANs was not refused by verification"
+  pass "the served cert verifies as redis, and a host name outside the SANs is refused"
+  [[ "$(redis_in redis PING)" == PONG ]] || fail "plaintext on 6379 is refused (accept mode must keep it)"
+  out="$(redis_in redis -p 6380 PING 2>&1 || true)"
+  [[ "${out}" != *PONG* ]] || fail "6380 answers plaintext"
+  pass "6379 plaintext PONG, plaintext on 6380 refused"
+  [[ "$(docker exec m247-redis awk '/^Uid:/ {print $2}' /proc/1/status)" == 100 ]] || fail "PID 1 is not uid 100 (G5b-C3)"
+  [[ "$(docker exec m247-redis stat -c '%a %u' /run/engine-tls/server.key)" == "600 100" ]] ||
+    fail "the key copy is not 600 uid 100"
+  [[ -z "$(docker exec m247-redis find /data -name '*.pem' -o -name '*.key')" ]] || fail "a key or cert landed in /data"
+  pass "PID 1 is uid 100, the key is 600 uid 100 on tmpfs, nothing in /data"
 }
 
 # --- stack ------------------------------------------------------------------

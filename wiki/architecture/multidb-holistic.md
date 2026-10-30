@@ -266,9 +266,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
   - [x] G5b mongo — `ENGINE_TLS_ENGINES=mongo` (own overlay, `certs/engine-tls/mongo`,
         root → setpriv uid 999); ADR 0012; m247 mongo A/B/C green locally 2026-10-30; CI
         mongodb leg twice.
-  - [ ] G5b redis — TLS port 6380 on loopback, m247 live only (ADR 0012 C6, C11).
+  - [x] G5b redis — `ENGINE_TLS_ENGINES=redis`: TLS on 6380, never published, 6379 plaintext;
+        root → setpriv uid 100 (image gains util-linux setpriv); m247 redis A/B/C green
+        locally 2026-10-30 (SAN legs via openssl, redis-cli skips host names); CI m247 step.
   - [ ] G5b MariaDB / MySQL service — CA-signed cert, `command` restated (ADR 0012 C4, C7).
-  - [ ] Clients verify mongo's cert (mongosh, mongo-init, mongo-api, pool); today plaintext.
+  - [ ] Clients verify mongo's and redis's certs (mongosh, mongo-init, mongo-api, pool, redis
+        consumers); today plaintext.
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [ ] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext.
