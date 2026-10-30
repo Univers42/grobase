@@ -153,6 +153,12 @@ weakens `off` or `shadow`, so the code ships with the policy off.
    The strict flip needs a VM shadow window of at least 24 h with zero `would_reject`, then a fresh
    ruling, and covers `STORAGE_IDENTITY_HEADER_MODE` too. The Go services' raw-header trust is a
    separate door.
+   Built (SS1–SS12): `libs/common/src/identity/strict-shadow.ts`, hooked at the compat return of
+   `resolveRequestIdentity`; the counter `mini_baas_identity_strict_shadow_total{service,result,
+   reason}` is the denominator, reasons `no_bearer`, `bearer_invalid`, `unverifiable`, `mismatch`
+   (with `fields=`). Only routed requests are judged, so mongo-api's body-size peek is not
+   double-counted. `IDENTITY_STRICT_SHADOW=0` in `config.env`; m195 renders it on the 11 readers,
+   m202 runs a shadow sidecar beside the strict one and checks the verdicts agree.
 
 ## Evidence
 

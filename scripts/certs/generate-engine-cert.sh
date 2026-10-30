@@ -22,6 +22,7 @@
 #   generate-engine-cert.sh mssql      ENGINE_TLS_ENGINES="mssql" (ADR 0012)
 #   generate-engine-cert.sh cockroach  ENGINE_TLS_ENGINES="cockroach" (ADR 0029)
 #   generate-engine-cert.sh minio      ENGINE_TLS_ENGINES="minio" (ADR 0030)
+#   generate-engine-cert.sh data-plane ENGINE_TLS_ENGINES="data-plane" (ADR 0031)
 # Output, under ENGINE_TLS_CERT_DIR (default certs/engines for postgres,
 # certs/engine-tls/<engine> for the others): engine.pem, engine-key.pem (0600)
 # and ca.pem, the public CA a client verifies against. The CA key never leaves
@@ -30,6 +31,10 @@
 # cockroach also gets the root client cert (CN=root, clientAuth) that sets the
 # first SQL password, in the sibling <dir>-client (ENGINE_TLS_CLIENT_CERT_DIR):
 # only the cockroach overlay mounts it, never an application container.
+# data-plane's key goes to uid 65532, 0400: the router image is distroless, runs as
+# nonroot and has no shell to copy a root-owned key (devil DT1). That takes one
+# root chown in a throwaway container, so this case needs docker; the host user
+# can still delete the file (it owns the directory), which re-issuing does.
 #
 # Deliberately NOT called by expose.sh, `make certs` or the WAF CI steps: the
 # cert existing must never be what turns TLS on (G5a-C1). Renewal: re-run, then
@@ -82,8 +87,13 @@ minio)
   SANS="DNS:minio,DNS:mini-baas-minio,DNS:localhost,IP:127.0.0.1"
   OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/minio"}
   ;;
+data-plane)
+  SANS="DNS:data-plane-router-rust,DNS:mini-baas-data-plane-router-rust,DNS:localhost,IP:127.0.0.1"
+  OUT_DIR=${ENGINE_TLS_CERT_DIR:-"$CERT_DIR/engine-tls/data-plane"}
+  KEY_UID=65532
+  ;;
 *)
-  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8, mssql, cockroach or minio.\n' "$ENGINE" >&2
+  printf 'Unknown engine %s: expected postgres, mongo, redis, mariadb, mysql, mysql8, mssql, cockroach, minio or data-plane.\n' "$ENGINE" >&2
   exit 2
   ;;
 esac
@@ -145,7 +155,13 @@ else
   printf 'New engine certificate: a running %s keeps the old one until recreated.\n' "$ENGINE"
 fi
 
-chmod 600 "$KEY"
+if [ -z "${KEY_UID:-}" ]; then
+  chmod 600 "$KEY"
+elif [ "$(stat -c %u "$KEY")" != "$KEY_UID" ]; then
+  chmod 400 "$KEY"
+  docker run --rm --network none -v "$(CDPATH='' cd -- "$OUT_DIR" && pwd):/out" \
+    mirror.gcr.io/library/alpine:3.21 chown "$KEY_UID:$KEY_UID" /out/engine-key.pem
+fi
 cp "$CA_CERT" "$OUT_DIR/ca.pem"
 chmod 644 "$CERT" "$OUT_DIR/ca.pem"
 openssl x509 -in "$CERT" -noout -subject -enddate -ext subjectAltName

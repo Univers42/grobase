@@ -2,7 +2,9 @@ import { UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { UserContext, VerifiedRequestIdentity } from '../interfaces/user-context.interface';
+import { envFlag } from './env-flag';
 import { defaultNonceStore, type NonceStore } from './nonce-store';
+import { shadowStrict } from './strict-shadow';
 import { bearerToken, verifyUserJwt } from './user-jwt';
 
 type HeaderRequest = Pick<Request, 'headers' | 'method' | 'url' | 'originalUrl'>;
@@ -38,7 +40,7 @@ export async function resolveRequestIdentity(
 
   const mode = identityHeaderMode();
   const legacyIdentity = readLegacyIdentity(req);
-  if (legacyIdentity && mode === 'compat') return legacyIdentity;
+  if (legacyIdentity && mode === 'compat') return compatIdentity(req, legacyIdentity);
 
   const jwtIdentity = readBearerJwtIdentity(req, mode);
   if (jwtIdentity) return jwtIdentity;
@@ -235,6 +237,13 @@ async function readSignedIdentity(
   return identity;
 }
 
+function compatIdentity(
+  req: HeaderRequest,
+  legacy: VerifiedRequestIdentity,
+): VerifiedRequestIdentity {
+  return shadowStrict(req, legacy, () => readBearerJwtIdentity(req, 'strict'));
+}
+
 function readLegacyIdentity(req: HeaderRequest): VerifiedRequestIdentity | undefined {
   const userId = header(req, 'x-user-id');
   if (!userId) return undefined;
@@ -332,10 +341,6 @@ export function requiredIssuers(): string[] {
   throw new UnauthorizedException(
     'GOTRUE_JWT_ISSUER is empty: set it (compose defaults it to API_EXTERNAL_URL) or JWT_ALLOW_NO_ISSUER=1 to run without issuer verification',
   );
-}
-
-function envFlag(name: string): boolean {
-  return /^(1|true)$/i.test(String(process.env[name] ?? '').trim());
 }
 
 function header(req: HeaderRequest, name: string): string | undefined {

@@ -167,11 +167,12 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       runtime resolves secrets with its own `FUNCTION_SECRETS_TOKEN`, shared-token fallback
       (`secrets-token.test.ts`, `TestResolveAuthorized`, `m243-secrets-token-live.sh`).
       Open: F1 step 4 (devil BLOCK, lift conditions in ADR 0023); VM shadow window first.
-- [ ] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
+- [~] D1 enforce precondition 2: `IDENTITY_HEADER_MODE=strict` everywhere. Compat mode,
       the default outside `NODE_ENV=production`, trusts raw `x-baas-*` headers
-      (`request-identity.ts:41,364`). Ruled 2026-10-30 (devil PwC SS1–SS24): measure with an
-      additive `IDENTITY_STRICT_SHADOW` flag first, then a ≥24 h VM window with zero
-      `would_reject` before the flip.
+      (`request-identity.ts:43`). Ruled 2026-10-30 (devil PwC SS1–SS24): measure first.
+      Shadow built (SS1–SS12): `IDENTITY_STRICT_SHADOW` judges each compat raw-header accept
+      as strict would (`strict-shadow.spec.ts`, m195 render, m202 shadow sidecar). Open: a
+      ≥24 h VM window with zero `would_reject` (SS13–SS24, own window), then the flip.
 - [x] Query-router `POST /:dbId/schema/ddl` is authorized before any lookup.
       *Superseded design:* the PDP `ddl` decision and an explicit `ddl` key scope were
       ruled out by [ADR 0009](../../docs/adr/0009-query-router-ddl-requires-api-key-write-scope.md)
@@ -381,10 +382,11 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
 ### Phase 2 — TLS everywhere
 
 **G5 · TLS on every hop, enforced, gated** — gate m247
-- [ ] Internal CA (reuse the WAF's local-dev CA tooling) issues server certs for every
+- [~] Internal CA (reuse the WAF's local-dev CA tooling) issues server certs for every
       engine container; compose turns on server TLS: Postgres `ssl=on`, Mongo
       `requireTLS`, Cockroach secure mode, Redis TLS port + ACL password, MySQL/MariaDB
       `require_secure_transport`, MSSQL force encryption, MinIO/Trino HTTPS.
+      *(Every engine and MinIO done below; Trino HTTPS waits for G13, which is BLOCKED.)*
   - [x] G5a — Postgres accepts TLS behind `ENGINE_TLS=1` (overlay, own cert script, key on
         tmpfs, fail-closed without cert); default byte-identical (ADR 0011; m247 static + live
         A/B/C; CI postgres leg twice). Accept mode only — plaintext refusal is a later step.
@@ -427,6 +429,10 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         fails a wrong password, go-redis/ioredis/Debezium refuse it and hold `user=app`, CLIENT
         LIST 0 `user=default`, boots under TLS+ACL; default render byte-identical. CI job
         `redis-acl` green on develop 6234d587 (CI 41086854436). Stage 2 (`default off`) needs its own ruling.
+  - [x] G5 minio — `ENGINE_TLS_ENGINES=minio`: HTTPS only, no plaintext listener (hard cutover,
+        ADR 0030); every in-network client verifies the CA (Node, Go, mc, trino's JVM, Kong),
+        default render byte-identical. CI job `minio-https` (m262) green on develop and main
+        1e5b83a4 (CI 41094750114). VM HTTPS stays blocked (V1–V6).
 - [ ] `DATA_PLANE_TLS_INSECURE` default 0; `DATA_PLANE_TLS_CA_FILE` points at the CA.
 - [x] `reject_insecure_tls` on MySQL/MariaDB/Dynamo/MSSQL; Postgres max mode turns
       "no sslmode" into `verify-full`, not plaintext (ADR 0017; no deployment runs max yet).
@@ -441,7 +447,26 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
         against an `ssl=off` boot → refused, a CA-signed boot → `Verified` TLSv1.3.
   - [x] ADR 0017 Dynamo: under max the DSN endpoint is pinned on the service builder (env and
         profile endpoints can't redirect it) and a non-https endpoint is refused before load.
-- [ ] Internal pools (outbox, automations) and query-router → data plane use TLS.
+- [x] Internal pools (outbox, automations) and query-router → data plane use TLS.
+      *(Opt-in overlays on develop: data plane ADR 0031, Node pg clients ADR 0032 — the
+      automations pool shares `DATABASE_URL` and is not driven separately (W6). VM rollout
+      is the item below.)*
+  - [x] G5 data plane — `ENGINE_TLS_ENGINES=data-plane` (accept mode, ADR 0031, devil PwC
+        DT1–DT18): the router adds rustls :4012 (ring only, HTTP/1.1, 10 s handshake) beside
+        plaintext :4011; query-router and tenant-control dial https with `ca.pem` only. m263
+        live green locally three times 2026-10-30 (s_client refusals, uid 65532 on a 0400 key,
+        both tenant-control clients and Node with and without their trust knob); 8 static
+        mutants killed. CI job `data-plane-tls` green on develop edd33807 (run 41134396240);
+        Kong stays on :4011; no VM change.
+  - [x] G5 Node pg clients — `ENGINE_TLS_ENGINES=pg-clients` (ADR 0032, devil PwC NP1–NP12,
+        W1–W6): the nine Node services that dial the central Postgres get
+        `sslmode=verify-full&sslrootcert=` on `DATABASE_URL` and a read-only `ca.pem`; make's
+        preflight refuses `?`/`#`, a non-empty `AUDIT_DATABASE_URL`, a wrong CA, <30 days or a
+        SAN miss. m264 live green locally three times 2026-10-30 (one from fresh images): all
+        nine on TLSv1.3 by container IP, outbox and audit rows land; under an unrelated CA the
+        six PostgresModule services refuse and the other three lose the event/row with a WARN.
+        CI job `pg-clients-tls` green on develop bee884c0 (run 41139389933). Go clients, the
+        pooler and the VM are out of scope.
   - [x] G5a C6 (local, 2026-10-30): Debezium sessions + walsender on TLSv1.3 under the
         overlay; the outbox slot decodes past an m247 probe in 1 s.
   - [x] realtime's Postgres producer dials TLS when the DSN asks (`sslmode` parsed, `prefer`

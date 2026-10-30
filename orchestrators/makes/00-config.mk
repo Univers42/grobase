@@ -42,11 +42,27 @@ ENGINE_TLS     ?= $(shell sed -n 's/^ENGINE_TLS=//p' .env.local 2>/dev/null | he
 # engine's own overlay, docker-compose.engine-tls-<engine>.yml (ADR 0012). It is separate from
 # ENGINE_TLS so a Postgres-TLS host never recreates the other engines. Its cert:
 # scripts/certs/generate-engine-cert.sh <engine>. With CLOUD=1, minio also composes
-# docker-compose.cloud-minio-tls.yml for tenant-control's backup store (ADR 0030).
+# docker-compose.cloud-minio-tls.yml for tenant-control's backup store (ADR 0030). data-plane
+# adds the router's TLS port, not an engine (ADR 0031).
 ENGINE_TLS_ENGINES ?= $(shell sed -n 's/^ENGINE_TLS_ENGINES=//p' .env.local 2>/dev/null | head -1)
 # The monolith and helm still dial http://minio:9000 (ADR 0030 MH15): refuse rather than half-switch.
 ifneq ($(and $(filter minio,$(ENGINE_TLS_ENGINES)),$(filter-out docker-compose.yml,$(COMPOSE_FILE))),)
 $(error ENGINE_TLS_ENGINES=minio supports only COMPOSE_FILE=docker-compose.yml, not $(COMPOSE_FILE) (ADR 0030 MH15))
+endif
+# The monolith and the nano/one editions have no TLS port (ADR 0031 DT16): refuse the same way.
+ifneq ($(and $(filter data-plane,$(ENGINE_TLS_ENGINES)),$(filter-out docker-compose.yml,$(COMPOSE_FILE))),)
+$(error ENGINE_TLS_ENGINES=data-plane supports only COMPOSE_FILE=docker-compose.yml, not $(COMPOSE_FILE) (ADR 0031))
+endif
+# pg-clients points the Node services' DATABASE_URL at the accept-mode server with
+# verify-full (ADR 0032 NP1): without ENGINE_TLS=1 nothing serves TLS, and the monolith and
+# the editions were never rendered against it.
+ifneq ($(filter pg-clients,$(ENGINE_TLS_ENGINES)),)
+ifneq ($(ENGINE_TLS),1)
+$(error ENGINE_TLS_ENGINES=pg-clients needs ENGINE_TLS=1, the accept-mode Postgres it verifies (ADR 0032))
+endif
+ifneq ($(filter-out docker-compose.yml,$(COMPOSE_FILE)),)
+$(error ENGINE_TLS_ENGINES=pg-clients supports only COMPOSE_FILE=docker-compose.yml, not $(COMPOSE_FILE) (ADR 0032))
+endif
 endif
 # REDIS_ACL=1 (env, or a REDIS_ACL= line in .env.local) composes the Redis ACL overlay,
 # stage 1 (docker-compose.redis-acl.yml, ADR 0028): redis gains the app user, every redis
