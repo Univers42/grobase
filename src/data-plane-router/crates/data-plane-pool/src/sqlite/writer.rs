@@ -27,6 +27,7 @@ use rusqlite::Connection;
 
 use super::error::classify_sqlite_ddl_error;
 use super::exec::{exec_write, query_rows, run_plan};
+use super::harden::{harden, tune};
 use super::query::SqlPlan;
 
 /// Upper bound on jobs coalesced into one transaction. Big enough to amortize
@@ -95,10 +96,8 @@ impl Deferred {
 
 fn open_writer_conn(path: &str) -> Result<Connection, rusqlite::Error> {
     let conn = Connection::open(path)?;
-    conn.pragma_update(None, "journal_mode", "WAL")?;
-    conn.pragma_update(None, "synchronous", "NORMAL")?;
-    conn.pragma_update(None, "busy_timeout", 5000)?;
-    conn.pragma_update(None, "foreign_keys", "ON")?;
+    tune(&conn)?;
+    harden(&conn)?;
     Ok(conn)
 }
 

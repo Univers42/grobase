@@ -65,7 +65,7 @@ deadpool-postgres = "0.14"
 # R-sqlite: embedded SQLite engine. `bundled` compiles SQLite in (no system
 # libsqlite3 — distroless-safe); deadpool-sqlite gives an async pool that runs
 # rusqlite's sync API on a blocking thread via `interact()`.
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.31", features = ["bundled", "hooks", "limits"] }
 deadpool-sqlite = "0.8"
 # R-mssql: Microsoft SQL Server (TDS) via the pure-Rust tiberius driver +
 # bb8 pool. `rustls` matches the workspace TLS posture; `tokio-util` provides
