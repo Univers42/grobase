@@ -64,6 +64,9 @@ export interface AdapterResponse {
   // pool on `credential_ref.version`, so this is what forks a fresh pool
   // after a credential rotation (absent on an older registry).
   revision?: number;
+  // Descriptor classifier's placement of the mount's DSN (network|platform|file|memory|unknown;
+  // absent for cred-ref mounts) — the live probe hides a "platform" mount's version.
+  location?: string;
 }
 
 export interface EngineDescriptor {

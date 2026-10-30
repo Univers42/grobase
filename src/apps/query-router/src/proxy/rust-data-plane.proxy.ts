@@ -15,8 +15,10 @@ import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
+  NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -172,6 +174,16 @@ export interface RustSchemaDdlResult {
   op: string;
   table: string;
   status: string;
+}
+
+/** `POST /v1/probe` response — mirrors `data_plane_core::EngineProbe`
+ *  (snake_case on the wire; `tls_version` is present only when the engine
+ *  negotiated TLS). */
+export interface RustEngineProbe {
+  server_version: string;
+  /** verified | encrypted | plaintext | not_applicable | unknown */
+  tls: string;
+  tls_version?: string;
 }
 
 /**
@@ -343,6 +355,39 @@ export class RustDataPlaneProxy {
       context,
       `${context.engine}.schema`,
     );
+  }
+
+  /**
+   * Live engine probe (devil G4): POSTs the `{ identity, mount }` envelope to
+   * the Rust router's `/v1/probe` and returns its `EngineProbe` verbatim —
+   * the live server version plus the TLS posture of the pool's connection.
+   *
+   * Error mapping is probe-specific, so this calls {@link sendJson} directly
+   * instead of {@link postJson}: the data plane registers `/v1/probe` only
+   * under `DATA_PLANE_PROBE=1`, so a 404 means the probe is disabled (not a
+   * generic rejection), and its 1/s-per-mount rate limit surfaces as a 429.
+   * Everything else keeps the shared `wrapError` mapping.
+   */
+  async probe(context: RustProxyContext): Promise<RustEngineProbe> {
+    const body = {
+      identity: this.buildIdentity(context),
+      mount: this.buildMount(context, 'probe'),
+    };
+    try {
+      return await this.sendJson<RustEngineProbe>('/v1/probe', body, context);
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        throw new NotFoundException('engine probe is disabled');
+      }
+      if (status === 429) {
+        throw new HttpException(
+          { statusCode: 429, error: 'too_many_requests', message: 'probe rate limited' },
+          429,
+        );
+      }
+      throw this.wrapError(error, `${context.engine}.probe`);
+    }
   }
 
   /**
@@ -547,23 +592,30 @@ export class RustDataPlaneProxy {
     context: RustProxyContext,
     label = path,
   ): Promise<T> {
-    // Serialized here, not by axios: the signature covers these exact bytes.
-    const payload = JSON.stringify(body);
     try {
-      const { data } = await firstValueFrom(
-        this.http.post<T>(`${this.url}${path}`, payload, {
-          timeout: this.timeoutMs,
-          headers: {
-            ...this.headersFor(context),
-            ...this.authHeaders('POST', path, payload),
-            'Content-Type': 'application/json',
-          },
-        }),
-      );
-      return data;
+      return await this.sendJson<T>(path, body, context);
     } catch (error) {
       throw this.wrapError(error, label);
     }
+  }
+
+  /** The transport half of {@link postJson}: sign, POST and return `data`,
+   *  letting the raw axios error propagate so a route that needs the upstream
+   *  status (probe) can map it itself. */
+  private async sendJson<T>(path: string, body: unknown, context: RustProxyContext): Promise<T> {
+    // Serialized here, not by axios: the signature covers these exact bytes.
+    const payload = JSON.stringify(body);
+    const { data } = await firstValueFrom(
+      this.http.post<T>(`${this.url}${path}`, payload, {
+        timeout: this.timeoutMs,
+        headers: {
+          ...this.headersFor(context),
+          ...this.authHeaders('POST', path, payload),
+          'Content-Type': 'application/json',
+        },
+      }),
+    );
+    return data;
   }
 
   private wrapError(error: unknown, label: string): Error {

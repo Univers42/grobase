@@ -20,12 +20,14 @@ import { TxnController } from './txn.controller';
 import { EnginesController } from './engines.controller';
 import { CapabilitiesController } from './capabilities.controller';
 import { SchemaController } from './schema.controller';
+import { ProbeController } from './probe.controller';
 import { AutomationsController } from './automations.controller';
 import { QueryService } from './query.service';
 import { OutboxService } from './outbox.service';
 import { AutomationsService } from './automations.service';
 import { RealtimePublisherService } from './realtime-publisher.service';
 import { SchemaService } from './schema.service';
+import { ProbeService } from './probe.service';
 import { RustDataPlaneProxy } from '../proxy/rust-data-plane.proxy';
 import { GraphController } from '../graph/graph.controller';
 import { GraphService } from '../graph/graph.service';
@@ -46,6 +48,7 @@ import { GraphService } from '../graph/graph.service';
     EnginesController,
     CapabilitiesController,
     SchemaController,
+    ProbeController,
     AutomationsController,
     GraphController,
   ],
@@ -57,6 +60,7 @@ import { GraphService } from '../graph/graph.service';
     RealtimePublisherService,
     RustDataPlaneProxy,
     SchemaService,
+    ProbeService,
     GraphService,
   ],
 })
