@@ -206,14 +206,17 @@ parallel with G1; G11 splits into G11a (allowed) and G11b (blocked).
       AWS credential chain.
   - [x] D1 pgwire + MySQL (devil PwC C1–C9, ADR 0019, 29d12fb6): one classifier, per-dial
         IP pin, `DATA_PLANE_DIAL_GUARD=off|shadow|enforce` default `off`, a typo refuses
-        startup, provenance from the resolver only. Gate m244 in CI. D4 DynamoDB (C12)
-        open; D3b Mongo SDAM and subnet enforce BLOCKED.
+        startup, provenance from the resolver only. Gate m244 in CI. D3b Mongo SDAM and
+        subnet enforce BLOCKED.
   - [x] D3a Redis (C11, 5b84a367): dials `Tcp(<vetted ip>, port)` with db/user/protocol
         kept, unix and TLS addresses refused, 30 s checkout re-vet swaps the manager only
         when the pin leaves the vetted set. Flag off.
   - [x] D2 SQL Server (C10, 71a0a8f8): own bb8 manager vets the DSN host and the one TDS
         Routing hop, dials each by its first vetted IP (TLS keeps the name), refuses
         `host\instance`, prechecks at open. Flag off.
+  - [x] D4 DynamoDB (C12, fbc66e2c): the SDK connector resolves through a vetting
+        resolver on every new connection; IP-literal endpoints vetted at open; a Tenant
+        mount without static keys refused as `default_credentials`. Flag off.
 - [x] HTTP redirects stay on the mount's origin (G2-H1, devil PwC H1–H4). The SSRF pin
       covered only the base host, and reqwest followed any 3xx, so a public upstream could
       redirect into 169.254.169.254. `http/redirect.rs` follows only same scheme, host and port
