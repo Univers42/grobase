@@ -6,7 +6,7 @@
 /*   By: dlesieur <dlesieur@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/21 04:27:24 by dlesieur          #+#    #+#             */
-/*   Updated: 2026/06/21 04:27:26 by dlesieur         ###   ########.fr       */
+/*   Updated: 2026/10/30 09:10:00 by dlesieur         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,6 +50,7 @@ impl EngineAdapter for MssqlEngineAdapter {
         let manager = ConnectionManager::new(config);
         let pool = Pool::builder()
             .max_size(mount.pool_policy.max.max(1))
+            .connection_timeout(CHECKOUT_TIMEOUT)
             .build(manager)
             .await
             .map_err(|e| DataPlaneError::Backend {
@@ -69,6 +70,12 @@ impl EngineAdapter for MssqlEngineAdapter {
         Ok(EngineHealth::unknown("mssql", pool.mount_id()))
     }
 }
+
+/// bb8's 30 s default held every request on a dead server, the dial included.
+///
+/// Caveat: it also bounds checkout under saturation — a burst above `pool_policy.max`
+/// now fails after 5 s instead of queueing 30 s; raise `max` for such a mount.
+const CHECKOUT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Build a tiberius `Config` from a `mssql://user:pass@host:port/db` DSN. The
 /// TLS posture is decided by [`apply_mssql_tls`] — tiberius verifies the server
