@@ -68,6 +68,20 @@ pub(crate) fn reject_insecure_tls(
     Ok(())
 }
 
+/// `DATA_PLANE_TLS_CA_FILE`, read now so a bad path fails the open, not the first query.
+#[cfg(feature = "mysql")]
+pub(crate) fn tls_ca_pem() -> DataPlaneResult<Option<Vec<u8>>> {
+    let path = std::env::var("DATA_PLANE_TLS_CA_FILE").unwrap_or_default();
+    if path.is_empty() {
+        return Ok(None);
+    }
+    std::fs::read(&path)
+        .map(Some)
+        .map_err(|e| DataPlaneError::Backend {
+            message: format!("DATA_PLANE_TLS_CA_FILE read failed: {e}"),
+        })
+}
+
 /// Install ring as rustls's process-wide crypto provider (idempotent: `Err` means one is
 /// already installed). A build linking both ring and aws-lc-rs (`--features dynamodb`)
 /// leaves rustls no default, so a driver calling `ClientConfig::builder()` (mysql_async
