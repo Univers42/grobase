@@ -169,7 +169,7 @@ impl MongoPool {
         let match_doc = build_tenant_filter(
             op.filter.as_ref(),
             identity,
-            &identity.tenant_id,
+            self.scope_tenant(identity),
             self.is_shared(&op.resource),
         )?;
 
@@ -225,7 +225,7 @@ impl MongoPool {
         let filter = build_tenant_filter(
             op.filter.as_ref(),
             identity,
-            &identity.tenant_id,
+            self.scope_tenant(identity),
             self.is_shared(&op.resource),
         )?;
         let limit = op.limit.unwrap_or(100).min(1_000) as i64;
@@ -256,7 +256,7 @@ impl MongoPool {
         let filter = build_tenant_filter(
             op.filter.as_ref(),
             identity,
-            &identity.tenant_id,
+            self.scope_tenant(identity),
             self.is_shared(&op.resource),
         )?;
         let doc = col.find_one(filter).await.map_err(mongo_err)?;
@@ -278,7 +278,7 @@ impl MongoPool {
             .ok_or_else(|| DataPlaneError::InvalidRequest {
                 message: "insert requires operation.data".to_string(),
             })?;
-        let mut doc = build_owned_doc(data, identity, &identity.tenant_id)?;
+        let mut doc = build_owned_doc(data, identity, self.scope_tenant(identity))?;
         let result = match col.insert_one(&doc).await {
             Ok(result) => result,
             Err(error) => {
@@ -298,7 +298,7 @@ impl MongoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "update")?;
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id, false)?;
+        let filter = build_tenant_filter(op.filter.as_ref(), identity, self.scope_tenant(identity), false)?;
         let data = op
             .data
             .as_ref()
@@ -311,7 +311,7 @@ impl MongoPool {
         // `owner_id`/`tenant_id` on its OWN (correctly owner-scoped) document and
         // re-home it into another tenant's namespace. `build_owned_doc` also runs
         // `reject_top_level_operators`, so the `$`-key rejection is preserved.
-        let mut set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
+        let mut set_doc = build_owned_doc(data, identity, self.scope_tenant(identity))?;
         let result = match col
             .update_many(filter.clone(), bson::doc! { "$set": set_doc.clone() })
             .await
@@ -335,7 +335,7 @@ impl MongoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "delete")?;
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, &identity.tenant_id, false)?;
+        let filter = build_tenant_filter(op.filter.as_ref(), identity, self.scope_tenant(identity), false)?;
         let result = col.delete_many(filter).await.map_err(mongo_err)?;
         Ok(DataResult::new(vec![], result.deleted_count))
     }
@@ -372,9 +372,11 @@ impl MongoPool {
         }
         // Always enforce tenant scope on the filter side too.
         filter.insert("owner_id", MongoPool::owner(identity));
-        filter.insert("tenant_id", identity.tenant_id.clone());
+        if !self.tenant_owned {
+            filter.insert("tenant_id", identity.tenant_id.clone());
+        }
 
-        let mut set_doc = build_owned_doc(data, identity, &identity.tenant_id)?;
+        let mut set_doc = build_owned_doc(data, identity, self.scope_tenant(identity))?;
         let upsert = || UpdateOptions::builder().upsert(true).build();
         let result = match col
             .update_one(filter.clone(), bson::doc! { "$set": set_doc.clone() })
