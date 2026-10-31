@@ -72,7 +72,7 @@ parity: ## Layer-swap parity gate (NEW=<url> [OLD=<url>] [ROUTES=<set>] [RECORD=
 parity-suite: ## Legacy full-suite TS↔Rust shadow probe (restarts query-router; historical)
 	@bash scripts/verify/parity-probe.sh
 
-cutover-%: ## Gated promotion of a plane/service (runs parity, then restarts it) — override NEW=/ROUTES= per plane
+cutover-%: _pg-clients-tls ## Gated promotion of a plane/service (runs parity, then restarts it) — override NEW=/ROUTES= per plane
 	@echo -e "$(_Y)Cutover '$*' — requires a green parity verdict first.$(_0)"
 	@$(MAKE) --no-print-directory parity NEW="$(or $(NEW),http://127.0.0.1:4011)" ROUTES="$(or $(ROUTES),data-plane-contract)"
 	@$(DCE) up -d --no-deps $* && echo -e "$(_G)✓ '$*' restarted; set its *_PRODUCT_MODE=enabled in .env to make it live$(_0)"

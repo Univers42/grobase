@@ -64,6 +64,17 @@ fn healthcheck() -> anyhow::Result<()> {
     let host =
         std::env::var("DATA_PLANE_ROUTER_HEALTH_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("DATA_PLANE_ROUTER_PORT").unwrap_or_else(|_| "4011".to_string());
+    probe(&host, &port)?;
+    // A configured TLS port is part of health: an image too old to bind it must not
+    // look healthy while clients dial it (DT11).
+    let plain_port = port.trim().parse().unwrap_or(0);
+    if let Some(tls) = data_plane_server::tls_listener::settings_from_env(plain_port)? {
+        probe(&host, &tls.port.to_string())?;
+    }
+    Ok(())
+}
+
+fn probe(host: &str, port: &str) -> anyhow::Result<()> {
     let addr = format!("{host}:{port}")
         .to_socket_addrs()?
         .next()
