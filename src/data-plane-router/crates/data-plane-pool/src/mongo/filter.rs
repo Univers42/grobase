@@ -136,8 +136,10 @@ pub(super) fn build_owned_doc(
     for field in RESERVED_FIELDS {
         doc.remove(field);
     }
-    doc.insert("owner_id", MongoPool::owner(identity));
-    doc.insert("tenant_id", tenant_id.to_string());
+    if !tenant_id.is_empty() {
+        doc.insert("owner_id", MongoPool::owner(identity));
+        doc.insert("tenant_id", tenant_id.to_string());
+    }
     Ok(doc)
 }
 
@@ -251,6 +253,9 @@ pub(super) fn build_tenant_filter(
     if let Some(id) = doc.remove("_id") {
         doc.insert("_id", coerce_id_filter(id));
     }
+    if tenant_id.is_empty() {
+        return Ok(doc);
+    }
     if !shared {
         doc.insert("owner_id", MongoPool::owner(identity));
     }
@@ -318,6 +323,15 @@ mod tests {
         assert_eq!(doc.get_str("_id").unwrap(), "evt-000001");
         assert_eq!(doc.get_str("owner_id").unwrap(), "api-key:k1");
         assert_eq!(doc.get_str("tenant_id").unwrap(), "t1");
+    }
+
+    #[test]
+    fn tenant_owned_scope_adds_neither_owner_nor_tenant() {
+        let identity = probe_identity();
+        let filter = build_tenant_filter(Some(&json!({ "a": 1 })), &identity, "", false).unwrap();
+        assert!(!filter.contains_key("owner_id") && !filter.contains_key("tenant_id"));
+        let doc = build_owned_doc(&json!({ "a": 1 }), &identity, "").unwrap();
+        assert!(!doc.contains_key("owner_id") && !doc.contains_key("tenant_id"));
     }
 
     #[test]
