@@ -100,6 +100,15 @@ fn admin_bypass_enabled() -> bool {
     )
 }
 
+/// Marks every table of a `tenant_owned` mount as shared. `validate_shared_resources`
+/// only admits plain table names, so a caller cannot register this value.
+const ALL_TABLES: &str = "*";
+
+/// Whether `resource` skips owner scoping on this mount.
+fn is_shared(shared: &[String], resource: &str) -> bool {
+    shared.iter().any(|t| t == ALL_TABLES || t == resource)
+}
+
 /// Single (non-batch) operation dispatch shared by the auto-commit and tx
 /// paths — the arms `run_batch` loops over. Exhaustive by enumeration so the
 /// match can't silently drift from SUPPORTED_OPS. `scoped` is derived from THIS
@@ -110,7 +119,7 @@ pub(super) async fn dispatch_single(
     identity: &RequestIdentity,
     shared: &[String],
 ) -> DataPlaneResult<DataResult> {
-    let scoped = !shared.iter().any(|t| t == &operation.resource);
+    let scoped = !is_shared(shared, &operation.resource);
     // F2 admin bypass: an admin's reads + filter-based mutations skip the owner
     // predicate (read across owners). INSERT/UPSERT keep `scoped` so an admin's
     // new rows still stamp `owner_id`. OFF by default → read_scoped == scoped
@@ -188,16 +197,6 @@ impl EngineAdapter for MysqlEngineAdapter {
     // ponytail: linear pool-construction sequence (isolation guard → DSN →
     //   constraints → TLS posture → namespace) — one straight-line setup, no branch to factor.
     async fn open_pool(&self, mount: DatabaseMount) -> DataPlaneResult<Box<dyn EnginePool>> {
-        // tenant_owned (no per-row owner scoping) is implemented for
-        // PostgreSQL only so far — fail CLOSED here rather than silently
-        // owner-scoping a mount that promised not to (wrong rows beat
-        // surprising rows, but a clear error beats both).
-        if !mount.isolation().owner_scoped() {
-            return Err(DataPlaneError::NotImplemented {
-                feature: "tenant_owned isolation on this engine (PostgreSQL only for now)"
-                    .to_string(),
-            });
-        }
         let resolved = self.resolver.resolve(&mount).await?;
         let base_opts = Opts::from_url(&resolved.dsn).map_err(|e| DataPlaneError::Backend {
             message: format!("invalid mysql URL: {e}"),
@@ -247,7 +246,11 @@ impl EngineAdapter for MysqlEngineAdapter {
         let shared_pool = crate::pools_shared(&mount);
         // F1 per-table isolation: the set of NAMED tables that skip owner-scoping.
         // Forced empty unless the master flag is ON → byte-parity by construction.
-        let shared_resources: std::sync::Arc<[String]> = if per_table_isolation_enabled() {
+        // tenant_owned: the database belongs to the tenant and predates the platform, so
+        // no table carries `owner_id`. Every table is treated as shared.
+        let shared_resources: std::sync::Arc<[String]> = if !mount.isolation().owner_scoped() {
+            std::sync::Arc::from([ALL_TABLES.to_string()])
+        } else if per_table_isolation_enabled() {
             mount.shared_resources().into()
         } else {
             Vec::new().into()
@@ -275,4 +278,24 @@ impl EngineAdapter for MysqlEngineAdapter {
 // inline + delete in a follow-up.
 pub(super) fn resolve_namespace(mount: &DatabaseMount) -> Option<String> {
     mount.resolve_namespace()
+}
+
+#[cfg(test)]
+mod is_shared_tests {
+    use super::{is_shared, ALL_TABLES};
+
+    #[test]
+    fn named_table_is_shared_and_others_stay_scoped() {
+        let shared = vec!["orders".to_string()];
+        assert!(is_shared(&shared, "orders"));
+        assert!(!is_shared(&shared, "tickets"));
+        assert!(!is_shared(&[], "orders"));
+    }
+
+    #[test]
+    fn tenant_owned_marker_shares_every_table() {
+        let shared = vec![ALL_TABLES.to_string()];
+        assert!(is_shared(&shared, "orders"));
+        assert!(is_shared(&shared, "any_table"));
+    }
 }
