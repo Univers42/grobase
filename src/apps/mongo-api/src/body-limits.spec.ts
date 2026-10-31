@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { Logger } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
@@ -38,6 +39,27 @@ describe('hasVerifiedIdentity', () => {
     expect(await hasVerifiedIdentity(request({}))).toBe(false);
     expect(await hasVerifiedIdentity(request({ authorization: 'Bearer a.b.c' }))).toBe(false);
     expect(await hasVerifiedIdentity(request({ 'x-baas-signature': 'v1=00' }))).toBe(false);
+  });
+
+  // SS7: the peek resolves before routing, so IDENTITY_STRICT_SHADOW never judges or
+  // logs it — AuthGuard's resolve on the same request is the one that counts.
+  it('is never judged by the strict shadow', async () => {
+    const saved = [process.env.IDENTITY_HEADER_MODE, process.env.IDENTITY_STRICT_SHADOW];
+    Object.assign(process.env, { IDENTITY_HEADER_MODE: 'compat', IDENTITY_STRICT_SHADOW: '1' });
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(await hasVerifiedIdentity(request({ 'x-user-id': 'user-1' }))).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      for (const [key, value] of [
+        ['IDENTITY_HEADER_MODE', saved[0]],
+        ['IDENTITY_STRICT_SHADOW', saved[1]],
+      ] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });
 

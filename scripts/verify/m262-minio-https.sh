@@ -21,7 +21,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OVERLAY="orchestrators/compose/docker-compose.engine-tls-minio.yml"
 CLOUD_TLS="orchestrators/compose/docker-compose.cloud-minio-tls.yml"
-CLOUD_BASE="orchestrators/compose/docker-compose.cloud.yml"
 PROBES="${ROOT}/scripts/verify/m262-minio-https"
 PROJECT="${M262_PROJECT:-m262}"
 WORK=""
@@ -33,26 +32,8 @@ fail() {
   exit 1
 }
 
-# render OUT FILE... — every profile's config as JSON, with the cert dir under WORK.
-render() {
-  local out="$1" f
-  local -a files=(-f "${ROOT}/docker-compose.yml")
-  shift
-  for f in "$@"; do
-    [[ "${f}" == /* ]] || f="${ROOT}/${f}"
-    files+=(-f "${f}")
-  done
-  ENGINE_TLS_MINIO_CERT_DIR="${WORK}/minio" docker compose --project-directory "${ROOT}" "${files[@]}" \
-    --profile '*' config --format json >"${WORK}/${out}" 2>"${WORK}/render.err" ||
-    fail "compose cannot render ${out}: $(head -c 300 "${WORK}/render.err")"
-}
-# make_var NAME [MAKE_ARGS...] — a variable as the Makefile expands it.
-make_var() {
-  local name="$1"
-  shift
-  make -s --no-print-directory -C "${ROOT}" ENGINE_TLS_ENGINES= CLOUD= "$@" \
-    --eval "m262-var: ; @echo \$(${name})" m262-var 2>&1
-}
+# shellcheck source=../lib/lib-overlay-render.sh
+. "${ROOT}/scripts/lib/lib-overlay-render.sh"
 plain_count() { jq '[.. | strings | select(test("http://(mini-baas-)?minio:9000"))] | length' "${WORK}/$1"; }
 
 static_opt_in() {
@@ -69,14 +50,6 @@ static_opt_in() {
   mono="$(make_var DC ENGINE_TLS_ENGINES=minio COMPOSE_FILE=orchestrators/compose/docker-compose.monolith.yml || true)"
   [[ "${mono}" == *"supports only COMPOSE_FILE=docker-compose.yml"* ]] || fail "make composes the minio overlay on the monolith (MH15)"
   ok "MH1/MH10/MH15: opt-in only, cloud companion only with CLOUD=1, never in PROD_FILES or on the monolith"
-}
-
-# cloud_stub copies the cloud overlay with its flags.env.cloud env_file pointed at a
-# one-key stub, as m195 does: the real file is gitignored and absent on a fresh clone.
-cloud_stub() {
-  printf 'M262_CLOUD_SENTINEL=1\n' >"${WORK}/flags.env.cloud"
-  sed "s#infra/config/cloud/flags\.env\.cloud#${WORK}/flags.env.cloud#g" "${ROOT}/${CLOUD_BASE}" >"${WORK}/cloud.yml"
-  printf '%s' "${WORK}/cloud.yml"
 }
 
 static_renders() {
@@ -182,6 +155,7 @@ cleanup() {
 main() {
   WORK="$(mktemp -d "${M262_TMP:-${TMPDIR:-/tmp}}/m262.XXXXXX")"
   trap cleanup EXIT
+  export ENGINE_TLS_MINIO_CERT_DIR="${WORK}/minio"
   step "static: opt-in, renders, trust, kong, records"
   static_opt_in
   static_renders

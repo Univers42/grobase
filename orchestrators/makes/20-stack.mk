@@ -11,7 +11,7 @@
 # **************************************************************************** #
 
 ##@ Stack lifecycle — up · down · build · health · benchmarks · reports
-up: _require-compose _rm-stale _image-provenance ## Start the selected EDITION (detached)
+up: _require-compose _pg-clients-tls _rm-stale _image-provenance ## Start the selected EDITION (detached)
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
@@ -55,7 +55,7 @@ health: ## Whole-stack health, exits 1 on any failure: containers, service→ser
 		HEALTH_EXPECT="$(if $(filter command environment,$(firstword $(origin PACKAGE)) $(firstword $(origin EDITION)) $(firstword $(origin PROFILES))),$$($(DCE) config --services 2>/dev/null | tr '\n' ' '))" \
 		sh scripts/ops/stack-health.sh
 
-bench-startup: _require-compose _rm-stale ## Time the stack until health checks pass (target ≤90s)
+bench-startup: _require-compose _pg-clients-tls _rm-stale ## Time the stack until health checks pass (target ≤90s)
 	@t0=$$(date +%s); eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d; \
 	for svc in mini-baas-postgres mini-baas-gotrue mini-baas-postgrest mini-baas-kong; do \
 		printf "  Waiting: %-26s" "$$svc"; \
@@ -171,6 +171,11 @@ with_provenance = tmp=$$(mktemp -d); \
 	  && bash scripts/ops/image-provenance.sh override "$$tmp/config.json" >"$$tmp/provenance.yml" \
 	  && COMPOSE_BAKE=true $(1) -f "$$tmp/provenance.yml" $(2); \
 	rc=$$?; rm -rf "$$tmp"; exit $$rc
+
+# ENGINE_TLS_ENGINES=pg-clients: refuse a DSN or cert that verify-full would turn into silent
+# outbox/audit loss, before compose starts anything (ADR 0032 NP4-NP6).
+_pg-clients-tls:
+	@$(if $(filter pg-clients,$(ENGINE_TLS_ENGINES)),bash scripts/certs/check-pg-clients-tls.sh,:)
 
 _image-provenance:
 	@$(DCE) config --format json 2>/dev/null | bash scripts/ops/image-provenance.sh check
