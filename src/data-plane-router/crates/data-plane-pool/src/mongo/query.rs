@@ -298,7 +298,12 @@ impl MongoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "update")?;
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, self.scope_tenant(identity), false)?;
+        let filter = build_tenant_filter(
+            op.filter.as_ref(),
+            identity,
+            self.scope_tenant(identity),
+            false,
+        )?;
         let data = op
             .data
             .as_ref()
@@ -335,7 +340,12 @@ impl MongoPool {
         identity: &RequestIdentity,
     ) -> DataPlaneResult<DataResult> {
         require_row_filter(op.filter.as_ref(), "delete")?;
-        let filter = build_tenant_filter(op.filter.as_ref(), identity, self.scope_tenant(identity), false)?;
+        let filter = build_tenant_filter(
+            op.filter.as_ref(),
+            identity,
+            self.scope_tenant(identity),
+            false,
+        )?;
         let result = col.delete_many(filter).await.map_err(mongo_err)?;
         Ok(DataResult::new(vec![], result.deleted_count))
     }
