@@ -180,6 +180,7 @@ pub(super) fn describe_schema_blocking(conn: &Connection) -> DataPlaneResult<Sch
         }
         primary_key.sort_by_key(|(rank, _)| *rank);
         tables.push(TableSchema {
+            read_only: false,
             name: table,
             primary_key: primary_key.into_iter().map(|(_, n)| n).collect(),
             columns,

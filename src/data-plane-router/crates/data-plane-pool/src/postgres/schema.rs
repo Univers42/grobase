@@ -187,23 +187,24 @@ pub(super) async fn describe_schema(
         );
     }
 
-    // Columns of every BASE TABLE in the scoped schema, in ordinal order.
+    // Columns of every table and view in the scoped schema, in ordinal order.
     let mut tables: std::collections::BTreeMap<String, Vec<ColumnSchema>> = Default::default();
     let col_rows = client
         .query(
             "SELECT c.table_name, c.column_name, c.udt_name, c.data_type,
-                        c.is_nullable, c.column_default
+                        c.is_nullable, c.column_default, t.table_type
                  FROM information_schema.columns c
                  JOIN information_schema.tables t
                    ON t.table_schema = c.table_schema AND t.table_name = c.table_name
                  WHERE c.table_schema = $1
-                   AND t.table_type = 'BASE TABLE'
+                   AND t.table_type IN ('BASE TABLE', 'VIEW')
                    AND c.table_name <> '_baas_migrations'
                  ORDER BY c.table_name, c.ordinal_position",
             &[&schema],
         )
         .await
         .map_err(|e| backend(&e))?;
+    let mut views = std::collections::BTreeSet::new();
     for row in &col_rows {
         let table: String = row.get(0);
         let name: String = row.get(1);
@@ -211,6 +212,10 @@ pub(super) async fn describe_schema(
         let data_type: String = row.get(3);
         let is_nullable: String = row.get(4);
         let default: Option<String> = row.get(5);
+        let table_type: String = row.get(6);
+        if table_type.eq_ignore_ascii_case("view") {
+            views.insert(table.clone());
+        }
 
         let (normalized_type, enum_values) = match enums.get(&udt) {
             // USER-DEFINED type with pg_enum rows → enum + its labels.
@@ -237,6 +242,7 @@ pub(super) async fn describe_schema(
         tables: tables
             .into_iter()
             .map(|(name, columns)| TableSchema {
+                read_only: views.contains(&name),
                 primary_key: pks.remove(&name).unwrap_or_default(),
                 name,
                 columns,

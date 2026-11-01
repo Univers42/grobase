@@ -651,6 +651,7 @@ impl EnginePool for DynamoPool {
         for name in names {
             if let Ok(rows) = self.sample_owner_rows(&name, &owner_pk).await {
                 tables.push(TableSchema {
+                    read_only: false,
                     primary_key: vec![SK.to_string()],
                     columns: infer_dynamo_columns(&rows),
                     name,

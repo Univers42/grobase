@@ -258,6 +258,7 @@ impl EnginePool for MongoPool {
                 }
             };
             tables.push(TableSchema {
+                read_only: false,
                 name: spec.name,
                 primary_key: vec!["_id".to_string()],
                 columns,
