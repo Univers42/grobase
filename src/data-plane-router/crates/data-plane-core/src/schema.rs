@@ -88,6 +88,9 @@ pub struct TableSchema {
     pub name: String,
     pub primary_key: Vec<String>,
     pub columns: Vec<ColumnSchema>,
+    /// A SQL view: readable, with no primary key to address a row by.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only: bool,
 }
 
 /// The full per-mount schema returned by `POST /v1/schema`.
@@ -99,6 +102,7 @@ pub struct SchemaDescriptor {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use serde_json::json;
 
@@ -161,5 +165,12 @@ mod tests {
             assert_eq!(serde_json::to_string(&ty).unwrap(), wire);
             assert_eq!(serde_json::from_str::<NormalizedType>(wire).unwrap(), ty);
         }
+    }
+
+    #[test]
+    fn a_descriptor_from_before_read_only_still_parses_as_writable() {
+        let table: TableSchema =
+            serde_json::from_str(r#"{"name":"t","primary_key":[],"columns":[]}"#).unwrap();
+        assert!(!table.read_only);
     }
 }
