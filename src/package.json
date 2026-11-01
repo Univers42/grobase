@@ -104,7 +104,9 @@
     "multer": "^2.5.0",
     "js-yaml@^4.0.0": "^4.3.2",
     "@opentelemetry/propagator-jaeger": "^2.9.0",
-    "@grpc/grpc-js": "^1.14.5"
+    "@grpc/grpc-js": "^1.14.5",
+    "follow-redirects": "^1.16.2",
+    "systeminformation": "^5.33.16"
   },
   "jest": {
     "moduleFileExtensions": [
