@@ -303,6 +303,7 @@ probe() {
       ["content-chat-code", "POST", "/rest/v1/osionos_chat_messages", { body: "console.log(x)" }],
       ["content-patch-profile", "PATCH", "/rest/v1/osionos_bridge_identities?user_id=eq.6f1c0f5e-0000-4000-8000-000000000002", { profile: { headline: "Founder" } }],
       ["content-odb-protocol-title", "POST", odbPath, title],
+      ["content-odb-java-words", "POST", odbPath, odb("the runtime checks of java.lang")],
       ["content-odb-html-tag", "PATCH", odbPatch, odb("<html>")],
       ["content-odb-meta-tag", "PATCH", odbPatch, odb("<meta charset=utf-8>")],
       ["content-odb-header-lines", "POST", odbPath, odb("a\nSet-Cookie: x=1")],
