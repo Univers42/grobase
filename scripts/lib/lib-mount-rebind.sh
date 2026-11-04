@@ -31,7 +31,8 @@ JQ
 # mount-rebind config line. Refuses unless exactly one VAULT_ENC_KEY is in use there. With
 # $envkey true, no container carrying one means the source env file's key is the target's
 # too: vault-restore runs with the engines alone, and that file is the target's own .env.
-# jq arguments: --rawfile srcenv FILE, --argjson envkey true|false.
+# jq arguments: --rawfile srcenv FILE, --argjson envkey true|false, and optionally
+# --argjson reseat OBJECT, mount name to declared database (see Config.Reseat).
 rebind_config_program() {
   rebind_redis_program
   cat <<'JQ'
@@ -47,6 +48,7 @@ def srckey: $srcenv | split("\n") | map(select(startswith("VAULT_ENC_KEY="))) | 
 | . as $all
 | (map(select(.Name == "/mini-baas-redis")) | .[0].Args // []) as $ra
 | {source_key: srckey, target_key: (if ($keys | length) == 1 then ($keys[0] | sub("^VAULT_ENC_KEY="; "")) else srckey end),
+   reseat: ($ARGS.named.reseat // {}),
    targets: [
     (env("mini-baas-postgres") | select(.POSTGRES_PASSWORD) | target("postgresql"; ["postgres", "postgresql"]; ["postgres", "mini-baas-postgres"]; 5432; .POSTGRES_USER // "postgres"; .POSTGRES_PASSWORD)),
     (env("mini-baas-mysql") | select(.MYSQL_PASSWORD) | target("mysql"; ["mysql", "mariadb"]; ["mysql", "mini-baas-mysql"]; 3306; .MYSQL_USER; .MYSQL_PASSWORD)),

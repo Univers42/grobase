@@ -33,9 +33,28 @@ const (
 	Unmatched     Outcome = "kept: scheme, host, port or user is not the platform login"
 	Unparsable    Outcome = "kept: DSN does not parse"
 	Refused       Outcome = "refused: target password cannot be written into this DSN form"
+	Reseated      Outcome = "reseated: rebuilt from its declared database, the old DSN is lost"
 	NoCiphertext  Outcome = "untouched: row carries no ciphertext"
 	Undecryptable Outcome = "untouched: source key does not open it"
 )
+
+// reseatDSN builds the DSN of a platform Postgres mount from the target's login, for a row
+// whose ciphertext nothing opens. Postgres only: it is the one engine whose DSN is just a
+// login, a host and a database, and what a contract's docker_service mount declares.
+func reseatDSN(engine, database string, targets []Target) (string, bool) {
+	i := slices.IndexFunc(targets, func(t Target) bool { return t.Engine == engine })
+	if engine != "postgresql" || database == "" || i < 0 {
+		return "", false
+	}
+	t := targets[i]
+	u := url.URL{
+		Scheme: t.Schemes[0],
+		User:   url.UserPassword(t.User, t.Password),
+		Host:   t.Hosts[0] + ":" + strconv.Itoa(t.Port),
+		Path:   "/" + database,
+	}
+	return u.String(), true
+}
 
 // RewriteDSN returns dsn with the target's password when its scheme, host, port and user
 // are exactly the target's platform login for engine; otherwise it returns dsn unchanged.

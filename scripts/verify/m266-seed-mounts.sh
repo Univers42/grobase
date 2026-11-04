@@ -44,6 +44,12 @@ check "... the logins are the running engine's" \
 check "a running stack's key wins over .env's" "$(config "$stack" true .target_key)" from-container
 check "import path: no key in a container still refuses" "$(config "$engines" false .target_key)" ""
 check "two keys in use refuse, whichever path" "$(config "$split" true .target_key)" ""
+check "no reseat asked: an empty map, the import path unchanged" "$(config "$stack" false '.reseat | length')" 0
+reseats=$(awk '/^reseat_mounts\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
+eval "$reseats"
+check "contracts name their mounts' databases" "$(reseat_mounts | jq -r '."website-pg" + " " + ."vault42-pg"')" "website vault42"
+check "... and gourmand, which has no contract" "$(reseat_mounts | jq -r '."gourmand-app-db"')" gourmand
+check "... the smoke contract is not a real mount" "$(reseat_mounts | jq -r 'keys | map(select(startswith("_"))) | length')" 0
 
 # ── the restore ─────────────────────────────────────────────────────────────
 cat >"$T/bin/docker" <<'STUB'
@@ -68,6 +74,7 @@ block=$(awk '/^rebind_seed_mounts\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
 restore() { # <ok|fail> -> rc, in a subshell so the stubbed die stays here
   # shellcheck disable=SC2030 # that subshell is the point
   (
+    reseat_mounts() { printf '{}'; }
     cd "$T" || exit 9
     cp dotenv .env
     die() {
@@ -96,6 +103,8 @@ body=$(awk '/^restore_postgres\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
 line_of() { printf '%s\n' "$body" | grep -n "$1" | head -n1 | cut -d: -f1; }
 check "rebinding precedes the destructive clear" \
   "$([ "$(line_of '^  rebind_seed_mounts')" -lt "$(line_of '^  clear_postgres_db')" ] && echo yes)" yes
+check "a reseated mount's database is made after the replay" \
+  "$([ "$(line_of '^  pg_strip_role_passwords')" -lt "$(line_of '^  ensure_reseated_databases')" ] && echo yes)" yes
 check "the replay never reads the seed as it came" "$(printf '%s\n' "$body" | grep -c 'SEED_DIR/postgres-all')" 0
 
 # ── the mounts open ─────────────────────────────────────────────────────────
