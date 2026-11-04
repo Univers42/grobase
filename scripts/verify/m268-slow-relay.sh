@@ -44,5 +44,10 @@ for f in base/gateway.yml docker-compose.monolith.yml; do
   check "$f never serves an expired name" "$(setting "$f" KONG_DNS_STALE_TTL)" 0
 done
 
+# Hermetic because -n prints the recipe instead of running docker.
+recipe() { env -u SERVICE make --no-print-directory -n _rm-stale "$@" 2>/dev/null | grep -c 'docker ps'; }
+check "a full up clears stale containers" "$(recipe)" 1
+check "a partial up keeps finished one-shots" "$(recipe SERVICE=gotrue)" 0
+
 [ "$rc" = 0 ] && echo "[M268] ok"
 exit "$rc"

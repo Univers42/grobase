@@ -222,6 +222,11 @@ _require-docker:
 _require-compose: _require-docker
 	@docker compose version >/dev/null 2>&1 || { echo >&2 "Docker Compose v2 plugin is required."; exit 1; }
 
+# A partial `up` leaves everything else alone: it recreates only what its named services
+# need, so removing every exited container here dropped finished one-shots for good and
+# `make health` stayed red over a working stack (mongo-keyfile, after `up SERVICE=gotrue`).
 _rm-stale:
+ifeq ($(strip $(SERVICE)),)
 	@ids=$$(docker ps -a --format '{{.ID}} {{.Names}} {{.Status}}' | awk '/ mini-baas-/ && ($$3=="Created"||$$3=="Exited") {print $$1}'); \
 	[ -z "$$ids" ] || { echo -e "$(_Y)Removing stale containers…$(_0)"; docker rm -f $$ids >/dev/null; }
+endif
