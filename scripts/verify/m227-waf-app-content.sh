@@ -52,6 +52,8 @@
 #              and a page holding a pasted `curl -i` answer, a title with      #
 #              `\nSet-Cookie:` (921120) → 200                                  #
 #              and a 3,000-leaf, 180 KB object database, POST and PATCH → 200  #
+#              and a page or object database holding `GET / HTTP/1.1`        #
+#              (921110, 160 page saves refused, 2026-11-04) → 200            #
 #              and a profile key on osionos_bridge_identities (930120 read     #
 #              `json.profile.headline` as the file .profile) → 200             #
 #              and a migration of DDL + INSERTs to /admin/v1/migrate → 200     #
@@ -67,7 +69,7 @@
 #              table, to an rpc, and through osionos_pages%3F/../secrets       #
 #              (%3f, %253F), a read of ?title=eq.HTTP/2 or of a `\nSet-Cookie:` #
 #              title (921120), a `<html` cookie, a value with                 #
-#              `GET /x HTTP/1.1` (921110, the boundary 10110 keeps) → 403,    #
+#              `GET /x HTTP/1.1` (921110) outside an osionos write → 403,    #
 #              and the upstream never sees `secrets`;                          #
 #              the mail with <script> in to, subject, text, listUnsubscribe,   #
 #              the query string, or in `Subject` / `TO` (Go matches JSON keys      #
@@ -196,7 +198,7 @@ kong_private_paths() {
 
 # start_waf NAME EXCLUSIONS [VAR=VALUE]: boot the WAF with the tree's nginx.conf and EXCLUSIONS
 # as CRS's REQUEST-900 file, and the optional environment override; wait for /waf-health.
-# M227_BLOCKING_PARANOIA=N runs every WAF at that paranoia level (the baas VM runs 2, the image 1).
+# M227_BLOCKING_PARANOIA=N runs every WAF at that paranoia level (the image and the baas WAF both run 1: BLOCKING_PARANOIA=1 in `docker inspect mini-baas-waf`, 2026-11-04).
 # NGINX_CONF replaces the tree's nginx.conf (the object-database location mutant).
 # OPERATORS names the operator-addresses file rule 10131 reads (default: the probe container's own
 # address, so private routes stay reachable; the PEER leg passes the image's file).
@@ -320,7 +322,7 @@ probe() {
         { content: [{ type: "code", content: "HTTP/1.1 308 Permanent Redirect\r\nLocation: https://example.com/\r\nContent-Length: 0" }] }],
       ["content-odb-large", "POST", odbPath, large],
       ["content-odb-large-patch", "PATCH", odbPatch, large],
-      ["control-odb-large-split", "POST", odbPath, { ...large, tail: "GET /index.html HTTP/1.1" }],
+      ["content-odb-large-request-line", "POST", odbPath, { ...large, tail: "GET /index.html HTTP/1.1" }],
       ["control-odb-read-sqli", "GET", "/rest/v1/osionos_object_databases?title=eq.1%27%20or%20%271%27=%271", undefined],
       ["limit-odb-large-pages", "POST", "/rest/v1/osionos_pages", large],
       ["limit-odb-large-suffix", "POST", "/rest/v1/osionos_object_databases_x", large],
@@ -332,7 +334,13 @@ probe() {
       ["control-odb-read", "GET", "/rest/v1/osionos_pages?title=eq.HTTP/2", undefined],
       ["control-odb-cookie", "POST", odbPath, odb("plain"), { Cookie: "note=<html" }],
       ["control-read-header-split", "GET", "/rest/v1/osionos_pages?title=eq.a%0ASet-Cookie:%20x=1", undefined],
-      ["control-odb-request-line", "POST", odbPath, odb("GET /index.html HTTP/1.1")],
+      ["content-odb-request-line", "POST", odbPath, odb("GET /index.html HTTP/1.1")],
+      ["content-page-request-line", "POST", "/rest/v1/osionos_pages",
+        { content: [{ type: "code", content: "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n" }] }],
+      ["content-page-request-line-patch", "PATCH", "/rest/v1/osionos_pages?id=eq.1", { content: "curl sends GET /api HTTP/1.1 first" }],
+      ["control-other-table-request-line", "POST", "/rest/v1/secrets", { content: "GET / HTTP/1.1" }],
+      ["control-rpc-request-line", "POST", "/rest/v1/rpc/osionos_x", { content: "GET / HTTP/1.1" }],
+      ["control-read-request-line", "GET", "/rest/v1/osionos_pages?title=eq.GET%20/%20HTTP/1.1", undefined],
       ["control-other-table-profile", "PATCH", "/rest/v1/secrets?id=eq.1", { profile: { headline: "Founder" } }],
       ["control-read-sqli", "GET", "/rest/v1/osionos_pages?title=eq.1%27%20or%20%271%27=%271", undefined],
       ["control-header-xss", "POST", "/rest/v1/osionos_pages", null],
