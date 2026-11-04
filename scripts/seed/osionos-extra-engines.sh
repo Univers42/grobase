@@ -501,6 +501,18 @@ seed_assoc() {
   pass "associations upserted for wired mounts"
 }
 
+# sqlite_has_tables — seed_sqlite warns and carries on, right for a demo and wrong for a
+# restore: on 2026-11-04 every create_table failed on a read-only file, the mount still
+# answered 200 with no tables, and the seed reported success over an empty database.
+# Caveat: looks for `restaurant` alone, the first table made; a load that stops after it
+# passes here, and the rows are what groot's DB1 and DB2 read.
+sqlite_has_tables() {
+  [[ -n "${SQLITE_DB_ID:-}" ]] || fail "sqlite: no mount id after seeding (lines above)"
+  [[ "$(engine_check "${SQLITE_DB_ID}")" == "200" ]] || fail "sqlite: the mount does not answer"
+  grep -q '"restaurant"' /tmp/xeng-gw.json || fail "sqlite: the mount opens but holds no restaurant table (lines above)"
+  pass "sqlite: tables present"
+}
+
 # probe_mounts — open every mount of this tenant through the gateway. A loaded seed and a
 # healthy stack say nothing about this: on 2026-11-04 all were green while every mount on a
 # platform engine answered 502.
@@ -531,6 +543,7 @@ for r in json.load(sys.stdin):
 # ── run ─────────────────────────────────────────────────────────────────────
 seed_sqlite
 if [[ "${AFTER_RESTORE:-0}" == "1" ]]; then
+  sqlite_has_tables
   probe_mounts
   exit 0
 fi

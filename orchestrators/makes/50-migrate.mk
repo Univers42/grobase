@@ -16,9 +16,13 @@ migrate: ## Apply pending PostgreSQL migrations
 		echo "  Applying: $$f"; sed '/^#/d' "$$f" | $(DC) exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -; \
 	done; echo -e "$(_G)✓ PostgreSQL migrations applied$(_0)"
 
+# --file, never stdin: fed a script on stdin mongosh is a REPL, which carries on past an
+# error and exits 0. Unauthenticated, this printed 23 "requires authentication" errors
+# and then the green line below, with nothing applied (found 2026-11-04). Each file guards
+# itself (getCollectionNames or schema_migrations), so a rerun adds nothing.
 migrate-mongo: ## Apply MongoDB migrations
-	@for f in $$(ls -1 scripts/migrations/mongodb/*.js 2>/dev/null | sort); do \
-		echo "  Applying: $$f"; $(DC) --profile data-plane exec -T mongo mongosh mini_baas < "$$f"; done
+	@set -e; for f in $$(ls -1 scripts/migrations/mongodb/*.js 2>/dev/null | sort); do \
+		echo "  Applying: $$f"; $(DC) --profile data-plane exec -T mongo sh -ec 'cat >/tmp/migration.js && exec mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin mini_baas --file /tmp/migration.js' < "$$f"; done
 	@echo -e "$(_G)✓ MongoDB migrations applied$(_0)"
 
 migrate-mysql: ## Apply MySQL migrations

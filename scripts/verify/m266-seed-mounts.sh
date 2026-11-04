@@ -128,6 +128,26 @@ check "every mount answers: the probe passes" "$(probe_with 200)" 0
 check "a 502 fails the seed" "$(probe_with 502)" 1
 check "... naming the mount" "$(grep -c 'finance (mssql, b2)' "$T/out")" 1
 check "a 403 is this key's rights, not a dead login" "$(probe_with 403)" 0
+tables=$(awk '/^sqlite_has_tables\(\) \{/,/^}/' scripts/seed/osionos-extra-engines.sh)
+sqlite_with() { # <json the schema answers with> -> rc
+  # shellcheck disable=SC2030,SC2031 # each subshell is its own case
+  (
+    pass() { :; }
+    fail() { exit 1; }
+    engine_check() {
+      printf '%s' "$BODY" >/tmp/xeng-gw.json
+      printf 200
+    }
+    BODY="$1" SQLITE_DB_ID=s1
+    eval "$tables"
+    sqlite_has_tables
+  ) >/dev/null 2>&1
+  printf '%s' "$?"
+}
+check "a mount with no tables fails the seed" "$(sqlite_with '{"resources":[]}')" 1
+check "... the same mount with its tables passes" "$(sqlite_with '{"resources":[{"name":"restaurant"}]}')" 0
+check "migrate-mongo authenticates" "$(grep -c 'authenticationDatabase admin mini_baas --file' orchestrators/makes/50-migrate.mk)" 1
+check "... and stops at a failed file" "$(awk '/^migrate-mongo:/,/applied/' orchestrators/makes/50-migrate.mk | grep -c '@set -e')" 1
 check "after a restore only sqlite is loaded" \
   "$(awk '/^# ── run/,0' scripts/seed/osionos-extra-engines.sh | sed -n '/AFTER_RESTORE/,/^fi/p' | grep -c 'seed_mssql\|seed_dynamo\|seed_edges')" 0
 
