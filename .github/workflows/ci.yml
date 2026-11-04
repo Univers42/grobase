@@ -593,7 +593,7 @@ jobs:
       - name: liveness follows PostgreSQL and MinIO
         run: bash scripts/verify/m192-pg-backup-liveness.sh
 
-  # ─── Standalone gates (m64 m81 m87 m183 m209 m259) ────────────
+  # ─── Standalone gates (m64 m81 m87 m183 m209 m259 m260) ───────
   # Each builds or starts its own throwaway containers; no stack needed.
   standalone-gates:
     name: Standalone gates (m64 m81 m87 m183 m209)
@@ -640,6 +640,11 @@ jobs:
         run: |
           bash scripts/verify/m259-audit-retention.sh
           bash scripts/verify/m259-audit-retention.sh --self-test
+
+      # A rotation recreates the services instead of restarting them, so the new
+      # .env value is what they run with, and a failed recreate is not hidden (grobase#75).
+      - name: Secret rotation recreates the services (m260)
+        run: bash scripts/verify/m260-rotate-recreates.sh
 
       # tenant-control built from the commit: per-tenant backup/restore, sealed
       # with age, every restore checked against the ledger sha256 (scratch postgres).

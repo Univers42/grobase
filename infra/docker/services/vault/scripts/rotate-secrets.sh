@@ -116,14 +116,22 @@ vault_get() {
   return 0
 }
 
+# A rotation writes the new value into .env, and `docker compose restart` keeps each
+# container's old environment, so the old secret stayed live (#75): the services are
+# recreated instead, and a failure is reported, not swallowed.
+# Caveat: compose recreates from the files in effect. A stack started with extra -f
+# overrides needs COMPOSE_FILE (and COMPOSE_PROJECT_NAME) set to that full list before
+# running this, or the recreate silently drops the overrides.
 restart_services() {
   if [[ "$DRY_RUN" == "1" ]]; then
-    warn "DRY RUN: would restart $*"
+    warn "DRY RUN: would recreate $*"
     return 0
   fi
-  log "Restarting: $*"
-  docker compose restart "$@" 2>/dev/null || true
-  return 0
+  log "Recreating: $*"
+  if ! docker compose up -d --no-deps --no-build --force-recreate "$@"; then
+    err "recreate failed for: $* (.env already holds the new values; rerun: docker compose up -d --no-deps --no-build $*)"
+    return 1
+  fi
 }
 
 update_env_var() {
