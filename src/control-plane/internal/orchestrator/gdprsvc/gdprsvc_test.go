@@ -110,8 +110,9 @@ func newSvc(f repo) (*Service, *struct {
 		deleted  bool
 	}{}
 	svc := &Service{
-		log:   slog.Default(),
-		store: f,
+		log:          slog.Default(),
+		store:        f,
+		serviceToken: testServiceToken,
 		doExport: func(context.Context, string) map[string]any {
 			flags.exported = true
 			return map[string]any{"notes": 3}
@@ -134,8 +135,48 @@ func do(svc *Service, method, path, body string, h map[string]string) *httptest.
 }
 
 func userHdr() map[string]string { return map[string]string{"X-Baas-User-Id": "u-1"} }
+
+const testServiceToken = "test-internal-service-token"
+
 func adminHdr() map[string]string {
-	return map[string]string{"X-Baas-User-Id": "svc", "X-Baas-Role": "service_role"}
+	return map[string]string{"X-Baas-User-Id": "svc", "X-Baas-Role": "service_role", "X-Service-Token": testServiceToken}
+}
+
+// TestAdminRoutesRefuseForgedRole pins #85: the role header alone no longer opens the
+// admin routes. Without the internal service token, or with a wrong one, both answer
+// 401 and the erasure webhook never fires, whatever X-Baas-Role says.
+func TestAdminRoutesRefuseForgedRole(t *testing.T) {
+	t.Setenv("SERVICE_TOKEN_MODE", "")
+	forged := map[string]string{"X-Baas-User-Id": "svc", "X-Baas-Role": "service_role"}
+	wrong := map[string]string{"X-Baas-User-Id": "svc", "X-Baas-Role": "service_role", "X-Service-Token": "guess"}
+	routes := []struct{ method, path, body string }{
+		{"GET", "/deletion-requests/admin", ``},
+		{"POST", "/deletion-requests/admin/1/process", `{"status":"completed"}`},
+	}
+	for _, rt := range routes {
+		for name, h := range map[string]map[string]string{"no token": forged, "wrong token": wrong} {
+			f := &fakeRepo{delReq: &DeletionRequest{ID: 1, UserID: "u-9", Status: "pending"}}
+			svc, flags := newSvc(f)
+			rec := do(svc, rt.method, rt.path, rt.body, h)
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("%s %s with %s = %d, want 401", rt.method, rt.path, name, rec.Code)
+			}
+			if flags.deleted || len(f.calls) != 0 {
+				t.Errorf("%s %s with %s reached the store or the webhook: calls=%v deleted=%v", rt.method, rt.path, name, f.calls, flags.deleted)
+			}
+		}
+	}
+}
+
+// TestAdminRoutesRefuseWhenNoTokenConfigured: an orchestrator started without
+// INTERNAL_SERVICE_TOKEN fails closed, even for a caller that sends one.
+func TestAdminRoutesRefuseWhenNoTokenConfigured(t *testing.T) {
+	t.Setenv("SERVICE_TOKEN_MODE", "")
+	svc, _ := newSvc(&fakeRepo{})
+	svc.serviceToken = ""
+	if rec := do(svc, "GET", "/deletion-requests/admin", ``, adminHdr()); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("admin list with no configured token = %d, want 401", rec.Code)
+	}
 }
 
 func TestConsentRoutesRequireUser(t *testing.T) {
@@ -237,8 +278,14 @@ func TestCancelDeletionNotFound(t *testing.T) {
 func TestAdminDeletionRequiresServiceRole(t *testing.T) {
 	svc, _ := newSvc(&fakeRepo{})
 	rec := do(svc, "GET", "/deletion-requests/admin", ``, userHdr())
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("admin list as user = %d, want 401 (no service token)", rec.Code)
+	}
+	user := userHdr()
+	user["X-Service-Token"] = testServiceToken
+	rec = do(svc, "GET", "/deletion-requests/admin", ``, user)
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf("admin list as user = %d, want 403", rec.Code)
+		t.Fatalf("admin list with the token but no service_role = %d, want 403", rec.Code)
 	}
 	rec = do(svc, "GET", "/deletion-requests/admin", ``, adminHdr())
 	if rec.Code != http.StatusOK {
