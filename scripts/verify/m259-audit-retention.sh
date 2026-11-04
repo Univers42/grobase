@@ -124,9 +124,12 @@ start_pg() {
   docker network create --internal "${NET}" >/dev/null
   docker run -d --name "${PG}" --network "${NET}" \
     -e POSTGRES_PASSWORD="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')" "${PG_IMAGE}" >/dev/null
+  # Over TCP on purpose: during init the image runs a temporary socket-only server, which
+  # answers pg_isready and SELECT 1 and then shuts down, so the next psql found no socket
+  # and a self-test failed on a run that had caught its mutant (CI, 2026-11-04).
   local i
   for i in $(seq 1 60); do
-    docker exec "${PG}" pg_isready -U postgres -q 2>/dev/null && sql 'SELECT 1' >/dev/null 2>&1 && return 0
+    docker exec "${PG}" pg_isready -h 127.0.0.1 -U postgres -q 2>/dev/null && sql 'SELECT 1' >/dev/null 2>&1 && return 0
     sleep 1
   done
   fail "postgres did not become ready"
