@@ -177,6 +177,8 @@ PACKAGE_basic     := go rust
 PACKAGE_essential := go rust adapter background
 PACKAGE_pro       := $(PACKAGE_essential) data storage realtime
 PACKAGE_max       := $(PACKAGE_pro) analytics observability functions engines
+# packages.json's alias. Its other one, free -> nano, has no stack: see _require-shape.
+PACKAGE_enterprise := $(PACKAGE_max)
 ADDONS ?=
 
 # Functions: plane-list -> sorted profiles -> `--profile x --profile y`
@@ -197,6 +199,22 @@ ACTIVE_PROFILES := $(call profiles_of,$(EDITION_$(EDITION)))
 endif
 PROFILE_FLAGS := $(addprefix --profile ,$(ACTIVE_PROFILES))
 DCE           := $(DC) $(PROFILE_FLAGS)
+
+# An unknown name resolves to no profile, and compose with no profile is the seven core
+# containers: `make all PACKAGE=enterprise` printed success over them on 2026-11-04, and so
+# did any misspelling. nano and free are one binary each, which compose cannot start.
+_require-shape:
+ifndef PROFILES
+ifdef PACKAGE
+ifneq ($(filter $(PACKAGE),nano free),)
+	@echo >&2 "PACKAGE=$(PACKAGE) is one binary, not a compose stack: make nano-up"; exit 2
+else ifeq ($(filter $(PACKAGE),$(PACKAGES) enterprise),)
+	@echo >&2 "unknown PACKAGE=$(PACKAGE): use $(PACKAGES) enterprise, or make nano-up"; exit 2
+endif
+else ifeq ($(filter $(EDITION),$(EDITIONS)),)
+	@echo >&2 "unknown EDITION=$(EDITION): use $(EDITIONS)"; exit 2
+endif
+endif
 
 _require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo >&2 "Docker is not installed."; exit 1; }
