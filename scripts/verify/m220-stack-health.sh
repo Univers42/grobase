@@ -70,6 +70,18 @@ else
 fi
 [ -z "$(printf 'S /p-api api running\nE /p-api X=http://api:3000\n' | sh "${HEALTH}" parse-edges)" ] &&
   ok "a service naming only itself yields no edge" || fail "self-reference became an edge"
+# A URL's userinfo is not an address. The fixture above could not show it: its user is `user`,
+# which names no service. Here the user IS the service and the password opens with a digit.
+userinfo() {
+  printf 'S /p-api api running\nS /p-mongo mongo running\nE /p-api %s\n' "$1" | sh "${HEALTH}" parse-edges
+}
+[ "$(userinfo 'U=mongodb://mongo:4xK9@mongo:27017/db')" = 'p-api mongo 27017' ] &&
+  ok "a URL's user:password is no edge, its host:port still is" ||
+  fail "userinfo became an edge: $(userinfo 'U=mongodb://mongo:4xK9@mongo:27017/db')"
+[ "$(userinfo 'U=mongodb://mongo:p:9@mongo:27017/db?replicaSet=rs0')" = 'p-api mongo 27017' ] &&
+  ok "... a password holding a colon too" || fail "a colon in the password became an edge"
+[ "$(userinfo 'U=mongo:27017')" = 'p-api mongo 27017' ] &&
+  ok "... and a bare host:port still counts" || fail "a bare host:port stopped being an edge"
 
 step "ROUTES — kong.yml → path + upstream host"
 printf '%s\n' 'services:' '  - name: a' '    url: http://gotrue:9999' '    routes:' '      - paths: [/auth/v1, "/auth/v2"]' \

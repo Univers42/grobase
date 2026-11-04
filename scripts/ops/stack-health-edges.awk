@@ -9,7 +9,12 @@
 # is not an explicit edge; see stack-health.sh for what that misses and over-reports.
 
 # scan prints each host:port in text that names another running container than client.
+# A URL's user:password@ is dropped first: it is host:digits to the regex below, so
+# mongodb://mongo:4x...@mongo:27017, a user named like a service and a password opening
+# with a digit (10 in 62, gen_alnum), was an edge to port 4, and `make health` failed five
+# healthy services on "UNREACHABLE: mongo:4" for roughly one install in six.
 function scan(client, text,    tok, part) {
+  gsub(/:\/\/[^\/?# \t]*@/, "://", text)
   while (match(text, /[A-Za-z0-9][A-Za-z0-9_.-]*:[0-9]+/)) {
     tok = substr(text, RSTART, RLENGTH); text = substr(text, RSTART + RLENGTH)
     split(tok, part, ":")
