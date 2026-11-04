@@ -67,6 +67,8 @@ set -eu
 # hidden the bug.
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 GROBASE_ROOT=$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd)
+# shellcheck source=../lib/lib-mount-rebind.sh
+. "$SCRIPT_DIR/../lib/lib-mount-rebind.sh"
 _seed_in="${SEED_DIR:-./secrets}"
 SEED_DIR=$(CDPATH='' cd -- "$_seed_in" 2>/dev/null && pwd || printf '%s' "$_seed_in")
 cd "$GROBASE_ROOT"
@@ -373,19 +375,62 @@ backup_postgres() {
   note "postgres: pre-restore backup is $(wc -c <"$out") bytes"
 }
 
+# rebind_seed_mounts — the seed's dump with its mounts rewritten for THIS machine, in $REBOUND.
+#
+# The credential filters below keep the source's passwords out of the engines, but
+# public.tenant_databases carries them too, sealed inside each mount's DSN. Restored as they
+# are, those rows decrypt fine and then fail to log in: on 2026-11-04 every mount on a platform
+# engine answered 502 (postgres pool checkout, mysql 1045, mssql 18456) with `make all` green,
+# because nothing opens a mount. cmd/mount-rebind gives them the logins of the engines running
+# here. It runs before anything is cleared, and to a file: this is POSIX sh, so a failure in a
+# pipe into psql would go unseen and replay half a dump.
+# Caveat: the first run needs the Go image and its modules from the network (docker keeps them
+# after that). With neither, the restore stops here, before any data is touched.
+rebind_seed_mounts() {
+  command -v jq >/dev/null 2>&1 || die "jq is required to rebind the seed's mounts"
+  [ -r .env ] || die "no readable .env: the seed's mounts cannot be rebound"
+  note "postgres: rebinding the seed's mounts to this machine's logins (first run builds the tool)"
+  mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || die "cannot create $STATE_DIR"
+  REBOUND="$STATE_DIR/postgres-rebound.sql"
+  _log=$(mktemp)
+  # jq's messages can quote a value, and here every value is a secret: only this program's
+  # own error() texts leave the file.
+  # shellcheck disable=SC2046 # one id per word, on purpose
+  if ! _config=$(docker inspect $(docker ps -q) | jq -c --rawfile srcenv .env --argjson envkey true \
+    "$(rebind_config_program)" 2>"$_log"); then
+    _why=$(grep -oE '(target|source env)[^"]*' "$_log" | head -n1 || true)
+    rm -f "$_log"
+    die "cannot build the rebind config from the running engines: ${_why:-see jq}"
+  fi
+  (umask 077 && : >"$REBOUND")
+  if ! { printf '%s\n' "$_config" && gzip -dc "$SEED_DIR/postgres-all.sql.gz"; } | rebind_run >"$REBOUND" 2>"$_log"; then
+    _why=$(grep -v '^{' "$_log" | tail -n3 || true)
+    rm -f "$_log" "$REBOUND"
+    die "mount-rebind failed, nothing was restored: $_why"
+  fi
+  unset _config
+  # Kept for diagnosis: ids, engines and outcomes, never a DSN or a key.
+  grep '^{' "$_log" | tail -n1 >"$STATE_DIR/mounts-rebound.json"
+  jq -r '.rows | group_by(.outcome)[] | "\(length) \(.[0].outcome)"' "$STATE_DIR/mounts-rebound.json" |
+    while IFS= read -r _line; do note "postgres: mounts: $_line"; done
+  rm -f "$_log"
+}
+
 restore_postgres() {
   have postgres-all.sql.gz || {
     note "no postgres dump — skipped"
     return 0
   }
+  rebind_seed_mounts
   backup_postgres
   clear_postgres_db
   pg_terminate_sessions
   note "postgres: replaying dump"
   err=$(mktemp)
-  gzip -dc "$SEED_DIR/postgres-all.sql.gz" | pg_strip_role_passwords |
+  pg_strip_role_passwords <"$REBOUND" |
     docker exec -i mini-baas-postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER"' \
       >/dev/null 2>"$err" || true
+  rm -f "$REBOUND"
   real=$(grep '^ERROR:' "$err" 2>/dev/null | grep -Ev "$PG_BENIGN" || true)
   count=$(printf '%s' "$real" | grep -c . || true)
   if [ "${count:-0}" -gt 0 ]; then

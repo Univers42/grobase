@@ -45,7 +45,10 @@
 #
 # Usage:  bash scripts/seed/osionos-extra-engines.sh
 # Env:    BAAS_API_KEY (defaults to VITE_BAAS_API_KEY from the app .env),
-#         APP_ENV_FILE, SKIP_SQLITE=1 (force-skip sqlite)
+#         APP_ENV_FILE, SKIP_SQLITE=1 (force-skip sqlite),
+#         AFTER_RESTORE=1 (the tail of a seed restore: load sqlite, whose rows no
+#         seed captured, then open every mount of this tenant and fail on a dead
+#         one. mssql, dynamodb and the edges came back with the dumps.)
 
 set -euo pipefail
 
@@ -498,8 +501,39 @@ seed_assoc() {
   pass "associations upserted for wired mounts"
 }
 
+# probe_mounts — open every mount of this tenant through the gateway. A loaded seed and a
+# healthy stack say nothing about this: on 2026-11-04 all were green while every mount on a
+# platform engine answered 502.
+# Caveat: covers the tenant of BAAS_API_KEY only, and only 5xx or no answer counts as dead:
+# a 403 means this key may not read that mount, which says nothing about its login.
+probe_mounts() {
+  local listing id engine name code dead=0 opened=0
+  step "opening every mount of tenant ${TENANT}"
+  listing=$(curl -fsS "${KONG_URL}/admin/v1/databases" \
+    -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}") || fail "cannot list the mounts"
+  while IFS=$'\t' read -r id engine name; do
+    code=$(engine_check "${id}")
+    cyan "  ${name} (${engine}) -> ${code}"
+    case "${code}" in
+    5* | 000)
+      warn "mount ${name} (${engine}, ${id}) -> ${code}: $(head -c 160 /tmp/xeng-gw.json)"
+      dead=$((dead + 1))
+      ;;
+    *) opened=$((opened + 1)) ;;
+    esac
+  done < <(printf '%s' "${listing}" | python3 -c 'import json,sys
+for r in json.load(sys.stdin):
+    print(r["id"], r.get("engine", "?"), r.get("name", "?"), sep="\t")')
+  [[ "${dead}" -eq 0 ]] || fail "${dead} mount(s) cannot open, ${opened} can"
+  pass "${opened} mount(s) open"
+}
+
 # ── run ─────────────────────────────────────────────────────────────────────
 seed_sqlite
+if [[ "${AFTER_RESTORE:-0}" == "1" ]]; then
+  probe_mounts
+  exit 0
+fi
 seed_mssql
 seed_dynamo
 seed_edges

@@ -185,7 +185,7 @@ fi
 export FT_S3_KEY FT_S3_SECRET
 # The shared environment, by name, and only what this stack loads: the same tree holds other
 # projects' archives, and `42ctl pull` is a personal tree a fresh identity may not have.
-only=(--only apps/grobase/.env.secrets)
+only=(--only apps/grobase/.env.secrets --only .env.local)
 for f in $SEED_FILES; do only+=(--only "secrets/$f"); done
 if ! (cd "$work" && "$CTL" env pull --org "$SEEDS_ORG" --project "$PROJECT" --env "$SEEDS_ENV" "${only[@]}" --apply) >"$work/pull.log" 2>&1; then
   tail -n3 "$work/pull.log" >&2
@@ -224,6 +224,13 @@ done
 case "$rows" in
 '' | 0 | *[!0-9]*) die "the stack came back, but the platform is empty ($rows)" ;;
 esac
+# The seed's sqlite file holds no tables, and only the app key can reach a mount, so this
+# is where the mounts get opened. Refused without a key: skipped is not passed.
+app_key=$(sed -n 's/^OSIONOS_BAAS_API_KEY=//p' "$work/.env.local" 2>/dev/null | head -n1 | tr -d "\"'\r")
+[ -n "$app_key" ] || die "the seed's .env.local holds no OSIONOS_BAAS_API_KEY: the mounts cannot be opened"
+BAAS_API_KEY="$app_key" AFTER_RESTORE=1 bash scripts/seed/osionos-extra-engines.sh ||
+  die "the seed loaded, but its mounts do not all open (lines above)"
+unset app_key
 printf 'seeded_at=%s\nvintage=%s\nproject=%s\nrows=%s\n' "$(date -u +%FT%TZ)" "$vintage" "$PROJECT" "$rows" >"$STATE/seeds.last"
 rm -f "$STATE/seeds.pending"
 note "loaded: $rows platform row(s), captured $vintage"

@@ -135,6 +135,7 @@ FAST_SUBSET=(
   m219-remote-access-overlay      # REMOTE_ACCESS publishes realtime/SMTP on the loopback, only when asked
   m240-edge-body-limits           # Kong never 413s a body the WAF lifted on its exact path
   m265-make-all-rootless          # make all deploys on rootless Docker: no CPU limits, its own paths, the WAF key, seeds
+  m266-seed-mounts                # a restored seed's mounts open on this machine
   m220-stack-health               # make health fails on a dead container, edge, engine login or gateway route
 )
 
