@@ -385,7 +385,8 @@ backup_postgres() {
 # here. It runs before anything is cleared, and to a file: this is POSIX sh, so a failure in a
 # pipe into psql would go unseen and replay half a dump.
 # Caveat: the first run needs the Go image and its modules from the network (docker keeps them
-# after that). With neither, the restore stops here, before any data is touched.
+# after that). With neither, the restore stops here, before any data is touched. The same
+# happens to a redis on the ACL overlay: its login is in its consumers' env, and they are down.
 rebind_seed_mounts() {
   command -v jq >/dev/null 2>&1 || die "jq is required to rebind the seed's mounts"
   [ -r .env ] || die "no readable .env: the seed's mounts cannot be rebound"
