@@ -504,3 +504,4 @@ keystore.v42
 # and matches at any depth, which silently hid schema.json from a `git add`.
 !infra/config/env/
 !infra/config/env/**
+orchestrators/compose/.no-cpu-limits.yml

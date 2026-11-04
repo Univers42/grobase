@@ -100,6 +100,21 @@ die() {
   exit 1
 }
 
+# put_into SRC CONTAINER DST: SRC at DST in the container, owned by the container's root.
+# `docker cp` carries the caller's uid and gid, and under rootless Docker the caller's group
+# does not exist in the user namespace, so every restore past mongo stopped on
+#   failed to Lchown "/in" for UID 101889, GID 4224: lchown /in: invalid argument
+# A tar stream names its own owner, and works the same on a rootful daemon.
+# Caveat: --transform is GNU tar; a BSD tar on the machine running this fails here, loudly.
+put_into() {
+  _name=$(basename "$3")
+  if [ -d "$1" ]; then
+    tar -C "$1" --numeric-owner --owner=0 --group=0 --transform "s,^\.,$_name," -cf - .
+  else
+    tar -C "$(dirname "$1")" --numeric-owner --owner=0 --group=0 --transform "s,^.*\$,$_name," -cf - "$(basename "$1")"
+  fi | docker cp - "$2:$(dirname "$3")"
+}
+
 # Exit 2 promises the caller that nothing was stopped, dropped or replayed.
 refuse() {
   printf 'error: %s\n' "$*" >&2
@@ -531,7 +546,7 @@ restore_minio() {
   docker rm -f "$ctr" >/dev/null 2>&1 || true
   if ! docker create --name "$ctr" --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
     --tmpfs /tmp:rw,size=16m "$MC_IMAGE" mirror --quiet /in seed >/dev/null ||
-    ! docker cp "$stage/." "$ctr:/in" >/dev/null || ! docker start -a "$ctr" >/dev/null 2>&1; then
+    ! put_into "$stage" "$ctr" /in >/dev/null || ! docker start -a "$ctr" >/dev/null 2>&1; then
     docker rm -f "$ctr" >/dev/null 2>&1 || true
     rm -rf "$stage"
     die "minio mirror failed"
@@ -552,7 +567,7 @@ restore_redis() {
   docker stop mini-baas-redis >/dev/null 2>&1 || true
   docker run --rm -v mini-baas_redis-data:/d alpine:latest \
     rm -rf /d/appendonlydir /d/dump.rdb >/dev/null 2>&1 || true
-  docker cp "$SEED_DIR/redis.rdb" mini-baas-redis:/data/dump.rdb ||
+  put_into "$SEED_DIR/redis.rdb" mini-baas-redis /data/dump.rdb ||
     die "could not place the rdb"
   # docker cp writes the file as the CALLER's uid; the image runs redis-server as its own
   # `redis` user, which then cannot open it ("can't open the RDB file dump.rdb for reading:
@@ -658,7 +673,7 @@ restore_mssql() {
     [ -f "$bak" ] || continue
     db=$(basename "$bak" .bak)
     note "mssql: restoring $db"
-    docker cp "$bak" "mini-baas-mssql:/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
+    put_into "$bak" mini-baas-mssql "/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
     # docker cp keeps the host owner and mode; the extracted .bak is private to the caller,
     # so SQL Server (its own uid) got "Operating system error 5 (Access is denied)".
     docker exec -u 0 mini-baas-mssql chmod 0644 "/tmp/$db.bak" || die "mssql: cannot make $db.bak readable"

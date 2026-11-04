@@ -72,8 +72,22 @@ v6_before_v4() {
 # world-readable. Three rungs, cheapest first; docker is the backstop because it
 # is already a hard prerequisite and its daemon is root. MINI_BAAS_WAF_TLS_GID=none
 # skips the grant when no WAF reads this key on this host (the key stays 0600).
+#
+# Rootless Docker goes straight to the docker rung: gid 101 in a container is not gid 101 on
+# the host there but /etc/subgid's start plus 100, so the host-side rungs grant the wrong group
+# and report success (on a 42 seat, systemd-journal), and the WAF restarts for ever on "cannot
+# load certificate key". Inside the user namespace the same chgrp lands on the right one.
+grant_waf_read_in_docker() {
+  docker run --rm -v "$CERT_DIR:/certs" --entrypoint sh busybox:1.37 -c \
+    "chgrp $WAF_TLS_GID /certs/$(basename "$1") && chmod 640 /certs/$(basename "$1")" >/dev/null 2>&1
+}
+
 grant_waf_read() {
   [ "$WAF_TLS_GID" != none ] || return 0
+  if docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q 'name=rootless'; then
+    grant_waf_read_in_docker "$1"
+    return
+  fi
   if chgrp "$WAF_TLS_GID" "$1" 2>/dev/null; then
     chmod 640 "$1"
     return 0
@@ -82,8 +96,7 @@ grant_waf_read() {
   if command -v setfacl >/dev/null 2>&1 && setfacl -m "g:$WAF_TLS_GID:r" "$1" 2>/dev/null; then
     return 0
   fi
-  docker run --rm -v "$CERT_DIR:/certs" --entrypoint sh busybox:1.37 -c \
-    "chgrp $WAF_TLS_GID /certs/$(basename "$1") && chmod 640 /certs/$(basename "$1")" >/dev/null 2>&1
+  grant_waf_read_in_docker "$1"
 }
 
 mkdir -p "$CERT_DIR"

@@ -69,7 +69,23 @@ endif
 # consumer dials it with REDIS_PASSWORD. Separate from ENGINE_TLS_ENGINES; it composes with
 # the redis TLS overlay in either order.
 REDIS_ACL      ?= $(shell sed -n 's/^REDIS_ACL=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)
+# What this Docker is, asked once. Rootless on a 42 seat differs in three ways that each stopped
+# a fresh clone: it cannot honour a CPU limit (cgroup v2 delegating only memory and pids, so every
+# container carrying one is refused: read scripts/ops/no-cpu-limits.sh, `CPU_QUOTA=true` keeps
+# them), its data is not under /var/lib/docker, and its socket is not /var/run/docker.sock, which
+# promtail mounts. Rootful hosts keep the defaults those mounts name in observability.yml.
+# Caveat: asks the daemon at parse time, a few ms per make; no daemon answers empty and changes
+# nothing, and the failure then comes from the target that needed Docker, by name.
+_DOCKER_INFO    := $(shell docker info --format '{{.CPUCfsQuota}} {{.DockerRootDir}}' 2>/dev/null)
+CPU_QUOTA       ?= $(word 1,$(_DOCKER_INFO))
+DOCKER_CONTAINERS_DIR ?= $(if $(word 2,$(_DOCKER_INFO)),$(word 2,$(_DOCKER_INFO))/containers,/var/lib/docker/containers)
+DOCKER_SOCKET   ?= $(if $(filter unix://%,$(DOCKER_HOST)),$(patsubst unix://%,%,$(DOCKER_HOST)),/var/run/docker.sock)
+export DOCKER_CONTAINERS_DIR DOCKER_SOCKET
+NO_CPU_OVERRIDE := orchestrators/compose/.no-cpu-limits.yml
+ifeq ($(CPU_QUOTA),false)
+$(shell sh scripts/ops/no-cpu-limits.sh $(NO_CPU_OVERRIDE))
+endif
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))
 
 # Colors
 _B := \033[0;34m
