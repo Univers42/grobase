@@ -137,6 +137,7 @@ FAST_SUBSET=(
   m265-make-all-rootless          # make all deploys on rootless Docker: no CPU limits, its own paths, the WAF key, seeds
   m266-seed-mounts                # a restored seed's mounts open on this machine
   m267-shape-names                # a PACKAGE or EDITION that names no stack is refused, never a bare core
+  m268-slow-relay                 # a slow relay keeps its token, a recreated service is found again
   m220-stack-health               # make health fails on a dead container, edge, engine login or gateway route
 )
 
