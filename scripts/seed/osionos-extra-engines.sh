@@ -540,7 +540,27 @@ for r in json.load(sys.stdin):
   pass "${opened} mount(s) open"
 }
 
+# query-router is the last service `up` starts and nothing depends on it, so `up` returns while
+# Node is still booting, and Kong answers 502 until it listens: the code a dead mount gives too.
+# Measured 2026-11-04: 502 for 1 s after `up`, 3 runs of 3, the rest of the stack already warm;
+# one `make all` after fclean failed its seed on it. This route touches no mount, and any
+# answer from the router counts (the anon key gets 401), so a 502 after this means the mount.
+# Caveat: 90 s is a guess at the slowest boot, not a measured bound. A slower machine fails
+# here, naming the route, and `make set_seeds` run again finds the router up.
+wait_query_plane() {
+  local code=000 _
+  for _ in $(seq 1 90); do
+    code=$(gw "${KONG_URL}/query/v1/capabilities")
+    case "${code}" in
+    000 | 5*) sleep 1 ;;
+    *) return 0 ;;
+    esac
+  done
+  fail "the query plane did not answer in 90 s (/query/v1/capabilities -> ${code})"
+}
+
 # ── run ─────────────────────────────────────────────────────────────────────
+wait_query_plane
 seed_sqlite
 if [[ "${AFTER_RESTORE:-0}" == "1" ]]; then
   sqlite_has_tables

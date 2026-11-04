@@ -155,6 +155,32 @@ sqlite_with() { # <json the schema answers with> -> rc
 }
 check "a mount with no tables fails the seed" "$(sqlite_with '{"resources":[]}')" 1
 check "... the same mount with its tables passes" "$(sqlite_with '{"resources":[{"name":"restaurant"}]}')" 0
+plane=$(awk '/^wait_query_plane\(\) \{/,/^}/' scripts/seed/osionos-extra-engines.sh)
+plane_with() { # <the answers, one per call; the last repeats> -> rc
+  # shellcheck disable=SC2030,SC2031 # each subshell is its own case
+  (
+    fail() {
+      printf 'fail: %s\n' "$*"
+      exit 1
+    }
+    sleep() { :; }
+    printf '%s\n' $1 >"$T/answers"
+    gw() {
+      head -n1 "$T/answers"
+      [ "$(wc -l <"$T/answers")" -eq 1 ] || sed -i 1d "$T/answers"
+    }
+    KONG_URL=x
+    eval "$plane"
+    wait_query_plane
+  ) >"$T/out" 2>&1
+  printf '%s' "$?"
+}
+check "a router still booting is waited for" "$(plane_with '000 502 502 200')" 0
+check "... and any answer from it counts" "$(plane_with '502 401')" 0
+check "a router that never answers fails the seed" "$(plane_with 502)" 1
+check "... naming the route" "$(grep -c 'query/v1/capabilities -> 502' "$T/out")" 1
+run_section=$(awk '/^# ── run/,0' scripts/seed/osionos-extra-engines.sh)
+check "the wait comes before any mount is opened" "$(printf '%s\n' "$run_section" | grep -n '^wait_query_plane\|^seed_sqlite' | head -n1 | cut -d: -f2)" wait_query_plane
 check "migrate-mongo authenticates" "$(grep -c 'authenticationDatabase admin mini_baas --file' orchestrators/makes/50-migrate.mk)" 1
 check "... and stops at a failed file" "$(awk '/^migrate-mongo:/,/applied/' orchestrators/makes/50-migrate.mk | grep -c '@set -e')" 1
 check "after a restore only sqlite is loaded" \
