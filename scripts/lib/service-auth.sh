@@ -165,7 +165,7 @@ if [ "${1:-}" = "--selftest" ]; then
   curl() { printf '%s\n' "${@: -1}"; }
   SERVICE_TOKEN_MODE=hmac SVC_AUTH_TS=1700000000 SERVICE_TOKEN=shared-token \
     DATA_PLANE_KEY_TENANT_CONTROL=test-token
-  got=$(svc_curl_as tenant_control -s -X POST "http://dp:4011/v1/keys/verify?x=1" -d '{"key":"abc"}')
+  got=$(svc_curl_as tenant_control -s -X POST "https://dp:4011/v1/keys/verify?x=1" -d '{"key":"abc"}')
   if [ "${got}" = "X-Service-Auth: ${want}" ]; then echo "svc_curl_as class signature OK"; else
     echo "MISMATCH: svc_curl_as got ${got}" >&2
     exit 1
