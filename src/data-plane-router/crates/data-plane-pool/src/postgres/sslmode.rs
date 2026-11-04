@@ -163,7 +163,10 @@ mod tests {
             ("host=h sslmode=require", Some("require")),
             ("host=h sslmode = require", Some("require")),
             ("host=h sslmode='verify-ca'", Some("verify-ca")),
-            (concat!("postgres://u:", "p%40ss", "@h/db?sslmode=require"), Some("require")),
+            (
+                concat!("postgres://u:", "p%40ss", "@h/db?sslmode=require"),
+                Some("require"),
+            ),
             ("postgres://u:p@h/db?ssl%6Dode=re%71uire", Some("require")),
             (
                 "postgres://u:p@h/db?sslmode=disable&sslmode=require",
