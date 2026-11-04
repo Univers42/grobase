@@ -387,14 +387,12 @@ backup_postgres() {
 # Caveat: the first run needs the Go image and its modules from the network (docker keeps them
 # after that). With neither, the restore stops here, before any data is touched. The same
 # happens to a redis on the ACL overlay: its login is in its consumers' env, and they are down.
-# reseat_mounts — mount name to database, for rows no key opens any more. website-pg,
-# gourmand-app-db and vault42-pg were sealed under a key the vault no longer holds, so no
-# restore could open them, and the API cannot replace a DSN it cannot read first. Their
-# target is declared: a contract's mounts, and gourmand, which predates contracts and whose
-# tenant owns a database of its own name.
+# reseat_mounts — mount name to database, for rows no key opens any more. website-pg and
+# vault42-pg were sealed under a key the vault no longer holds, so no restore could open them,
+# and the API cannot replace a DSN it cannot read first. Their target is declared by their
+# contract.
 reseat_mounts() {
-  jq -cs 'map((.mounts // []) | map({(.name): .database}) | add // {}) | add + {"gourmand-app-db": "gourmand"}' \
-    infra/config/contracts/[a-z]*.json
+  jq -cs 'map((.mounts // []) | map({(.name): .database}) | add // {}) | add' infra/config/contracts/[a-z]*.json
 }
 
 # ensure_reseated_databases — a reseated mount's database may not be in the seed: vault42's
@@ -412,6 +410,13 @@ ensure_reseated_databases() {
     [ -z "$_schema" ] || docker exec -i mini-baas-postgres psql -q -U postgres -d "$_db" -v ON_ERROR_STOP=1 <"$_schema" >/dev/null ||
       die "could not apply $_schema to $_db"
   done
+}
+
+# retire_seed_tenants — the seed outlives what was removed since it was taken, and every restore
+# would bring that back. The list is data, so it lives with the other seed data.
+retire_seed_tenants() {
+  docker exec -i mini-baas-postgres psql -q -U postgres -v ON_ERROR_STOP=1 \
+    <scripts/seed/retired-tenants.sql >/dev/null || die "could not remove the retired tenants"
 }
 
 rebind_seed_mounts() {
@@ -477,6 +482,7 @@ restore_postgres() {
     rollback    : gzip -dc $STATE_DIR/pre-restore-postgres-*.sql.gz | docker exec -i mini-baas-postgres sh -c 'PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -q -U \"\$POSTGRES_USER\"'"
   fi
   rm -f "$err"
+  retire_seed_tenants
   note "postgres: replayed cleanly (only the unavoidable globals errors)"
 }
 

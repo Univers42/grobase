@@ -48,7 +48,7 @@ check "no reseat asked: an empty map, the import path unchanged" "$(config "$sta
 reseats=$(awk '/^reseat_mounts\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
 eval "$reseats"
 check "contracts name their mounts' databases" "$(reseat_mounts | jq -r '."website-pg" + " " + ."vault42-pg"')" "website vault42"
-check "... and gourmand, which has no contract" "$(reseat_mounts | jq -r '."gourmand-app-db"')" gourmand
+check "... and only contracts do" "$(reseat_mounts | jq -r 'has("gourmand-app-db")')" false
 check "... the smoke contract is not a real mount" "$(reseat_mounts | jq -r 'keys | map(select(startswith("_"))) | length')" 0
 
 # ── the restore ─────────────────────────────────────────────────────────────
@@ -105,6 +105,8 @@ check "rebinding precedes the destructive clear" \
   "$([ "$(line_of '^  rebind_seed_mounts')" -lt "$(line_of '^  clear_postgres_db')" ] && echo yes)" yes
 check "a reseated mount's database is made after the replay" \
   "$([ "$(line_of '^  pg_strip_role_passwords')" -lt "$(line_of '^  ensure_reseated_databases')" ] && echo yes)" yes
+check "what was retired goes once the replay has loaded it" \
+  "$([ "$(line_of '^  pg_strip_role_passwords')" -lt "$(line_of '^  retire_seed_tenants')" ] && echo yes)" yes
 check "the replay never reads the seed as it came" "$(printf '%s\n' "$body" | grep -c 'SEED_DIR/postgres-all')" 0
 
 # ── the mounts open ─────────────────────────────────────────────────────────

@@ -48,8 +48,6 @@ seed-mongo: _require-compose ## Seed MongoDB demo data
 seed-live-demo: _require-compose ## Seed the live-database demo across pg+mysql+mongo (owned by the osionos app key; RESEED=1 wipes first)
 	@bash scripts/seed/seed-live-demo.sh
 
-GOURMAND_PORT ?= 5180
-
 RED_TETRIS_PORT ?= 5178
 
 MOVIEVERSE_PORT ?= 5173

@@ -140,9 +140,9 @@ services:
       - sqlite-data:/tmp
     ports:
       - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
-    # host-gateway: lets external-client mounts (gourmand-tenant.sh dev
-    # fallback) dial a Postgres published on the HOST (an external app's own
-    # compose) via host.docker.internal — Linux needs the explicit mapping.
+    # host-gateway: lets external-client mounts dial a Postgres published on
+    # the HOST (an external app's own compose) via host.docker.internal —
+    # Linux needs the explicit mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
