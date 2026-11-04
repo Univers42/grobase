@@ -154,7 +154,10 @@ default_arm() {
 
 mutant_arm() {
   step "MUTANT — a copy whose main() always cycles the stack must fail QUIESCED"
-  local mutant="${WORK}/vault-restore.mutant.sh"
+  # Beside a copy of the library it sources, in the same layout as the real one.
+  local mutant="${WORK}/scripts/ops/vault-restore.mutant.sh"
+  mkdir -p "${WORK}/scripts/ops" "${WORK}/scripts/lib"
+  cp "${ROOT}/scripts/lib/lib-mount-rebind.sh" "${WORK}/scripts/lib/"
   sed 's/^  quiesce_stack$/  engines_up/' "${VR}" >"${mutant}"
   cmp -s "${VR}" "${mutant}" && {
     fail "the mutant did not apply: main() no longer calls quiesce_stack"
