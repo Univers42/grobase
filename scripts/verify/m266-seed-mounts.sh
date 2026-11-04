@@ -183,6 +183,29 @@ check "a router that never answers fails the seed" "$(plane_with 502)" 1
 check "... naming the route" "$(grep -c 'query/v1/capabilities -> 502' "$T/out")" 1
 run_section=$(awk '/^# ── run/,0' scripts/seed/osionos-extra-engines.sh)
 check "the wait comes before any mount is opened" "$(printf '%s\n' "$run_section" | grep -n '^wait_query_plane\|^seed_sqlite' | head -n1 | cut -d: -f2)" wait_query_plane
+rows=$(awk '/^sqlite_load_rows\(\) \{/,/^}/' scripts/seed/osionos-extra-engines.sh)
+rows_with() { # <the code every insert gets> -> rc; two tables, three rows
+  # shellcheck disable=SC2030,SC2031 # each subshell is its own case
+  (
+    warn() { printf 'warn: %s\n' "$*"; }
+    sleep() { :; }
+    CODE="$1" ANON_KEY=x APP_KEY=x KONG_URL=x SQLITE_DB_ID=x
+    curl() {
+      echo x >>"$T/calls"
+      printf '%s' "$CODE"
+    }
+    : >"$T/calls"
+    eval "$rows"
+    printf 'restaurant\t{}\nmenu\t{}\ndish\t{}\n' | sqlite_load_rows
+  ) >"$T/out" 2>&1
+  printf '%s' "$?"
+}
+check "every row loaded: the load passes" "$(rows_with 201)" 0
+check "a row already there is not a failure" "$(rows_with 409)" 0
+check "a refused row fails the load" "$(rows_with 400)" 1
+check "... after trying the others" "$(grep -c '^warn: sqlite: insert' "$T/out")" 3
+check "a broken mount fails the load" "$(rows_with 502)" 1
+check "... at the first row, on bounded retries" "$(wc -l <"$T/calls")" 6
 check "migrate-mongo authenticates" "$(grep -c 'authenticationDatabase admin mini_baas --file' orchestrators/makes/50-migrate.mk)" 1
 check "... and stops at a failed file" "$(awk '/^migrate-mongo:/,/applied/' orchestrators/makes/50-migrate.mk | grep -c '@set -e')" 1
 check "after a restore only sqlite is loaded" \

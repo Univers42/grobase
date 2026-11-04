@@ -186,6 +186,42 @@ SQLITE_DB_ID=""
 MSSQL_DB_ID=""
 DYNAMO_DB_ID=""
 
+# sqlite_load_rows — one "table<TAB>json" per line on stdin, one single-row insert each. The
+# gateway caps the app key at ~300 req/min, so a 429 backs off on its RateLimit-Reset and
+# retries; a 502/503 gets a short bounded retry. 409 (already present) is fine, so a re-run
+# converges. A row the mount refuses is logged and the load goes on, but any such row fails the
+# load: on 2026-11-04 a malformed database refused all of them, each was "skipped", and the seed
+# went on to report success. A 5xx past its retries stops here, because the next row would spend
+# the same 15 s finding the same broken mount.
+sqlite_load_rows() {
+  local table json code attempt reset refused=0
+  while IFS=$'\t' read -r table json; do
+    attempt=0
+    while :; do
+      code=$(curl -s -o /tmp/xeng-gw.json -D /tmp/xeng-hdr.txt -w '%{http_code}' \
+        -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${APP_KEY}" \
+        -X POST "${KONG_URL}/query/v1/${SQLITE_DB_ID}/tables/${table}" \
+        -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":${json}}")
+      if [[ "${code}" == "429" ]]; then
+        reset="$(sed -n 's/[Rr]ate[Ll]imit-[Rr]eset:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/xeng-hdr.txt | head -1)"
+        sleep "$((${reset:-5} > 0 ? ${reset:-5} : 5))"
+        continue
+      fi
+      if [[ "${code}" =~ ^(502|503)$ ]] && ((attempt < 5)); then
+        attempt=$((attempt + 1))
+        sleep 3
+        continue
+      fi
+      break
+    done
+    [[ "${code}" =~ ^(200|201|409)$ ]] && continue
+    warn "sqlite: insert into ${table} -> ${code}: $(head -c 120 /tmp/xeng-gw.json)"
+    refused=$((refused + 1))
+    [[ "${code}" != 5* ]] || break
+  done
+  [[ "${refused}" -eq 0 ]]
+}
+
 # ────────────────────────────────────────────────────────────────────────────
 # SQLITE 'restaurant' — created + loaded through the gateway (file is in-container)
 # ────────────────────────────────────────────────────────────────────────────
@@ -273,35 +309,11 @@ seed_sqlite() {
   }
 
   step "sqlite: loading deterministic rows via gateway op=insert (paced, idempotent)"
-  # The generator emits one JSON object per line; each is a single-row insert.
-  # The gateway caps the app key at ~300 req/min, so a 429 backs off on its
-  # RateLimit-Reset (seconds) and retries; transient 502/503 (a busy upstream /
-  # tenant-control blip) get a short bounded retry too. 409 (already present) is
-  # fine → an idempotent re-run converges to the count. A row that still fails
-  # after retries is logged and SKIPPED (the load keeps going, not aborts).
-  SQLITE_OWNER="${OWNER}" python3 "${SCRIPT_DIR}/extra-engines-gen.py" restaurant |
-    while IFS=$'\t' read -r table json; do
-      attempt=0
-      while :; do
-        code=$(curl -s -o /tmp/xeng-gw.json -D /tmp/xeng-hdr.txt -w '%{http_code}' \
-          -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${APP_KEY}" \
-          -X POST "${KONG_URL}/query/v1/${SQLITE_DB_ID}/tables/${table}" \
-          -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":${json}}")
-        if [[ "${code}" == "429" ]]; then
-          reset="$(sed -n 's/[Rr]ate[Ll]imit-[Rr]eset:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/xeng-hdr.txt | head -1)"
-          sleep "$((${reset:-5} > 0 ? ${reset:-5} : 5))"
-          continue
-        fi
-        if [[ "${code}" =~ ^(502|503)$ ]] && ((attempt < 5)); then
-          attempt=$((attempt + 1))
-          sleep 3
-          continue
-        fi
-        break
-      done
-      [[ "${code}" =~ ^(200|201|409)$ ]] ||
-        warn "sqlite: insert into ${table} -> ${code}: $(head -c 120 /tmp/xeng-gw.json) (skipped this row)"
-    done
+  sqlite_load_rows < <(SQLITE_OWNER="${OWNER}" python3 "${SCRIPT_DIR}/extra-engines-gen.py" restaurant) || {
+    warn "sqlite: not every row loaded (lines above) — skipping sqlite"
+    SQLITE_DB_ID=""
+    return 0
+  }
   pass "sqlite restaurant loaded (mount ${SQLITE_DB_ID})"
 }
 
