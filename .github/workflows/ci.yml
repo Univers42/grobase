@@ -956,25 +956,34 @@ jobs:
           export ANON_KEY WEBSITE_KEY WEBSITE_DBID VAULT42_DBID
           bash scripts/verify/m176-contract-isolation-live.sh
 
-      # tenant-control recreated with APPS_SELFSERVE_ENABLED=1 for this step: a
-      # signed-up account creates two apps on two fresh databases and one app's
-      # key is refused on the other's; recreated without the flag, the create
-      # answers 404. CI signs up with a password (GOTRUE_MAILER_AUTOCONFIRM
-      # above) where production logs in with an emailed code.
+      # Sign up against the already-running GoTrue BEFORE recreating tenant-control:
+      # run 41844633762 got a 502 from /auth/v1/signup right after that recreate
+      # (Kong/GoTrue unsettled; signup does not need the self-serve flag). Then
+      # recreate with APPS_SELFSERVE_ENABLED=1: two apps on two fresh databases,
+      # one app's key refused on the other's; recreate without the flag → 404.
+      # CI signs up with a password (GOTRUE_MAILER_AUTOCONFIRM above) where
+      # production logs in with an emailed code.
       - name: Self-serve fresh-DB apps, live (m177)
         run: |
           set -euo pipefail
           export BAAS_VERIFY_LIVE=1 M177_SKIP_STATIC=1 KONG_URL=http://localhost:8000
           ANON_KEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
           export ANON_KEY
+          email="m177-$(date +%s)@example.com"
+          pass='M177-pass-1!'
+          # Signup and token against the stable stack (retry: Kong occasionally 502s).
+          for i in 1 2 3 4 5; do
+            curl -fsS -o /dev/null -X POST "$KONG_URL/auth/v1/signup" -H "apikey: $ANON_KEY" \
+              -H 'Content-Type: application/json' -d "{\"email\":\"$email\",\"password\":\"$pass\"}" \
+              && break
+            [ "$i" -eq 5 ] && exit 1
+            sleep $((i * 2))
+          done
+          DEV_JWT=$(curl -fsS -X POST "$KONG_URL/auth/v1/token?grant_type=password" -H "apikey: $ANON_KEY" \
+            -H 'Content-Type: application/json' -d "{\"email\":\"$email\",\"password\":\"$pass\"}" | jq -r .access_token)
+          export DEV_JWT
           APPS_SELFSERVE_ENABLED=1 docker compose -f docker-compose.yml up -d --no-deps --no-build --wait tenant-control
           trap 'docker compose -f docker-compose.yml up -d --no-deps --no-build --wait tenant-control' EXIT
-          email="m177-$(date +%s)@example.com"
-          curl -fsS -o /dev/null -X POST "$KONG_URL/auth/v1/signup" -H "apikey: $ANON_KEY" \
-            -H 'Content-Type: application/json' -d "{\"email\":\"$email\",\"password\":\"M177-pass-1!\"}"
-          DEV_JWT=$(curl -fsS -X POST "$KONG_URL/auth/v1/token?grant_type=password" -H "apikey: $ANON_KEY" \
-            -H 'Content-Type: application/json' -d "{\"email\":\"$email\",\"password\":\"M177-pass-1!\"}" | jq -r .access_token)
-          export DEV_JWT
           bash scripts/verify/m177-selfserve-apps.sh
           docker compose -f docker-compose.yml up -d --no-deps --no-build --wait tenant-control
           trap - EXIT
