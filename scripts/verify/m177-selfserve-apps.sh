@@ -118,8 +118,8 @@ if [ "${BAAS_VERIFY_LIVE:-0}" = "1" ]; then
     [ "${own}" = "200" ] || fail "app beta's key on its own db_id expected 200, got ${own}"
     ok "live: each app's key reads its own db_id (200)"
     cross=$(tables "${key_a}" "${db_b}")
-    case "${cross}" in 4??) ;; *) fail "app alpha's key on beta's db_id expected 4xx, got ${cross}" ;; esac
-    ok "live: app alpha's key on beta's db_id → ${cross} (cross-app isolation holds)"
+    [ "${cross}" = "404" ] || fail "app alpha's key on beta's db_id expected 404, got ${cross}"
+    ok "live: app alpha's key on beta's db_id → 404 (cross-app isolation holds)"
   fi
 fi
 

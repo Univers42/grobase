@@ -24,7 +24,7 @@
 # reaches collab: again (parity), and realtime is left that way.
 # M175_SKIP_STATIC=1 skips the cargo leg when another job already ran it.
 #
-# Caveat: realtime answers a denied SUBSCRIBE with silence, so "denied" is "no
+# Ponytail: realtime answers a denied SUBSCRIBE with silence, so "denied" is "no
 # SUBSCRIBED within 4 s". A realtime too slow to answer an allowed one reads as
 # denied (the allowed cases in the same run would fail first and name it).
 # ============================================================
