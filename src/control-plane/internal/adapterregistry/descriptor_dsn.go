@@ -134,7 +134,7 @@ func isPlatformHost(host string) bool {
 		return !strings.Contains(lower, ".")
 	}
 	return addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() || addr.IsUnspecified() ||
-		netip.MustParsePrefix("100.64.0.0/10").Contains(addr)
+		netip.MustParsePrefix("100.64.0.0/10").Contains(addr) // NOSONAR RFC 6598 shared address space, not a host
 }
 
 // tlsFromQuery maps the requested posture onto a closed set, so no query value is echoed.

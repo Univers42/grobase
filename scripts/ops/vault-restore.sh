@@ -67,6 +67,8 @@ set -eu
 # hidden the bug.
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 GROBASE_ROOT=$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd)
+# shellcheck source=../lib/lib-mount-rebind.sh
+. "$SCRIPT_DIR/../lib/lib-mount-rebind.sh"
 _seed_in="${SEED_DIR:-./secrets}"
 SEED_DIR=$(CDPATH='' cd -- "$_seed_in" 2>/dev/null && pwd || printf '%s' "$_seed_in")
 cd "$GROBASE_ROOT"
@@ -98,6 +100,21 @@ SKIP_STACK_CYCLE="${SKIP_STACK_CYCLE:-0}"
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
+}
+
+# put_into SRC CONTAINER DST: SRC at DST in the container, owned by the container's root.
+# `docker cp` carries the caller's uid and gid, and under rootless Docker the caller's group
+# does not exist in the user namespace, so every restore past mongo stopped on
+#   failed to Lchown "/in" for UID 101889, GID 4224: lchown /in: invalid argument
+# A tar stream names its own owner, and works the same on a rootful daemon.
+# Caveat: --transform is GNU tar; a BSD tar on the machine running this fails here, loudly.
+put_into() {
+  _name=$(basename "$3")
+  if [ -d "$1" ]; then
+    tar -C "$1" --numeric-owner --owner=0 --group=0 --transform "s,^\.,$_name," -cf - .
+  else
+    tar -C "$(dirname "$1")" --numeric-owner --owner=0 --group=0 --transform "s,^.*\$,$_name," -cf - "$(basename "$1")"
+  fi | docker cp - "$2:$(dirname "$3")"
 }
 
 # Exit 2 promises the caller that nothing was stopped, dropped or replayed.
@@ -358,19 +375,96 @@ backup_postgres() {
   note "postgres: pre-restore backup is $(wc -c <"$out") bytes"
 }
 
+# rebind_seed_mounts — the seed's dump with its mounts rewritten for THIS machine, in $REBOUND.
+#
+# The credential filters below keep the source's passwords out of the engines, but
+# public.tenant_databases carries them too, sealed inside each mount's DSN. Restored as they
+# are, those rows decrypt fine and then fail to log in: on 2026-11-04 every mount on a platform
+# engine answered 502 (postgres pool checkout, mysql 1045, mssql 18456) with `make all` green,
+# because nothing opens a mount. cmd/mount-rebind gives them the logins of the engines running
+# here. It runs before anything is cleared, and to a file: this is POSIX sh, so a failure in a
+# pipe into psql would go unseen and replay half a dump.
+# Caveat: the first run needs the Go image and its modules from the network (docker keeps them
+# after that). With neither, the restore stops here, before any data is touched. The same
+# happens to a redis on the ACL overlay: its login is in its consumers' env, and they are down.
+# reseat_mounts — mount name to database, for rows no key opens any more. website-pg and
+# vault42-pg were sealed under a key the vault no longer holds, so no restore could open them,
+# and the API cannot replace a DSN it cannot read first. Their target is declared by their
+# contract.
+reseat_mounts() {
+  jq -cs 'map((.mounts // []) | map({(.name): .database}) | add // {}) | add' infra/config/contracts/[a-z]*.json
+}
+
+# ensure_reseated_databases — a reseated mount's database may not be in the seed: vault42's
+# never was. A missing one is made here with its contract's schema, as provision-contract.sh
+# would, so the mount opens. One already in the seed is left alone.
+ensure_reseated_databases() {
+  for _db in $(reseat_mounts | jq -r '.[]' | sort -u); do
+    _have=$(docker exec mini-baas-postgres psql -U postgres -Atc "SELECT 1 FROM pg_database WHERE datname='$_db'")
+    [ -z "$_have" ] || continue
+    note "postgres: creating $_db, which a reseated mount declares and the seed does not hold"
+    docker exec mini-baas-postgres psql -q -U postgres -c "CREATE DATABASE \"$_db\"" >/dev/null ||
+      die "could not create $_db"
+    _schema=$(jq -r --arg d "$_db" 'select(any(.mounts[]?; .database == $d)) | .schema.postgresql // empty' \
+      infra/config/contracts/[a-z]*.json | head -n1)
+    [ -z "$_schema" ] || docker exec -i mini-baas-postgres psql -q -U postgres -d "$_db" -v ON_ERROR_STOP=1 <"$_schema" >/dev/null ||
+      die "could not apply $_schema to $_db"
+  done
+}
+
+# retire_seed_tenants — the seed outlives what was removed since it was taken, and every restore
+# would bring that back. The list is data, so it lives with the other seed data.
+retire_seed_tenants() {
+  docker exec -i mini-baas-postgres psql -q -U postgres -v ON_ERROR_STOP=1 \
+    <scripts/seed/retired-tenants.sql >/dev/null || die "could not remove the retired tenants"
+}
+
+rebind_seed_mounts() {
+  command -v jq >/dev/null 2>&1 || die "jq is required to rebind the seed's mounts"
+  [ -r .env ] || die "no readable .env: the seed's mounts cannot be rebound"
+  note "postgres: rebinding the seed's mounts to this machine's logins (first run builds the tool)"
+  mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || die "cannot create $STATE_DIR"
+  REBOUND="$STATE_DIR/postgres-rebound.sql"
+  _log=$(mktemp)
+  # jq's messages can quote a value, and here every value is a secret: only this program's
+  # own error() texts leave the file.
+  # shellcheck disable=SC2046 # one id per word, on purpose
+  if ! _config=$(docker inspect $(docker ps -q) | jq -c --rawfile srcenv .env --argjson envkey true \
+    --argjson reseat "$(reseat_mounts)" "$(rebind_config_program)" 2>"$_log"); then
+    _why=$(grep -oE '(target|source env)[^"]*' "$_log" | head -n1 || true)
+    rm -f "$_log"
+    die "cannot build the rebind config from the running engines: ${_why:-see jq}"
+  fi
+  (umask 077 && : >"$REBOUND")
+  if ! { printf '%s\n' "$_config" && gzip -dc "$SEED_DIR/postgres-all.sql.gz"; } | rebind_run >"$REBOUND" 2>"$_log"; then
+    _why=$(grep -v '^{' "$_log" | tail -n3 || true)
+    rm -f "$_log" "$REBOUND"
+    die "mount-rebind failed, nothing was restored: $_why"
+  fi
+  unset _config
+  # Kept for diagnosis: ids, engines and outcomes, never a DSN or a key.
+  grep '^{' "$_log" | tail -n1 >"$STATE_DIR/mounts-rebound.json"
+  jq -r '.rows | group_by(.outcome)[] | "\(length) \(.[0].outcome)"' "$STATE_DIR/mounts-rebound.json" |
+    while IFS= read -r _line; do note "postgres: mounts: $_line"; done
+  rm -f "$_log"
+}
+
 restore_postgres() {
   have postgres-all.sql.gz || {
     note "no postgres dump — skipped"
     return 0
   }
+  rebind_seed_mounts
   backup_postgres
   clear_postgres_db
   pg_terminate_sessions
   note "postgres: replaying dump"
   err=$(mktemp)
-  gzip -dc "$SEED_DIR/postgres-all.sql.gz" | pg_strip_role_passwords |
+  pg_strip_role_passwords <"$REBOUND" |
     docker exec -i mini-baas-postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER"' \
       >/dev/null 2>"$err" || true
+  rm -f "$REBOUND"
+  ensure_reseated_databases
   real=$(grep '^ERROR:' "$err" 2>/dev/null | grep -Ev "$PG_BENIGN" || true)
   count=$(printf '%s' "$real" | grep -c . || true)
   if [ "${count:-0}" -gt 0 ]; then
@@ -388,6 +482,7 @@ restore_postgres() {
     rollback    : gzip -dc $STATE_DIR/pre-restore-postgres-*.sql.gz | docker exec -i mini-baas-postgres sh -c 'PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -q -U \"\$POSTGRES_USER\"'"
   fi
   rm -f "$err"
+  retire_seed_tenants
   note "postgres: replayed cleanly (only the unavoidable globals errors)"
 }
 
@@ -531,7 +626,7 @@ restore_minio() {
   docker rm -f "$ctr" >/dev/null 2>&1 || true
   if ! docker create --name "$ctr" --network "$NET" -e MC_HOST_seed -e HOME=/tmp \
     --tmpfs /tmp:rw,size=16m "$MC_IMAGE" mirror --quiet /in seed >/dev/null ||
-    ! docker cp "$stage/." "$ctr:/in" >/dev/null || ! docker start -a "$ctr" >/dev/null 2>&1; then
+    ! put_into "$stage" "$ctr" /in >/dev/null || ! docker start -a "$ctr" >/dev/null 2>&1; then
     docker rm -f "$ctr" >/dev/null 2>&1 || true
     rm -rf "$stage"
     die "minio mirror failed"
@@ -552,7 +647,7 @@ restore_redis() {
   docker stop mini-baas-redis >/dev/null 2>&1 || true
   docker run --rm -v mini-baas_redis-data:/d alpine:latest \
     rm -rf /d/appendonlydir /d/dump.rdb >/dev/null 2>&1 || true
-  docker cp "$SEED_DIR/redis.rdb" mini-baas-redis:/data/dump.rdb ||
+  put_into "$SEED_DIR/redis.rdb" mini-baas-redis /data/dump.rdb ||
     die "could not place the rdb"
   # docker cp writes the file as the CALLER's uid; the image runs redis-server as its own
   # `redis` user, which then cannot open it ("can't open the RDB file dump.rdb for reading:
@@ -658,7 +753,7 @@ restore_mssql() {
     [ -f "$bak" ] || continue
     db=$(basename "$bak" .bak)
     note "mssql: restoring $db"
-    docker cp "$bak" "mini-baas-mssql:/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
+    put_into "$bak" mini-baas-mssql "/tmp/$db.bak" >/dev/null || die "mssql: cannot copy $db into the container"
     # docker cp keeps the host owner and mode; the extracted .bak is private to the caller,
     # so SQL Server (its own uid) got "Operating system error 5 (Access is denied)".
     docker exec -u 0 mini-baas-mssql chmod 0644 "/tmp/$db.bak" || die "mssql: cannot make $db.bak readable"

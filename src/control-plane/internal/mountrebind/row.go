@@ -22,8 +22,9 @@ func cipherColumn(i int) string {
 }
 
 // row re-seals one COPY row under the target key when the source key opens it, with the
-// DSN RewriteDSN returns; a row without ciphertext, one the source key cannot open and a
-// Refused one are returned byte for byte.
+// DSN RewriteDSN returns, and rebuilds one it cannot open when Reseat names it; a row
+// without ciphertext, any other row the source key cannot open and a Refused one are
+// returned byte for byte.
 func (rw *rewriter) row(line string, cols map[string]int) (string, error) {
 	fields := strings.Split(strings.TrimSuffix(line, "\n"), "\t")
 	rec := Row{ID: field(fields, cols, "id"), Engine: field(fields, cols, "engine"), Outcome: NoCiphertext}
@@ -35,7 +36,15 @@ func (rw *rewriter) row(line string, cols map[string]int) (string, error) {
 	dsn, err := rw.source.Decrypt(payload)
 	if err != nil {
 		rec.Outcome = Undecryptable
-		return line, nil
+		rebuilt, ok := reseatDSN(rec.Engine, rw.reseat[field(fields, cols, "name")], rw.targets)
+		if !ok {
+			return line, nil
+		}
+		if err := rw.seal(fields, cols, rebuilt); err != nil {
+			return "", fmt.Errorf("row %s: %w", rec.ID, err)
+		}
+		rec.Outcome, rec.Resealed = Reseated, true
+		return strings.Join(fields, "\t") + "\n", nil
 	}
 	next, outcome := RewriteDSN(rec.Engine, dsn, rw.targets)
 	rec.Outcome = outcome

@@ -68,6 +68,12 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
       KONG_HEADERS: "off"
+      # A recreated service comes back on a new address while Kong keeps the old one
+      # for the DNS answer's TTL: /email/v1/send gave 502 on the dead IP after a
+      # recreate (2026-11-04). Stale 0: an expired name is looked up, not served again.
+      # Caveat: for up to 5 s after a recreate a request can still reach the old address.
+      KONG_DNS_VALID_TTL: "5"
+      KONG_DNS_STALE_TTL: "0"
       # The WAF owns the public body limits (client_max_body_size 10m, 128 KB outside its
       # per-path lifts); this matches it so a lifted body is not refused here a second time,
       # as 1m did to every whiteboard save over 1 MiB. Routes keep request-size-limiting.

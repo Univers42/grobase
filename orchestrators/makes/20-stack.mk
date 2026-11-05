@@ -11,7 +11,7 @@
 # **************************************************************************** #
 
 ##@ Stack lifecycle — up · down · build · health · benchmarks · reports
-up: _require-compose _pg-clients-tls _rm-stale _image-provenance ## Start the selected EDITION (detached)
+up: _require-shape _require-compose _pg-clients-tls _rm-stale _image-provenance ## Start the selected EDITION (detached)
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
@@ -32,11 +32,11 @@ ps: _require-compose ## Show service status for the selected EDITION
 logs: _require-compose ## Follow logs (SERVICE=<name> to filter)
 	@$(DCE) logs -f --tail=100 $(SERVICE)
 
-pull: _require-compose ## Pull images for the selected EDITION
+pull: _require-shape _require-compose ## Pull images for the selected EDITION
 	@$(DCE) pull
 	@echo -e "$(_G)✓ Pulled$(_0)"
 
-build: _require-compose ## Build images for the selected EDITION (bake: one parallel BuildKit graph, dedup'd shared stages)
+build: _require-shape _require-compose ## Build images for the selected EDITION (bake: one parallel BuildKit graph, dedup'd shared stages)
 	@$(call with_provenance,$(DCE),build)
 	@echo -e "$(_G)✓ Build complete$(_0)"
 

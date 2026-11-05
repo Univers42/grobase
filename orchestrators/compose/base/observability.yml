@@ -119,8 +119,8 @@ services:
       retries: 5
     profiles: ["observability"]
     volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DOCKER_CONTAINERS_DIR:-/var/lib/docker/containers}:/var/lib/docker/containers:ro
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - ./infra/config/promtail/promtail.yaml:/etc/promtail/config.yaml:ro
     command: ["-config.file=/etc/promtail/config.yaml"]
 

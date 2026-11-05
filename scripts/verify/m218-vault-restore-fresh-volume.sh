@@ -73,7 +73,7 @@ pg_strict_ok() {
   [ -n "${pat}" ] && ! printf 'ERROR:  relation "osionos_pages" does not exist\n' | grep -qE -- "${pat}"
 }
 redis_ok() {
-  ordered "$1" restore_redis 'docker cp "$SEED_DIR/redis.rdb"' \
+  ordered "$1" restore_redis 'put_into "$SEED_DIR/redis.rdb"' \
     'chown "$(stat -c %u:%g /d)" /d/dump.rdb' 'docker run -d --name vault-restore-redis'
 }
 minio_ok() {

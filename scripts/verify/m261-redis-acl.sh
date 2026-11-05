@@ -119,14 +119,14 @@ static_orders() {
 # The rebind script's own jq over two fixtures: the overlay login, then a missing one.
 static_rebind() {
   local prog fixture
-  prog="$(eval "$(sed -n '/^redis_program()/,/^}/p;/^config_program()/,/^}/p' \
-    "${ROOT}/scripts/ops/grobase-import-rebind.sh")" && config_program)"
+  # shellcheck source=../lib/lib-mount-rebind.sh
+  prog="$(. "${ROOT}/scripts/lib/lib-mount-rebind.sh" && rebind_config_program)"
   fixture='[{"Name":"/mini-baas-redis","Args":["sh","/usr/local/bin/redis-acl.sh","serve"],"Config":{"Env":["VAULT_ENC_KEY=t"]}},
     {"Name":"/mini-baas-x","Config":{"Env":["VAULT_ENC_KEY=t","OUTBOX_REDIS_URL=redis://app:fixture@redis:6379"]}}]'
-  jq -e --rawfile srcenv <(echo VAULT_ENC_KEY=s) "${prog}" <<<"${fixture}" |
+  jq -e --rawfile srcenv <(echo VAULT_ENC_KEY=s) --argjson envkey false "${prog}" <<<"${fixture}" |
     jq -e '.targets[] | select(.engine == "redis") | .user == "app" and .password == "fixture"' >/dev/null ||
     fail "grobase-import-rebind.sh does not read the overlay's redis login"
-  jq --rawfile srcenv <(echo VAULT_ENC_KEY=s) "${prog}" <<<"$(jq -c 'del(.[1])' <<<"${fixture}")" >/dev/null 2>&1 &&
+  jq --rawfile srcenv <(echo VAULT_ENC_KEY=s) --argjson envkey false "${prog}" <<<"$(jq -c 'del(.[1])' <<<"${fixture}")" >/dev/null 2>&1 &&
     fail "grobase-import-rebind.sh rebinds an ACL redis without a login"
   ok "RA11: the rebind config takes app's login from the consumers' URLs, refuses an ACL redis without one"
 }

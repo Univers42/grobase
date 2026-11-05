@@ -27,6 +27,10 @@ NETSEG         ?=
 # and mailpit SMTP 1025 on the guest loopback for an SSH-tunnelled groot
 # (orchestrators/compose/docker-compose.remote-access.yml). Loopback only.
 REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null | head -1)
+# QEMU_GUEST=1 (env, or a QEMU_GUEST= line in .env.local) publishes the WAF's TLS port on
+# the guest loopback and QEMU's user-mode address, not on every interface
+# (orchestrators/compose/docker-compose.qemu-guest.yml). Only on a QEMU guest.
+QEMU_GUEST     ?= $(shell sed -n 's/^QEMU_GUEST=//p' .env.local 2>/dev/null | head -1)
 # PERF=1 (env, or a PERF= line in .env.local) composes the request-path CPU headroom
 # overlay (orchestrators/compose/docker-compose.perf.yml) for a host serving real users.
 PERF           ?= $(shell sed -n 's/^PERF=//p' .env.local 2>/dev/null | head -1)
@@ -69,7 +73,23 @@ endif
 # consumer dials it with REDIS_PASSWORD. Separate from ENGINE_TLS_ENGINES; it composes with
 # the redis TLS overlay in either order.
 REDIS_ACL      ?= $(shell sed -n 's/^REDIS_ACL=//p' .env.local 2>/dev/null | head -1)
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)
+# What this Docker is, asked once. Rootless on a 42 seat differs in three ways that each stopped
+# a fresh clone: it cannot honour a CPU limit (cgroup v2 delegating only memory and pids, so every
+# container carrying one is refused: read scripts/ops/no-cpu-limits.sh, `CPU_QUOTA=true` keeps
+# them), its data is not under /var/lib/docker, and its socket is not /var/run/docker.sock, which
+# promtail mounts. Rootful hosts keep the defaults those mounts name in observability.yml.
+# Caveat: asks the daemon at parse time, a few ms per make; no daemon answers empty and changes
+# nothing, and the failure then comes from the target that needed Docker, by name.
+_DOCKER_INFO    := $(shell docker info --format '{{.CPUCfsQuota}} {{.DockerRootDir}}' 2>/dev/null)
+CPU_QUOTA       ?= $(word 1,$(_DOCKER_INFO))
+DOCKER_CONTAINERS_DIR ?= $(if $(word 2,$(_DOCKER_INFO)),$(word 2,$(_DOCKER_INFO))/containers,/var/lib/docker/containers)
+DOCKER_SOCKET   ?= $(if $(filter unix://%,$(DOCKER_HOST)),$(patsubst unix://%,%,$(DOCKER_HOST)),/var/run/docker.sock)
+export DOCKER_CONTAINERS_DIR DOCKER_SOCKET
+NO_CPU_OVERRIDE := orchestrators/compose/.no-cpu-limits.yml
+ifeq ($(CPU_QUOTA),false)
+$(shell sh scripts/ops/no-cpu-limits.sh $(NO_CPU_OVERRIDE))
+endif
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(QEMU_GUEST)), -f orchestrators/compose/docker-compose.qemu-guest.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))
 
 # Colors
 _B := \033[0;34m
@@ -161,6 +181,8 @@ PACKAGE_basic     := go rust
 PACKAGE_essential := go rust adapter background
 PACKAGE_pro       := $(PACKAGE_essential) data storage realtime
 PACKAGE_max       := $(PACKAGE_pro) analytics observability functions engines
+# packages.json's alias. Its other one, free -> nano, has no stack: see _require-shape.
+PACKAGE_enterprise := $(PACKAGE_max)
 ADDONS ?=
 
 # Functions: plane-list -> sorted profiles -> `--profile x --profile y`
@@ -182,12 +204,33 @@ endif
 PROFILE_FLAGS := $(addprefix --profile ,$(ACTIVE_PROFILES))
 DCE           := $(DC) $(PROFILE_FLAGS)
 
+# An unknown name resolves to no profile, and compose with no profile is the seven core
+# containers: `make all PACKAGE=enterprise` printed success over them on 2026-11-04, and so
+# did any misspelling. nano and free are one binary each, which compose cannot start.
+_require-shape:
+ifndef PROFILES
+ifdef PACKAGE
+ifneq ($(filter $(PACKAGE),nano free),)
+	@echo >&2 "PACKAGE=$(PACKAGE) is one binary, not a compose stack: make nano-up"; exit 2
+else ifeq ($(filter $(PACKAGE),$(PACKAGES) enterprise),)
+	@echo >&2 "unknown PACKAGE=$(PACKAGE): use $(PACKAGES) enterprise, or make nano-up"; exit 2
+endif
+else ifeq ($(filter $(EDITION),$(EDITIONS)),)
+	@echo >&2 "unknown EDITION=$(EDITION): use $(EDITIONS)"; exit 2
+endif
+endif
+
 _require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo >&2 "Docker is not installed."; exit 1; }
 
 _require-compose: _require-docker
 	@docker compose version >/dev/null 2>&1 || { echo >&2 "Docker Compose v2 plugin is required."; exit 1; }
 
+# A partial `up` leaves everything else alone: it recreates only what its named services
+# need, so removing every exited container here dropped finished one-shots for good and
+# `make health` stayed red over a working stack (mongo-keyfile, after `up SERVICE=gotrue`).
 _rm-stale:
+ifeq ($(strip $(SERVICE)),)
 	@ids=$$(docker ps -a --format '{{.ID}} {{.Names}} {{.Status}}' | awk '/ mini-baas-/ && ($$3=="Created"||$$3=="Exited") {print $$1}'); \
 	[ -z "$$ids" ] || { echo -e "$(_Y)Removing stale containers…$(_0)"; docker rm -f $$ids >/dev/null; }
+endif

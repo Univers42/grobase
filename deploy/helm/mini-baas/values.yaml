@@ -304,14 +304,6 @@ services:
       requests:
         cpu: 125m
         memory: 0Mi
-  gourmand:
-    enabled: false
-    image: node:20-alpine
-    ports:
-    - 80
-    profiles:
-    - gourmand
-    replicas: 1
   grafana:
     enabled: false
     image: ghcr.io/univers42/grobase-grafana:latest

@@ -184,7 +184,7 @@ else
   bad "a failed mirror was not reported, or replaced minio.tar.gz: $(tail -1 <<<"${out}")"
 fi
 mc rb --force g/m228-bucket >/dev/null 2>&1 || bad "could not drop the test bucket"
-out="$(sh "$(harness restore-minio "${RESTORE}" die note have restore_minio -- restore_minio)" 2>&1)" ||
+out="$(sh "$(harness restore-minio "${RESTORE}" die note have put_into restore_minio -- restore_minio)" 2>&1)" ||
   bad "restore_minio failed: $(tail -1 <<<"${out}")"
 if [ "$(mc cat g/m228-bucket/nested/obj.txt 2>/dev/null)" = "${payload}" ]; then
   ok "restore_minio put the dropped bucket back, same bytes"

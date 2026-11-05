@@ -109,6 +109,12 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
       KONG_HEADERS: "off"
+      # A recreated service comes back on a new address while Kong keeps the old one
+      # for the DNS answer's TTL: /email/v1/send gave 502 on the dead IP after a
+      # recreate (2026-11-04). Stale 0: an expired name is looked up, not served again.
+      # Caveat: for up to 5 s after a recreate a request can still reach the old address.
+      KONG_DNS_VALID_TTL: "5"
+      KONG_DNS_STALE_TTL: "0"
       # The WAF owns the public body limits (client_max_body_size 10m, 128 KB outside its
       # per-path lifts); this matches it so a lifted body is not refused here a second time,
       # as 1m did to every whiteboard save over 1 MiB. Routes keep request-size-limiting.
@@ -756,6 +762,13 @@ services:
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
       GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
       GOTRUE_SMTP_SECURE: ${SMTP_SECURE:-false}
+      # GoTrue sends inside the request, under a 10 s limit by default: a Titan send
+      # (9-20 s) came back 504 with the token rolled back and the mail already gone,
+      # so the link in it was dead (2026-11-04). Above smtpclient's 30 s session,
+      # under Kong's 60 s proxy timeout.
+      # Caveat: a relay slower than 45 s still ends that way, and because the send
+      # holds the request, /recover answers a known address later than an unknown one.
+      GOTRUE_API_MAX_REQUEST_DURATION: 45s
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${EMAIL_FROM:-noreply@mini-baas.local}
@@ -1125,9 +1138,9 @@ services:
       - "127.0.0.1:${DATA_PLANE_RUST_PORT:-4011}:4011"
     networks:
       - mini-baas
-    # host-gateway: lets external-client mounts (gourmand-tenant.sh dev
-    # fallback) dial a Postgres published on the HOST (vite-gourmand's own
-    # compose) via host.docker.internal — Linux needs the explicit mapping.
+    # host-gateway: lets external-client mounts dial a Postgres published on
+    # the HOST (an external app's own compose) via host.docker.internal —
+    # Linux needs the explicit mapping.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

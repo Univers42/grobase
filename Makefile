@@ -22,13 +22,18 @@ include $(sort $(wildcard orchestrators/makes/*.mk))
 # define block would be counted too. Pattern rules (%) never match the regex.
 PHONY_TARGETS = $(shell awk '/^[a-zA-Z0-9_.-]+:([^=]|$$).*##/ { sub(/:.*/, ""); print }' $(MAKEFILE_LIST))
 .PHONY: $(PHONY_TARGETS)
-.PHONY: _rust-toolchain _require-version _require-docker _require-compose _rm-stale \
+.PHONY: _rust-toolchain _require-version _require-shape _require-docker _require-compose _rm-stale \
         _image-provenance _require-cloud-flags _cloud-preflight
 
 ##@ 42 Classics — all · clean · fclean · re  (+ the full test matrix)
-all: ## Build then start this project (EDITION=full for everything)
-	@$(MAKE) --no-print-directory build
-	@$(MAKE) --no-print-directory up
+# The whole product unless the command line narrows it: PACKAGE=, EDITION= or PROFILES= there wins.
+ALL_SHAPE = $(if $(filter command line environment,$(origin PACKAGE) $(origin EDITION) $(origin PROFILES)),$(if $(PACKAGE),PACKAGE="$(PACKAGE)" ADDONS="$(ADDONS)",$(if $(EDITION),EDITION="$(EDITION)")),PACKAGE=max ADDONS="observability engines")
+
+all: _require-shape ## Deploy everything on this machine, the team's data included when vault42 credentials are here (read scripts/ops/deploy-all.sh; BUILD=1 builds from this tree)
+	@BUILD="$(BUILD)" bash scripts/ops/deploy-all.sh $(ALL_SHAPE)
+
+set_seeds: ## Load the team's seeds from vault42 into this stack; a platform with data is left alone (FORCE=1 replaces it)
+	@SEEDS_FORCE="$(or $(FORCE),0)" bash scripts/ops/set-seeds.sh $(ALL_SHAPE)
 
 all-full: ## all with EDITION=full
 	@$(MAKE) --no-print-directory EDITION=full all

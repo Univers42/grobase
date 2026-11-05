@@ -45,7 +45,10 @@
 #
 # Usage:  bash scripts/seed/osionos-extra-engines.sh
 # Env:    BAAS_API_KEY (defaults to VITE_BAAS_API_KEY from the app .env),
-#         APP_ENV_FILE, SKIP_SQLITE=1 (force-skip sqlite)
+#         APP_ENV_FILE, SKIP_SQLITE=1 (force-skip sqlite),
+#         AFTER_RESTORE=1 (the tail of a seed restore: load sqlite, whose rows no
+#         seed captured, then open every mount of this tenant and fail on a dead
+#         one. mssql, dynamodb and the edges came back with the dumps.)
 
 set -euo pipefail
 
@@ -183,6 +186,42 @@ SQLITE_DB_ID=""
 MSSQL_DB_ID=""
 DYNAMO_DB_ID=""
 
+# sqlite_load_rows — one "table<TAB>json" per line on stdin, one single-row insert each. The
+# gateway caps the app key at ~300 req/min, so a 429 backs off on its RateLimit-Reset and
+# retries; a 502/503 gets a short bounded retry. 409 (already present) is fine, so a re-run
+# converges. A row the mount refuses is logged and the load goes on, but any such row fails the
+# load: on 2026-11-04 a malformed database refused all of them, each was "skipped", and the seed
+# went on to report success. A 5xx past its retries stops here, because the next row would spend
+# the same 15 s finding the same broken mount.
+sqlite_load_rows() {
+  local table json code attempt reset refused=0
+  while IFS=$'\t' read -r table json; do
+    attempt=0
+    while :; do
+      code=$(curl -s -o /tmp/xeng-gw.json -D /tmp/xeng-hdr.txt -w '%{http_code}' \
+        -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${APP_KEY}" \
+        -X POST "${KONG_URL}/query/v1/${SQLITE_DB_ID}/tables/${table}" \
+        -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":${json}}")
+      if [[ "${code}" == "429" ]]; then
+        reset="$(sed -n 's/[Rr]ate[Ll]imit-[Rr]eset:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/xeng-hdr.txt | head -1)"
+        sleep "$((${reset:-5} > 0 ? ${reset:-5} : 5))"
+        continue
+      fi
+      if [[ "${code}" =~ ^(502|503)$ ]] && ((attempt < 5)); then
+        attempt=$((attempt + 1))
+        sleep 3
+        continue
+      fi
+      break
+    done
+    [[ "${code}" =~ ^(200|201|409)$ ]] && continue
+    warn "sqlite: insert into ${table} -> ${code}: $(head -c 120 /tmp/xeng-gw.json)"
+    refused=$((refused + 1))
+    [[ "${code}" != 5* ]] || break
+  done
+  [[ "${refused}" -eq 0 ]]
+}
+
 # ────────────────────────────────────────────────────────────────────────────
 # SQLITE 'restaurant' — created + loaded through the gateway (file is in-container)
 # ────────────────────────────────────────────────────────────────────────────
@@ -270,35 +309,11 @@ seed_sqlite() {
   }
 
   step "sqlite: loading deterministic rows via gateway op=insert (paced, idempotent)"
-  # The generator emits one JSON object per line; each is a single-row insert.
-  # The gateway caps the app key at ~300 req/min, so a 429 backs off on its
-  # RateLimit-Reset (seconds) and retries; transient 502/503 (a busy upstream /
-  # tenant-control blip) get a short bounded retry too. 409 (already present) is
-  # fine → an idempotent re-run converges to the count. A row that still fails
-  # after retries is logged and SKIPPED (the load keeps going, not aborts).
-  SQLITE_OWNER="${OWNER}" python3 "${SCRIPT_DIR}/extra-engines-gen.py" restaurant |
-    while IFS=$'\t' read -r table json; do
-      attempt=0
-      while :; do
-        code=$(curl -s -o /tmp/xeng-gw.json -D /tmp/xeng-hdr.txt -w '%{http_code}' \
-          -H "apikey: ${ANON_KEY}" -H "X-Baas-Api-Key: ${APP_KEY}" \
-          -X POST "${KONG_URL}/query/v1/${SQLITE_DB_ID}/tables/${table}" \
-          -H 'Content-Type: application/json' -d "{\"op\":\"insert\",\"data\":${json}}")
-        if [[ "${code}" == "429" ]]; then
-          reset="$(sed -n 's/[Rr]ate[Ll]imit-[Rr]eset:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/xeng-hdr.txt | head -1)"
-          sleep "$((${reset:-5} > 0 ? ${reset:-5} : 5))"
-          continue
-        fi
-        if [[ "${code}" =~ ^(502|503)$ ]] && ((attempt < 5)); then
-          attempt=$((attempt + 1))
-          sleep 3
-          continue
-        fi
-        break
-      done
-      [[ "${code}" =~ ^(200|201|409)$ ]] ||
-        warn "sqlite: insert into ${table} -> ${code}: $(head -c 120 /tmp/xeng-gw.json) (skipped this row)"
-    done
+  sqlite_load_rows < <(SQLITE_OWNER="${OWNER}" python3 "${SCRIPT_DIR}/extra-engines-gen.py" restaurant) || {
+    warn "sqlite: not every row loaded (lines above) — skipping sqlite"
+    SQLITE_DB_ID=""
+    return 0
+  }
   pass "sqlite restaurant loaded (mount ${SQLITE_DB_ID})"
 }
 
@@ -498,8 +513,72 @@ seed_assoc() {
   pass "associations upserted for wired mounts"
 }
 
+# sqlite_has_tables — seed_sqlite warns and carries on, right for a demo and wrong for a
+# restore: on 2026-11-04 every create_table failed on a read-only file, the mount still
+# answered 200 with no tables, and the seed reported success over an empty database.
+# Caveat: looks for `restaurant` alone, the first table made; a load that stops after it
+# passes here, and the rows are what groot's DB1 and DB2 read.
+sqlite_has_tables() {
+  [[ -n "${SQLITE_DB_ID:-}" ]] || fail "sqlite: no mount id after seeding (lines above)"
+  [[ "$(engine_check "${SQLITE_DB_ID}")" == "200" ]] || fail "sqlite: the mount does not answer"
+  grep -q '"restaurant"' /tmp/xeng-gw.json || fail "sqlite: the mount opens but holds no restaurant table (lines above)"
+  pass "sqlite: tables present"
+}
+
+# probe_mounts — open every mount of this tenant through the gateway. A loaded seed and a
+# healthy stack say nothing about this: on 2026-11-04 all were green while every mount on a
+# platform engine answered 502.
+# Caveat: covers the tenant of BAAS_API_KEY only, and only 5xx or no answer counts as dead:
+# a 403 means this key may not read that mount, which says nothing about its login.
+probe_mounts() {
+  local listing id engine name code dead=0 opened=0
+  step "opening every mount of tenant ${TENANT}"
+  listing=$(curl -fsS "${KONG_URL}/admin/v1/databases" \
+    -H "apikey: ${SERVICE_KEY}" -H "X-Tenant-Id: ${TENANT}") || fail "cannot list the mounts"
+  while IFS=$'\t' read -r id engine name; do
+    code=$(engine_check "${id}")
+    cyan "  ${name} (${engine}) -> ${code}"
+    case "${code}" in
+    5* | 000)
+      warn "mount ${name} (${engine}, ${id}) -> ${code}: $(head -c 160 /tmp/xeng-gw.json)"
+      dead=$((dead + 1))
+      ;;
+    *) opened=$((opened + 1)) ;;
+    esac
+  done < <(printf '%s' "${listing}" | python3 -c 'import json,sys
+for r in json.load(sys.stdin):
+    print(r["id"], r.get("engine", "?"), r.get("name", "?"), sep="\t")')
+  [[ "${dead}" -eq 0 ]] || fail "${dead} mount(s) cannot open, ${opened} can"
+  pass "${opened} mount(s) open"
+}
+
+# query-router is the last service `up` starts and nothing depends on it, so `up` returns while
+# Node is still booting, and Kong answers 502 until it listens: the code a dead mount gives too.
+# Measured 2026-11-04: 502 for 1 s after `up`, 3 runs of 3, the rest of the stack already warm;
+# one `make all` after fclean failed its seed on it. This route touches no mount, and any
+# answer from the router counts (the anon key gets 401), so a 502 after this means the mount.
+# Caveat: 90 s is a guess at the slowest boot, not a measured bound. A slower machine fails
+# here, naming the route, and `make set_seeds` run again finds the router up.
+wait_query_plane() {
+  local code=000 _
+  for _ in $(seq 1 90); do
+    code=$(gw "${KONG_URL}/query/v1/capabilities")
+    case "${code}" in
+    000 | 5*) sleep 1 ;;
+    *) return 0 ;;
+    esac
+  done
+  fail "the query plane did not answer in 90 s (/query/v1/capabilities -> ${code})"
+}
+
 # ── run ─────────────────────────────────────────────────────────────────────
+wait_query_plane
 seed_sqlite
+if [[ "${AFTER_RESTORE:-0}" == "1" ]]; then
+  sqlite_has_tables
+  probe_mounts
+  exit 0
+fi
 seed_mssql
 seed_dynamo
 seed_edges
