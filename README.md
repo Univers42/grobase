@@ -91,6 +91,78 @@ lets `SHARE_POOLS` collapse 10K tenants onto one pool.
 
 ---
 
+## Row-level security architecture (IBM SaaS lecture, distilled)
+
+> Source: IBM Apptio TBM Studio SaaS — “RLS Architecture”
+> https://www.ibm.com/docs/fr/apptio-gov/tbm-studio/saas?topic=rls-architecture
+
+The core idea in a SaaS platform is simple: authentication only proves who the caller is; it does
+not prove which rows the caller is allowed to see. The actual boundary is enforced at the data layer.
+In IBM’s model, row-level security (RLS) relies on two essential artifacts:
+
+1. **Mapping tables** — rows that connect a user to the values they may access (for example a
+   business unit, cost center, tenant, or org unit).
+2. **Filtering rules** — policies that relate the mapping table to a secured data table and apply
+   the user identity + allowed values at query time.
+
+A minimal example looks like this:
+
+| user_id | business_unit |
+|---|---|
+| bob@acme.com | BU2 |
+| rachel@acme.com | BU1 |
+| rachel@acme.com | BU3 |
+| tom@acme.com | BU1 |
+
+With a secured table containing a `business_unit` column, the policy says: “the caller can only see
+rows whose `business_unit` matches one of the values in the mapping table for that caller.” In other
+words, the system does not trust app-layer checks to enforce isolation; it rewrites the effective
+query so that every read is filtered to the user’s allowed slice.
+
+### The full-access pattern
+
+For users who should be able to see everything — executives, platform admins, or org-wide analysts —
+IBM describes a separate mapping table with an `is_admin` or equivalent flag. The final policy is a
+logical OR:
+
+- user matches the standard mapping table, OR
+- user is marked as full-access in the admin mapping table.
+
+That matters because it avoids enumerating every possible value and keeps the rule stable as the
+organization grows.
+
+### The rule shape
+
+Each RLS rule is effectively built from four elements:
+
+- the **secure table column** that must be filtered
+- the **mapping table** defining the allowed values
+- the **mapping column** with the allowed values
+- the **user column** that identifies the caller
+
+If multiple filters exist, the default logic is effectively OR: if any filter matches, the row can
+be visible. This is how the platform supports a mixed model of narrow access plus full-access
+exceptions without writing custom SQL into every caller.
+
+### Why this matters for Grobase
+
+This is the same architectural pattern Grobase is trying to uphold, but generalized across multiple
+engines and tenancy models:
+
+- the **control plane** resolves identity, tenant scope, org membership, and policy context
+- the **data plane** applies the row-scoping or capability filters at execution time
+- the actual database engine may support native RLS (Postgres) or may require an equivalent
+  application-level enforcement model
+- the system should never trust a caller to say “I am allowed to read this row” — access is
+  enforced at the boundary where the rows are fetched
+
+So the real SaaS design is not “one app with a few if statements”; it is a **data governance model**
+where access is represented as rows in mapping tables, enforced by policy rules, and evaluated per
+request. That is why Grobase treats row ownership, tenant isolation, and engine capability checks as
+first-class runtime concerns rather than as application-specific business logic.
+
+---
+
 ## Verify gates (the unit of "done")
 
 New work lands behind a numbered milestone gate — a self-contained script
