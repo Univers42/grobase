@@ -20,7 +20,7 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.91"
+rust-version = "1.94.1"
 
 # Strip + thin-LTO the production binary. Before this profile existed the
 # release build shipped DEFAULT flags — a 29 MB binary with full debug symbol
@@ -79,8 +79,8 @@ mongodb = "3"
 # 8th engine (OFF by default): DynamoDB-compatible adapter (AWS DynamoDB /
 # DynamoDB-Local / ScyllaDB Alternator). Behind the optional `dynamodb` feature
 # so the default build never fetches or compiles the AWS SDK (byte-parity).
-# Pinned for reproducibility: aws-sdk-dynamodb 1.104.0 / aws-config 1.8.13. The
-# build toolchain is now rustc 1.96 (workspace rust-version 1.91), so the old
+# Pinned for reproducibility: aws-sdk-dynamodb 1.137.0 / aws-config 1.13.0. The
+# build toolchain is now rustc 1.96 (workspace rust-version 1.94.1), so the old
 # "cap everything at MSRV <= 1.89" constraint that forced these exact pins is
 # LIFTED — they may be relaxed to pull newer AWS SDK releases. Default features
 # give the rustls https client + tokio runtime; `behavior-version-latest` lets
@@ -88,13 +88,13 @@ mongodb = "3"
 # default-features = false drops the SDK's legacy `rustls` feature (hyper 0.14 → h2 0.3,
 # RUSTSEC-2026-0258: unbounded empty DATA frames — a mount's endpoint is caller-set);
 # default-https-client (hyper 1 / h2 0.4) + rt-tokio are the rest of its defaults.
-aws-sdk-dynamodb = { version = "=1.104.0", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
-aws-config = { version = "=1.8.13", features = ["behavior-version-latest"] }
+aws-sdk-dynamodb = { version = "=1.137.0", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio"] }
+aws-config = { version = "=1.13.0", features = ["behavior-version-latest"] }
 # G2 D4 (ADR 0019, devil C12): the vetting DNS resolver plugs into the SDK's
 # own connector. Both already sit in Cargo.lock at these versions under
 # aws-sdk-dynamodb; naming them directly pins the API the resolver codes to.
-aws-smithy-http-client = { version = "=1.1.13", default-features = false, features = ["rustls-aws-lc"] }
-aws-smithy-runtime-api = { version = "=1.12.3", default-features = false, features = ["client"] }
+aws-smithy-http-client = { version = "=1.5.2", default-features = false, features = ["rustls-aws-lc"] }
+aws-smithy-runtime-api = { version = "=1.19.2", default-features = false, features = ["client"] }
 # R7: MySQL adapter. `default-rustls` selects rustls (matches the tls posture
 # of the rest of the workspace; avoids dragging in openssl).
 mysql_async = { version = "0.37", default-features = false, features = ["minimal-rust", "rustls-tls"] }
