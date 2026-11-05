@@ -4,7 +4,7 @@
 #
 # ORDER
 #   0. .env and the TLS certificate, which a fresh clone has neither of.
-#   1. Images: pulled, because 50 of them built from source take far longer than a deployment
+#   1. Images: pulled, because 35 of them built from source take far longer than a deployment
 #      should, and built only when the registry cannot answer. BUILD=1 builds on purpose.
 #   2. The stack.
 #   3. The settle pass. Several services resolve a dependency once, at startup, and keep the
