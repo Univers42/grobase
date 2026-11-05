@@ -127,6 +127,9 @@ PROFILES_observability := observability
 PROFILES_ops           := ops backups
 PROFILES_studio        := studio
 PROFILES_playground    := playground
+PROFILES_secrets       := secrets
+PROFILES_mysql8        := mysql8
+PROFILES_vault42       := vault42
 # Extra database engines (mariadb/cockroachdb/mssql) — the à-la-carte "extra
 # engines" add-on / Max package. Optional; never in default editions.
 PROFILES_engines       := engines-extra
