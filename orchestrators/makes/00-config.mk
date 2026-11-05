@@ -27,6 +27,10 @@ NETSEG         ?=
 # and mailpit SMTP 1025 on the guest loopback for an SSH-tunnelled groot
 # (orchestrators/compose/docker-compose.remote-access.yml). Loopback only.
 REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null | head -1)
+# QEMU_GUEST=1 (env, or a QEMU_GUEST= line in .env.local) publishes the WAF's TLS port on
+# the guest loopback and QEMU's user-mode address, not on every interface
+# (orchestrators/compose/docker-compose.qemu-guest.yml). Only on a QEMU guest.
+QEMU_GUEST     ?= $(shell sed -n 's/^QEMU_GUEST=//p' .env.local 2>/dev/null | head -1)
 # PERF=1 (env, or a PERF= line in .env.local) composes the request-path CPU headroom
 # overlay (orchestrators/compose/docker-compose.perf.yml) for a host serving real users.
 PERF           ?= $(shell sed -n 's/^PERF=//p' .env.local 2>/dev/null | head -1)
@@ -85,7 +89,7 @@ NO_CPU_OVERRIDE := orchestrators/compose/.no-cpu-limits.yml
 ifeq ($(CPU_QUOTA),false)
 $(shell sh scripts/ops/no-cpu-limits.sh $(NO_CPU_OVERRIDE))
 endif
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(QEMU_GUEST)), -f orchestrators/compose/docker-compose.qemu-guest.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))
 
 # Colors
 _B := \033[0;34m

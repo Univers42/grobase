@@ -1,0 +1,15 @@
+# docker-compose.qemu-guest.yml — publish the WAF's TLS port on the guest loopback and on
+# the guest's QEMU user-mode address, instead of on every interface. 10.0.2.15 is the
+# address QEMU's user networking gives a guest, and what a hostfwd of :8443 lands on.
+# Opt-in: QEMU_GUEST=1 (env, or a line in .env.local) adds this file to every compose call,
+# after the remote-access overlay (orchestrators/makes/00-config.mk).
+#
+# Only for a QEMU guest: on any machine without that address the WAF cannot bind and
+# `up` fails, which is why it is not in the base files. Plaintext :80 stays on the guest
+# loopback, as the remote-access overlay has it (ADR 0002 C5).
+services:
+  waf:
+    ports: !override
+      - "127.0.0.1:${WAF_HTTP_PORT:-8880}:80"
+      - "127.0.0.1:${WAF_HTTPS_PORT:-8443}:443"
+      - "10.0.2.15:${WAF_HTTPS_PORT:-8443}:443"
