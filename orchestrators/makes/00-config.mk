@@ -127,6 +127,9 @@ PROFILES_observability := observability
 PROFILES_ops           := ops backups
 PROFILES_studio        := studio
 PROFILES_playground    := playground
+PROFILES_secrets       := secrets
+PROFILES_mysql8        := mysql8
+PROFILES_vault42       := vault42
 # Extra database engines (mariadb/cockroachdb/mssql) — the à-la-carte "extra
 # engines" add-on / Max package. Optional; never in default editions.
 PROFILES_engines       := engines-extra
@@ -180,7 +183,10 @@ PACKAGE_basic     := go rust
 # (MONGO_OPTIONAL) and the tier's capability mask already forbids mongo mounts.
 PACKAGE_essential := go rust adapter background
 PACKAGE_pro       := $(PACKAGE_essential) data storage realtime
-PACKAGE_max       := $(PACKAGE_pro) analytics observability functions engines
+# max = every service that is not retired: 44 long-running plus 6 one-shots. Left out only the
+# legacy-node set the orchestrator replaced (A4/A5). supavisor (ops) is what the catalog's 800 rps
+# rests on (packages.json). vault42 starts in `up`, then again once its contract exists.
+PACKAGE_max       := $(PACKAGE_pro) analytics observability functions engines ops studio control playground secrets mysql8 vault42
 # packages.json's alias. Its other one, free -> nano, has no stack: see _require-shape.
 PACKAGE_enterprise := $(PACKAGE_max)
 ADDONS ?=

@@ -16,6 +16,7 @@ up: _require-shape _require-compose _pg-clients-tls _rm-stale _image-provenance 
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
 	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d $(SERVICE)
+	@$(if $(and $(filter vault42,$(ACTIVE_PROFILES)),$(if $(SERVICE),,1)),$(MAKE) --no-print-directory vault42-up,:)
 	@echo -e "$(_G)✓ Up$(_0)"
 
 down: _require-compose ## Stop & remove the selected EDITION
