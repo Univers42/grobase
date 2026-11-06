@@ -184,6 +184,19 @@ perfectly strong *dev* secret. Only a declared identity catches that.
   build context cannot carry them.
 - **Build-time vs runtime** stay separate: an image is identical across environments, and
   the environment supplies the values (this is what keeps `m190` image provenance honest).
+- **Host-local compose files go through make, never a side `-f`.** A pin one machine
+  needs (a flag held in shadow, a builder kept off) lives in a compose file outside the
+  repo and is listed in `.env.local`:
+
+  ```sh
+  # .env.local — space-separated, absolute paths; appended last to every $(DC) command
+  COMPOSE_OVERRIDES=/home/op/grobase-overrides/a.yml /home/op/grobase-overrides/b.yml
+  ```
+
+  A file passed by hand to one `docker compose up` is dropped by the next make-driven
+  recreate; on 2026-11-06 a VM lost two that way. A listed file that does not exist stops
+  make. It does not reach scripts that build their own `docker compose -f …`. A path
+  with a space is read as two paths. Gate `m269`.
 
 ---
 

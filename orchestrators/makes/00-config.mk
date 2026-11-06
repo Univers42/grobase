@@ -98,7 +98,16 @@ NO_CPU_OVERRIDE := orchestrators/compose/.no-cpu-limits.yml
 ifeq ($(CPU_QUOTA),false)
 $(shell sh scripts/ops/no-cpu-limits.sh $(NO_CPU_OVERRIDE))
 endif
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(QEMU_GUEST)), -f orchestrators/compose/docker-compose.qemu-guest.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))
+# COMPOSE_OVERRIDES (env, or a COMPOSE_OVERRIDES= line in .env.local): space-separated
+# operator compose files appended LAST to DC, so a host-local pin (a flag held in shadow, a
+# service builder kept off) rides every make-driven recreate instead of living in a side -f
+# the next recreate forgets (the VM lost two that way on 2026-11-06 12:26Z). A listed file
+# that does not exist stops make: a silently skipped override is the drift this prevents.
+# Caveat: only $(DC) sees them — a script under scripts/ that builds its own
+# `docker compose -f …` does not; a path containing a space is read as two paths.
+COMPOSE_OVERRIDES ?= $(shell sed -n 's/^COMPOSE_OVERRIDES=//p' .env.local 2>/dev/null | head -1)
+$(foreach f,$(COMPOSE_OVERRIDES),$(if $(wildcard $(f)),,$(error COMPOSE_OVERRIDES lists $(f), which does not exist — fix the path or drop it)))
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(QEMU_GUEST)), -f orchestrators/compose/docker-compose.qemu-guest.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))$(foreach f,$(COMPOSE_OVERRIDES), -f $(f))
 
 # Colors
 _B := \033[0;34m

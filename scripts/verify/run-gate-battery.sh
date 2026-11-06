@@ -138,6 +138,7 @@ FAST_SUBSET=(
   m266-seed-mounts                # a restored seed's mounts open on this machine
   m267-shape-names                # a PACKAGE or EDITION that names no stack is refused, never a bare core
   m268-slow-relay                 # a slow relay keeps its token, a recreated service is found again
+  m269-compose-overrides          # operator compose files ride every make recreate; a missing one stops make
   m220-stack-health               # make health fails on a dead container, edge, engine login or gateway route
 )
 
