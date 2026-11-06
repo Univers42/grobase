@@ -191,6 +191,12 @@ jobs:
         run: bash scripts/verify/m181-ddl-autoincrement-pk.sh
       - name: distinct DB per app (m176)
         run: bash scripts/verify/m176-contract-isolation-live.sh
+      - name: collab namespace isolation (m175)
+        env:
+          M175_TOOLCHAIN: rust:1-bookworm
+        run: bash scripts/verify/m175-collab-namespace-isolation.sh
+      - name: self-serve fresh-DB apps (m177)
+        run: bash scripts/verify/m177-selfserve-apps.sh
 
       # Static legs only (no stack here): `make health` parses service edges and Kong routes
       # correctly and is wired to stack-health.sh; its live leg states that it was skipped.
@@ -928,6 +934,65 @@ jobs:
       # The generic contract provisioner creates, seeds and keys an app from JSON.
       - name: Contract provisioning (m165)
         run: bash scripts/verify/m165-contract-provision.sh
+
+      # The live legs of the modules of choice, each flag ON for its own step
+      # only; every step puts its service back on the default (OFF = parity).
+      # Realtime is recreated with REALTIME_PROTECTED_NAMESPACES=collab: by the
+      # gate itself, and recreated without it before it exits.
+      - name: Collab namespace isolation, live (m175)
+        env:
+          BAAS_VERIFY_LIVE: "1"
+          M175_SKIP_STATIC: "1"
+        run: bash scripts/verify/m175-collab-namespace-isolation.sh
+
+      # Two apps provisioned from their contracts, each on its own database:
+      # one key reads its own mount and gets 404 on the other's, spoofed
+      # tenant header included.
+      - name: Distinct DB per app, live (m176)
+        run: |
+          set -euo pipefail
+          bash scripts/provision-contract.sh infra/config/contracts/website.json
+          bash scripts/provision-contract.sh infra/config/contracts/vault42.json
+          export BAAS_VERIFY_LIVE=1 KONG_URL=http://localhost:8000
+          ANON_KEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
+          WEBSITE_KEY=$(sed -n 's/^PUBLIC_API_KEY=//p' build/website.env)
+          WEBSITE_DBID=$(sed -n 's/^PUBLIC_DB_ID=//p' build/website.env)
+          VAULT42_DBID=$(sed -n 's/^GROBASE_DB_ID=//p' build/vault42-grobase-store.env)
+          export ANON_KEY WEBSITE_KEY WEBSITE_DBID VAULT42_DBID
+          bash scripts/verify/m176-contract-isolation-live.sh
+
+      # Sign up against the already-running GoTrue BEFORE recreating tenant-control:
+      # run 41844633762 got a 502 from /auth/v1/signup right after that recreate
+      # (Kong/GoTrue unsettled; signup does not need the self-serve flag). Then
+      # recreate with APPS_SELFSERVE_ENABLED=1: two apps on two fresh databases,
+      # one app's key refused on the other's; recreate without the flag → 404.
+      # CI signs up with a password (GOTRUE_MAILER_AUTOCONFIRM above) where
+      # production logs in with an emailed code.
+      - name: Self-serve fresh-DB apps, live (m177)
+        run: |
+          set -euo pipefail
+          export BAAS_VERIFY_LIVE=1 M177_SKIP_STATIC=1 KONG_URL=http://localhost:8000
+          ANON_KEY=$(grep '^KONG_PUBLIC_API_KEY=' .env | cut -d= -f2-)
+          export ANON_KEY
+          email="m177-$(date +%s)@example.com"
+          pass='M177-pass-1!'
+          # Signup and token against the stable stack (retry: Kong occasionally 502s).
+          for i in 1 2 3 4 5; do
+            curl -fsS -o /dev/null -X POST "$KONG_URL/auth/v1/signup" -H "apikey: $ANON_KEY" \
+              -H 'Content-Type: application/json' -d "{\"email\":\"$email\",\"password\":\"$pass\"}" \
+              && break
+            [ "$i" -eq 5 ] && exit 1
+            sleep $((i * 2))
+          done
+          DEV_JWT=$(curl -fsS -X POST "$KONG_URL/auth/v1/token?grant_type=password" -H "apikey: $ANON_KEY" \
+            -H 'Content-Type: application/json' -d "{\"email\":\"$email\",\"password\":\"$pass\"}" | jq -r .access_token)
+          export DEV_JWT
+          APPS_SELFSERVE_ENABLED=1 docker compose -f docker-compose.yml up -d --no-deps --no-build --wait tenant-control
+          trap 'docker compose -f docker-compose.yml up -d --no-deps --no-build --wait tenant-control' EXIT
+          bash scripts/verify/m177-selfserve-apps.sh
+          docker compose -f docker-compose.yml up -d --no-deps --no-build --wait tenant-control
+          trap - EXIT
+          M177_EXPECT_OFF=1 bash scripts/verify/m177-selfserve-apps.sh
 
       - name: Gateway query-path regression gate (m102)
         env:

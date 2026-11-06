@@ -15,7 +15,7 @@ up: _require-shape _require-compose _pg-clients-tls _rm-stale _image-provenance 
 	@[ -f .env ] || { echo -e "$(_Y).env missing → generating (make env)…$(_0)"; $(MAKE) --no-print-directory env; }
 	@[ -f certs/localhost.pem ] || { echo -e "$(_Y)TLS cert missing → generating (make certs)…$(_0)"; $(MAKE) --no-print-directory certs; }
 	@echo -e "$(_B)Starting edition '$(_W)$(EDITION)$(_0)$(_B)' → profiles: $(_C)$(ACTIVE_PROFILES)$(_0)"
-	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d $(SERVICE)
+	@eval "$$($(DCE) config --format json 2>/dev/null | bash scripts/ops/resolve-ports.sh --compose-json 2>/dev/null || true)"; $(DCE) up -d $(SERVICE)
 	@$(if $(and $(filter vault42,$(ACTIVE_PROFILES)),$(if $(SERVICE),,1)),$(MAKE) --no-print-directory vault42-up,:)
 	@echo -e "$(_G)✓ Up$(_0)"
 
@@ -57,7 +57,7 @@ health: ## Whole-stack health, exits 1 on any failure: containers, service→ser
 		sh scripts/ops/stack-health.sh
 
 bench-startup: _require-compose _pg-clients-tls _rm-stale ## Time the stack until health checks pass (target ≤90s)
-	@t0=$$(date +%s); eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; $(DCE) up -d; \
+	@t0=$$(date +%s); eval "$$($(DCE) config --format json 2>/dev/null | bash scripts/ops/resolve-ports.sh --compose-json 2>/dev/null || true)"; $(DCE) up -d; \
 	for svc in mini-baas-postgres mini-baas-gotrue mini-baas-postgrest mini-baas-kong; do \
 		printf "  Waiting: %-26s" "$$svc"; \
 		timeout 120 sh -c "while [ \"$$(docker inspect --format='{{.State.Health.Status}}' $$svc 2>/dev/null)\" != 'healthy' ]; do sleep 1; done" 2>/dev/null \

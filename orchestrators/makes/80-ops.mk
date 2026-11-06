@@ -78,7 +78,8 @@ _cloud-preflight:
 
 cloud-up: _require-compose _require-cloud-flags _cloud-preflight _rm-stale ## Boot the FULL managed-cloud stack locally (all cloud flags ON, mock Stripe)
 	@echo -e "$(_B)Starting CLOUD edition (all managed-cloud flags ON, mock Stripe) → prod planes + cloud profile$(_0)"
-	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; \
+	@eval "$$(docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) config --format json 2>/dev/null | \
+	  bash scripts/ops/resolve-ports.sh --compose-json 2>/dev/null || true)"; \
 	  docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) up -d $(SERVICE)
 	@echo -e "$(_G)✓ Cloud edition up (infra/config/cloud/flags.env.cloud layered; stripe-mock in the cloud profile)$(_0)"
 
