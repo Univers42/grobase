@@ -14,6 +14,7 @@
 # File: scripts/resolve-ports.sh
 # Detects port conflicts and exports free host-port env vars.
 # Usage: eval "$(./scripts/resolve-ports.sh)"  or  source <(./scripts/resolve-ports.sh)
+#        eval "$(docker compose config --format json | ./scripts/resolve-ports.sh --compose-json)"
 #
 # For each VAR=DEFAULT pair, checks if the default port (or the value already
 # set in the environment) is free.  If not, increments until a free port is
@@ -58,6 +59,22 @@ declare -A SERVICE_PORTS=(
   [otel - collector]=OTEL_COLLECTOR_HEALTH_PORT
 )
 
+# --compose-json: stdin is `docker compose config --format json`, so each published port is
+# checked against the addresses compose will actually bind, not against every listener.
+# Without it, any listener on the port counts (the behaviour every older caller relies on).
+# Caveat: ports compose does not publish fall back to "any listener clashes", and a
+# listener on an IPv6 address never clashes with an IPv4 publish of the same port
+# (separate sockets on Linux; a dual-stack host that maps them still fails at `up`).
+# Without jq or with a config that fails, every port falls back the same way.
+declare -A _publish_ips=()
+if [[ "${1:-}" == --compose-json ]]; then
+  shift
+  while read -r port ip; do
+    [[ "$port" =~ ^[0-9]+$ ]] && _publish_ips[$port]+="${ip:--} "
+  done < <(jq -r '.services[]?.ports[]? | select((.protocol // "tcp") == "tcp")
+    | "\(.published) \(.host_ip // "")"' 2>/dev/null || true)
+fi
+
 if [[ $# -gt 0 ]]; then
   for service in "$@"; do
     var="${SERVICE_PORTS[$service]:-}"
@@ -100,6 +117,28 @@ if [[ -n "$PROJECT" ]] && command -v docker >/dev/null 2>&1; then
   fi
 fi
 
+is_wildcard() { [[ "$1" == - || "$1" == 0.0.0.0 || "$1" == :: || "$1" == '*' ]]; }
+
+# listener_addrs PORT -> the bare address of every TCP listener on PORT, one per line
+# (ss prints 100.97.49.118%tailscale0:8443, [::]:8443, *:8443).
+listener_addrs() {
+  ss -tlnH 2>/dev/null | awk -v p=":$1\$" '$4 ~ p { print $4 }' |
+    sed -E 's/:[0-9]+$//; s/%[^%]*$//; s/^\[(.*)\]$/\1/'
+}
+
+# A listener clashes with a publish when either is a wildcard or both are the same address.
+listener_clashes() {
+  local p=$1 addr ip
+  while read -r addr; do
+    [[ -n "$addr" ]] || continue
+    [[ -n "${_publish_ips[$p]:-}" ]] || return 0
+    for ip in ${_publish_ips[$p]}; do
+      if is_wildcard "$ip" || is_wildcard "$addr" || [[ "$ip" == "$addr" ]]; then return 0; fi
+    done
+  done < <(listener_addrs "$p")
+  return 1
+}
+
 port_in_use() {
   local p=$1
   # Already claimed by an earlier entry in this script run
@@ -110,11 +149,7 @@ port_in_use() {
   if [[ "$_own_ports" == *" $p "* ]]; then
     return 1
   fi
-  # Check if something on the host is listening
-  if ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE "(:|^)${p}$"; then
-    return 0
-  fi
-  return 1
+  listener_clashes "$p"
 }
 
 find_free() {

@@ -31,6 +31,13 @@ REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null |
 # the guest loopback and QEMU's user-mode address, not on every interface
 # (orchestrators/compose/docker-compose.qemu-guest.yml). Only on a QEMU guest.
 QEMU_GUEST     ?= $(shell sed -n 's/^QEMU_GUEST=//p' .env.local 2>/dev/null | head -1)
+# The one non-loopback address that overlay binds: env, .env.local, else the source address
+# of the default route. Caveat: on a multi-homed host that is the default-route NIC; a port
+# forward arriving on another one needs WAF_BIND_ADDR set. Linux `ip` only; elsewhere set it.
+ifeq ($(QEMU_GUEST),1)
+WAF_BIND_ADDR  ?= $(or $(shell sed -n 's/^WAF_BIND_ADDR=//p' .env.local 2>/dev/null | head -1),$(shell ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p'))
+export WAF_BIND_ADDR
+endif
 # PERF=1 (env, or a PERF= line in .env.local) composes the request-path CPU headroom
 # overlay (orchestrators/compose/docker-compose.perf.yml) for a host serving real users.
 PERF           ?= $(shell sed -n 's/^PERF=//p' .env.local 2>/dev/null | head -1)
