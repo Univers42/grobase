@@ -46,6 +46,9 @@ YAMLLINT_IMG   := cytopia/yamllint@sha256:3e9eb827ab2b12a5ea5f49d4257bb3aca94bba
 SH_FILES        = $(shell git ls-files '*.sh' 2>/dev/null | grep -vE '(^|/)(node_modules|vendor)/')
 # ponytail: track-binocle overlay skipped — carried-over monorepo overlay needs a pg-meta service this repo never defines; delete it or add pg-meta, then drop the skip
 COMPOSE_LINT_SKIP := docker-compose.track-binocle.yml
+# The qemu-guest overlay refuses to render without WAF_BIND_ADDR (make finds it only when QEMU_GUEST=1).
+# The lint renders, it binds nothing: an RFC 5737 documentation address stands in when none is set.
+COMPOSE_LINT_ENV := WAF_BIND_ADDR=$${WAF_BIND_ADDR:-192.0.2.1}
 
 test-lint-shell: ## Lint shell — bash -n + shellcheck (host binary, else pinned image; honours .shellcheckrc), warnings fail
 	@rc=0; for f in $(SH_FILES); do bash -n "$$f" || { echo -e "$(_R)  parse: $$f$(_0)"; rc=1; }; done; \
@@ -106,10 +109,10 @@ test-lint-compose: ## Lint compose — the base file and every overlay on top of
 	done; \
 	for o in orchestrators/compose/docker-compose.*.yml; do \
 		case " $(COMPOSE_LINT_SKIP) " in *" $${o##*/} "*) echo -e "$(_D)  skip $$o$(_0)"; continue;; esac; \
-		docker compose -f docker-compose.yml -f "$$o" config --quiet || { echo -e "$(_R)  $$o$(_0)"; rc=1; }; \
+		env $(COMPOSE_LINT_ENV) docker compose -f docker-compose.yml -f "$$o" config --quiet || { echo -e "$(_R)  $$o$(_0)"; rc=1; }; \
 		case "$$o" in *cloud.yml) [ -f infra/config/cloud/flags.env.cloud ] || { \
 			echo -e "$(_D)  skip $$o (all profiles): needs the gitignored infra/config/cloud/flags.env.cloud$(_0)"; continue; };; esac; \
-		docker compose -f docker-compose.yml -f "$$o" --profile '*' config --quiet || { echo -e "$(_R)  $$o (all profiles)$(_0)"; rc=1; }; done; \
+		env $(COMPOSE_LINT_ENV) docker compose -f docker-compose.yml -f "$$o" --profile '*' config --quiet || { echo -e "$(_R)  $$o (all profiles)$(_0)"; rc=1; }; done; \
 	[ $$rc -eq 0 ] && echo -e "$(_G)✓ compose (base + overlays, default and all profiles)$(_0)" || exit 1
 
 test-lint: ## Lint EVERYTHING (shell·rust·go·ts·yaml·docker·make·compose) — runs all, shows each, summary

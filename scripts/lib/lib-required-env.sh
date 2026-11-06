@@ -40,15 +40,23 @@ required_env_keys() {
 #   $1  filler value — MUST differ from any sentinel the caller greps for
 #   $2  repo root to scan (default: the current directory)
 #   $3  env file whose already-set keys to skip (optional)
+# A key the env schema declares `format: ipv4` (WAF_BIND_ADDR, a port bind) gets the RFC 5737
+# documentation address instead: compose rejects any other word there, so the filler alone
+# fails the render. Without jq or the schema the filler stands, and that render fails naming it.
 required_env_floor() {
   _ref_filler="${1:?required_env_floor: filler value required}"
   _ref_root="${2:-.}"
   _ref_skip="${3:-}"
+  _ref_ipv4=" $(jq -r '.keys | to_entries[] | select(.value.format == "ipv4") | .key' \
+    "${_ref_root}/infra/config/env/schema.json" 2>/dev/null | tr '\n' ' ') "
   required_env_keys "${_ref_root}" | while IFS= read -r _ref_k; do
     if [ -n "${_ref_skip}" ] && [ -f "${_ref_skip}" ] &&
       grep -qE "^[[:space:]]*(export[[:space:]]+)?${_ref_k}=" "${_ref_skip}"; then
       continue
     fi
-    printf '%s=%s\n' "${_ref_k}" "${_ref_filler}"
+    case "${_ref_ipv4}" in
+    *" ${_ref_k} "*) printf '%s=192.0.2.1\n' "${_ref_k}" ;;
+    *) printf '%s=%s\n' "${_ref_k}" "${_ref_filler}" ;;
+    esac
   done
 }

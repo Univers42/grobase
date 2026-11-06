@@ -79,10 +79,11 @@ needed_key() {
 # and writes a .env with M212_PLATFORM plus the marker in every needed key.
 setup() {
   local svc floor
-  mkdir -p "${TREE}/orchestrators" "${TREE}/deploy/fly" "${TREE}/infra/config/cloud"
+  mkdir -p "${TREE}/orchestrators" "${TREE}/deploy/fly" "${TREE}/infra/config/cloud" "${TREE}/infra/config/env"
   cp "${ROOT}/docker-compose.yml" "${TREE}/"
   cp -r "${ROOT}/orchestrators/compose" "${TREE}/orchestrators/"
   cp "${ROOT}/deploy/fly/compose.override.yml" "${TREE}/deploy/fly/"
+  cp "${ROOT}/infra/config/env/schema.json" "${TREE}/infra/config/env/"
   : >"${TREE}/infra/config/cloud/flags.env.cloud"
   printf 'M212_PLATFORM=%s\nJWT_SECRET=m212-jwt\n' "${MARK}" >"${TREE}/.env"
   floor="$(required_env_floor "m212-floor" "${TREE}" "${TREE}/.env")"
