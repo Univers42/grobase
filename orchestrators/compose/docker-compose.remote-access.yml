@@ -22,4 +22,5 @@ services:
   waf:
     ports: !override
       - "127.0.0.1:${WAF_HTTP_PORT:-8880}:80"
-      - "${WAF_HTTPS_PORT:-8443}:443"
+      - "127.0.0.1:${WAF_HTTPS_PORT:-8443}:443"
+      - "10.0.2.15:${WAF_HTTPS_PORT:-8443}:443"
