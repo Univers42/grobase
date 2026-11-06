@@ -35,7 +35,9 @@ QEMU_GUEST     ?= $(shell sed -n 's/^QEMU_GUEST=//p' .env.local 2>/dev/null | he
 # of the default route. Caveat: on a multi-homed host that is the default-route NIC; a port
 # forward arriving on another one needs WAF_BIND_ADDR set. Linux `ip` only; elsewhere set it.
 ifeq ($(QEMU_GUEST),1)
-WAF_BIND_ADDR  ?= $(or $(shell sed -n 's/^WAF_BIND_ADDR=//p' .env.local 2>/dev/null | head -1),$(shell ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p'))
+ifeq ($(strip $(WAF_BIND_ADDR)),)
+WAF_BIND_ADDR  := $(or $(shell sed -n 's/^WAF_BIND_ADDR=//p' .env.local 2>/dev/null | head -1),$(shell ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p'))
+endif
 export WAF_BIND_ADDR
 endif
 # PERF=1 (env, or a PERF= line in .env.local) composes the request-path CPU headroom
