@@ -50,7 +50,7 @@ static_nothing_after_fix() {
   for f in "${DIR}"/[0-9][0-9][0-9]_*.sql; do
     v="$((10#$(basename "${f}" | cut -c1-3)))"
     [ "${v}" -gt "${FIX_VERSION}" ] || continue
-    sed 's/--.*//' "${f}" | grep -Eiq 'GRANT[^;]*ON[[:space:]]+(TABLE[[:space:]]+)?(public\.)?users([[:space:]]|;|$)' &&
+    grep -Eiq 'GRANT[^;]*ON[[:space:]]+(TABLE[[:space:]]+)?(public\.)?users([[:space:]]|;|$)' <<<"$(sed 's/--.*//' "${f}")" &&
       late="${late} ${f##*/}"
   done
   [ -z "${late}" ] || fail "sorts after 092 and grants on public.users, re-opening the leak on every migrate:${late}"

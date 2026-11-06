@@ -142,8 +142,8 @@ echo ""
 # ─── 6. Port conflicts ───────────────────────────────────────────
 echo "Ports:"
 for port in 8000 5432 27017 6379 9000 3010 3020 4001 3030 9090; do
-  if ss -tlnp 2>/dev/null | grep -q ":${port} " ||
-    netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+  if grep -q ":${port} " <<<"$(ss -tlnp 2>/dev/null)" ||
+    grep -q ":${port} " <<<"$(netstat -tlnp 2>/dev/null)"; then
     warn "Port $port already in use"
   else
     pass "Port $port available"

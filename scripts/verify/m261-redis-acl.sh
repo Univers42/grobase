@@ -149,7 +149,7 @@ live_redis() {
   echo not-the-password | docker exec -i "${CONTAINER}" sh /usr/local/bin/redis-acl.sh health /dev/stdin &&
     fail "the healthcheck passed a wrong password"
   local legacy=0
-  docker exec -e REDISCLI_AUTH=not-the-password "${CONTAINER}" redis-cli --user app ping 2>/dev/null | grep -q PONG || legacy=$?
+  grep -q PONG <<<"$(docker exec -e REDISCLI_AUTH=not-the-password "${CONTAINER}" redis-cli --user app ping 2>/dev/null)" || legacy=$?
   ok "RA5: health fails a wrong password (a plain 'redis-cli --user app ping' with it: grep PONG exit ${legacy})"
   docker run --rm --entrypoint sh -v "${ROOT}/infra/docker/services/redis/redis-acl.sh:/s.sh:ro" \
     "$(jq -r '.[0].Config.Image' "${WORK}/inspect.json")" /s.sh serve redis-server >/dev/null 2>&1 &&

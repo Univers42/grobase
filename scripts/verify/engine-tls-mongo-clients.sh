@@ -107,7 +107,7 @@ mc_mounts() {
     | select(.type == "bind" and .source == $d and .target == $t and .read_only == true)] | length == 1)
     | .key] | sort | join(" ")' "${MC_TMP}/tls.json")" == "${MC_CA_MOUNTS}" ]] ||
     fail "the CA file is not mounted read-only on exactly: ${MC_CA_MOUNTS}"
-  sed -n '/^x-mongo-ca:/,/^$/p' "${ROOT}/${MC_OVERLAY}" | grep -q 'create_host_path: false' ||
+  grep -q 'create_host_path: false' <<<"$(sed -n '/^x-mongo-ca:/,/^$/p' "${ROOT}/${MC_OVERLAY}")" ||
     fail "the CA file bind would be created root-owned"
   pass "cert directory on mongo only; ca.pem read-only on ${MC_CA_MOUNTS}"
 }

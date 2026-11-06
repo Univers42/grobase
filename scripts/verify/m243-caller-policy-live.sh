@@ -255,7 +255,7 @@ relay_policy_arms() {
   pass "shadow: the service token still relays (200) with one would_deny line"
   tc_start enforced
   got="$(timeout 60 docker wait "${TCC}" || echo hung)"
-  if [ "${got}" = 0 ] || [ "${got}" = hung ] || ! docker logs "${TCC}" 2>&1 | grep -q 'want off, shadow or enforce'; then
+  if [ "${got}" = 0 ] || [ "${got}" = hung ] || ! grep -q 'want off, shadow or enforce' <<<"$(docker logs "${TCC}" 2>&1)"; then
     fail "DATA_PLANE_CALLER_POLICY=enforced did not refuse boot (exit ${got})"
   fi
   pass "DATA_PLANE_CALLER_POLICY=enforced: tenant-control refuses to start (exit ${got})"

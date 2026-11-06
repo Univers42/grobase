@@ -52,7 +52,7 @@ docker image inspect "${IMG}" >/dev/null 2>&1 ||
   fail "cannot get ${IMG} (after retries — registry unreachable)"
 P=""
 for cand in $(seq 18600 18699); do
-  ss -tlnH | awk '{print $4}' | grep -qE "(:|^)${cand}$" || {
+  grep -qE "(:|^)${cand}$" <<<"$(ss -tlnH | awk '{print $4}')" || {
     P="${cand}"
     break
   }
@@ -78,7 +78,7 @@ hold() { # <project label> [bind address, default 127.0.0.1]
   docker run -d --name "${C}" --label "com.docker.compose.project=$1" -p "${2:-127.0.0.1}:${P}:80" \
     --entrypoint sleep "${IMG}" 300 >/dev/null
   for _ in $(seq 1 10); do
-    ss -tlnH | awk '{print $4}' | grep -qE ":${P}$" && return 0
+    grep -qE ":${P}$" <<<"$(ss -tlnH | awk '{print $4}')" && return 0
     sleep 1
   done
   fail "the holder never published ${P}"
