@@ -129,6 +129,11 @@ jobs:
       - name: remote-access overlay (m219)
         run: bash scripts/verify/m219-remote-access-overlay.sh
 
+      # Static, no stack: COMPOSE_OVERRIDES files join DC last and in order, and a listed
+      # file that does not exist stops make instead of being skipped.
+      - name: compose overrides knob (m269)
+        run: bash scripts/verify/m269-compose-overrides.sh
+
       # Static, no stack: Kong's body limit stays at or above every WAF per-path lift.
       - name: edge body limits (m240)
         run: bash scripts/verify/m240-edge-body-limits.sh
