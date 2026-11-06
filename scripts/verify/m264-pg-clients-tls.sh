@@ -96,7 +96,7 @@ static_overlay() {
     fail "the overlay changes more than the 9 services' DATABASE_URL suffix and one read-only ca.pem bind"
   jq -e '[.services[] | .environment // {} | has("PGSSLMODE") or has("PGSSLROOTCERT")] | any | not' \
     "${WORK}/pgc.json" >/dev/null || fail "a service sets PGSSLMODE or PGSSLROOTCERT (process-wide in pg)"
-  grep -v '^[[:space:]]*#' "${ROOT}/${OVERLAY}" | grep -qE 'AUDIT_DATABASE_URL|NODE_EXTRA_CA_CERTS|PGSSL' &&
+  grep -qE 'AUDIT_DATABASE_URL|NODE_EXTRA_CA_CERTS|PGSSL' <<<"$(grep -v '^[[:space:]]*#' "${ROOT}/${OVERLAY}")" &&
     fail "${OVERLAY} names AUDIT_DATABASE_URL, NODE_EXTRA_CA_CERTS or PGSSL*"
   grep -q '^# Caveat:' "${ROOT}/${OVERLAY}" || fail "${OVERLAY} has no Caveat line (NP9)"
   ok "NP3/NP5/NP9/NP10: only the suffix and a ca.pem bind; tenant-control, gotrue and the rest byte-identical"

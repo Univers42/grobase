@@ -93,7 +93,7 @@ if [[ ${LIVE} -eq 1 ]]; then
   fi
 
   step "live: WAF /waf-health responds"
-  if ! curl -ksS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:${WAF_HTTP_PORT}/waf-health" | grep -qE "^(200|204)$"; then
+  if ! grep -qE "^(200|204)$" <<<"$(curl -ksS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WAF_HTTP_PORT}/waf-health")"; then
     fail "WAF /waf-health unreachable on :${WAF_HTTP_PORT}"
   fi
   pass "WAF /waf-health returns 2xx"

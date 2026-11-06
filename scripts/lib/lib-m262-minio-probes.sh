@@ -62,7 +62,7 @@ trino_sql() {
 trino_started() {
   local _
   for _ in $(seq 1 90); do
-    docker exec "${PROJECT}-trino" curl -fsS http://localhost:8080/v1/info 2>/dev/null | grep -q '"starting":false' && return 0
+    grep -q '"starting":false' <<<"$(docker exec "${PROJECT}-trino" curl -fsS http://localhost:8080/v1/info 2>/dev/null)" && return 0
     sleep 2
   done
   fail "trino never finished starting"

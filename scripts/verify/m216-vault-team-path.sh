@@ -119,7 +119,7 @@ scope_arm() {
   grep -qE -- '--private "\$VENDOR_PRIVATE"' "${CTL}" ||
     fail "ctl-env.sh never passes --private for vendor/ on a push"
   # --private exists only on the env verbs; passing it to a personal push is an error.
-  awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}" | grep -q 'private' ||
+  grep -q 'private' <<<"$(awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}")" ||
     fail "the vendor seal is not scoped to the push verb"
   # An approximation that is presented as an exclusion would be a lie: the ponytail
   # note must say --private bounds who can read, not whether the bytes travel.
@@ -141,7 +141,7 @@ scope_arm() {
   # sealing all of secrets/ left minio.tar.gz (7.4 MB) with no way into the vault.
   seals "${CTL}" 'secrets/*' &&
     fail "ALWAYS_PRIVATE seals all of secrets/ (the engine dumps above 4 MiB can no longer be pushed)"
-  awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}" | grep -q 'ALWAYS_PRIVATE' ||
+  grep -q 'ALWAYS_PRIVATE' <<<"$(awk '/if \[ "\$verb" = push \]; then/,/fi/' "${CTL}")" ||
     fail "ALWAYS_PRIVATE is never passed on a push"
   unexpanded "${CTL}" ||
     fail "the ALWAYS_PRIVATE loop is not under set -f (the shell would expand the patterns, skipping dotfiles)"

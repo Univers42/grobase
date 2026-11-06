@@ -301,7 +301,7 @@ static_held() {
     fail "the overlay changed a deferred/blocked var (tenant-header HMAC, SECURITY_MODE, realtime fallback, verify TTL)"
   jq -e '.services.realtime and .services["tenant-control"]' "${T}/prod.json" >/dev/null ||
     fail "realtime/tenant-control not rendered — the held-var check would be vacuous"
-  ! grep -v '^[[:space:]]*#' "${OVERLAY}" | grep -q 'TENANT_HEADER_IDENTITY_HMAC' ||
+  ! grep -q 'TENANT_HEADER_IDENTITY_HMAC' <<<"$(grep -v '^[[:space:]]*#' "${OVERLAY}")" ||
     fail "${OVERLAY} sets TENANT_HEADER_IDENTITY_HMAC (no signer exists: BLOCKED)"
   ok "tenant-header HMAC, SECURITY_MODE, realtime fallback, verify-cache TTL untouched on every service"
 }

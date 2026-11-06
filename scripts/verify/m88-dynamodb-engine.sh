@@ -152,7 +152,7 @@ wait_ddb() { # wait for dynamodb-local to accept connections
   local i
   for i in $(seq 1 60); do
     # DynamoDB-Local answers any request on its port; a 400 ListTables is "up".
-    curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DDB_PORT_HOST}/" 2>/dev/null | grep -qE '^[0-9]{3}$' && return 0
+    grep -qE '^[0-9]{3}$' <<<"$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DDB_PORT_HOST}/" 2>/dev/null)" && return 0
     sleep 0.5
   done
   return 1

@@ -110,7 +110,7 @@ const run = async () => {
 run().catch((e) => { console.error(e.message); process.exit(1); });
 ' || fail "gotrue invite path failed"
 sleep 1
-curl -s "http://localhost:8025/api/v1/search?query=${PROBE_EMAIL}" | grep -q "You have been invited" ||
+grep -q "You have been invited" <<<"$(curl -s "http://localhost:8025/api/v1/search?query=${PROBE_EMAIL}")" ||
   fail "invitation email for ${PROBE_EMAIL} not found in Mailpit"
 green "21 accounts + identities + org members; invite→Mailpit path verified live"
 

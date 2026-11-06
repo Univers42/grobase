@@ -75,7 +75,7 @@ step "static: every admin route is in the service-auth group, none in the bypass
 for route in /v1/admin/raw /v1/admin/migrate /v1/admin/rotate /v1/admin/evict-verify; do
   internal_group | grep -qF "\"${route}\"" || fail "${route} is outside the service-auth group"
 done
-! sed -n '/let bypass = /,/let mut internal/p' "${ROUTES}/mod.rs" | grep -q '/v1/admin' ||
+! grep -q '/v1/admin' <<<"$(sed -n '/let bypass = /,/let mut internal/p' "${ROUTES}/mod.rs")" ||
   fail "an admin route is in the API-key bypass"
 pass "4 admin routes behind require_service_auth"
 
@@ -101,7 +101,7 @@ step "static: tenant code gets no env and no env_file"
 [ "$(grep -ac 'env: workerEnv(secrets).permission\|env: env.permission' "${FN}/server.ts")" = 2 ] ||
   fail "a Worker is spawned without the sealed env permission"
 need "${FN}/worker-env.ts" '^    permission: false,$' "the Worker env permission is not off"
-! awk '/^  functions-runtime:/{p=1;next} p&&/^  [a-z_-]+:$/{p=0} p' "${STORAGE}" | grep -v '^ *#' | grep -q 'env_file' ||
+! grep -q 'env_file' <<<"$(awk '/^  functions-runtime:/{p=1;next} p&&/^  [a-z_-]+:$/{p=0} p' "${STORAGE}" | grep -v '^ *#')" ||
   fail "functions-runtime gets an env_file"
 pass "both Worker spawns sealed; storage.yml passes a fixed list"
 
