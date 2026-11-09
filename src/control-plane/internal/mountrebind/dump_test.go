@@ -94,3 +94,58 @@ func TestRewriteDumpRefusesShortKeys(t *testing.T) {
 		t.Fatal("a source key under 16 characters must be refused")
 	}
 }
+
+// A row no key opens, named in Reseat, gets a new DSN from the target's login; one that is
+// not named stays exactly as it was, because the tool must never guess a target.
+func TestRewriteDumpReseatsANamedRow(t *testing.T) {
+	lost := sealedRow(t, otherKey, "b1", "postgresql", "postgresql://postgres:old@postgres:5432/website")
+	unnamed := strings.Replace(sealedRow(t, otherKey, "b2", "postgresql", "postgresql://u:p@postgres/y"), "\tn\t", "\tother\t", 1)
+	in := header + lost + unnamed + "\\.\n"
+	var out strings.Builder
+	cfg := Config{SourceKey: sourceKey, TargetKey: targetKey, Targets: pgTargets(), Reseat: map[string]string{"n": "website"}}
+	stats, err := RewriteDump(bufio.NewReader(strings.NewReader(in)), &out, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.SplitAfter(out.String(), "\n")
+	if got := openRow(t, targetKey, lines[1]); got != "postgres://postgres:n3w%2Fp%40ss%3Aword@postgres:5432/website" {
+		t.Fatalf("reseated row opens to %q", got)
+	}
+	if lines[2] != unnamed {
+		t.Fatalf("a row not named in Reseat changed: %q", lines[2])
+	}
+	assertStats(t, stats, []Outcome{Reseated, Undecryptable}, []bool{true, false})
+}
+
+// A row the source key still opens is rebound, never reseated, even when it is named.
+func TestReseatLeavesAnOpenRowAlone(t *testing.T) {
+	open := sealedRow(t, sourceKey, "c1", "postgresql", "postgresql://postgres:old@postgres:5432/commerce")
+	in := header + open + "\\.\n"
+	var out strings.Builder
+	cfg := Config{SourceKey: sourceKey, TargetKey: targetKey, Targets: pgTargets(), Reseat: map[string]string{"n": "wrong"}}
+	stats, err := RewriteDump(bufio.NewReader(strings.NewReader(in)), &out, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertStats(t, stats, []Outcome{Rebound}, []bool{true})
+}
+
+// With no login for the engine there is nothing to build a DSN from, so the row stays.
+func TestReseatWithoutATargetKeepsTheRow(t *testing.T) {
+	lost := sealedRow(t, otherKey, "d1", "postgresql", "postgresql://u:p@postgres/z")
+	in := header + lost + "\\.\n"
+	var out strings.Builder
+	cfg := Config{SourceKey: sourceKey, TargetKey: targetKey, Reseat: map[string]string{"n": "z"}}
+	stats, err := RewriteDump(bufio.NewReader(strings.NewReader(in)), &out, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != in {
+		t.Fatalf("the row changed: %q", out.String())
+	}
+	assertStats(t, stats, []Outcome{Undecryptable}, []bool{false})
+}
+
+func pgTargets() []Target {
+	return []Target{{Engine: "postgresql", Schemes: []string{"postgres", "postgresql"}, Hosts: []string{"postgres", "mini-baas-postgres"}, Port: 5432, User: "postgres", Password: "n3w/p@ss:word"}}
+}

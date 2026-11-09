@@ -71,16 +71,18 @@ ok "docker present; ${PG_IMAGE} available"
 step "1/4 STATIC — the configured probes name a host"
 # Comment lines in this file discuss the very flags being asserted, so strip them
 # first: matching prose instead of config would make this check meaningless.
-config_only() { grep -v '^[[:space:]]*#' "${COMPOSE_FILE}"; }
+# Read once into a variable: piping into an early-exiting grep (-q, -m1) under pipefail
+# SIGPIPEs the writer and reads a present match as absent (CI run 42262662057, M183 2/4).
+config_only="$(grep -v '^[[:space:]]*#' "${COMPOSE_FILE}")"
 
-pg_probe="$(config_only | grep -m1 'pg_isready' || true)"
+pg_probe="$(grep -m1 'pg_isready' <<<"${config_only}" || true)"
 [ -n "${pg_probe}" ] || fail "no pg_isready probe found in ${COMPOSE_FILE}"
 case "${pg_probe}" in
 *'pg_isready -h '*) ok "postgres probe names a host" ;;
 *) fail "postgres probe has no -h, so it asks the Unix socket the initdb temporary server answers:${pg_probe}" ;;
 esac
 
-mongo_probe="$(config_only | grep -m1 'mongosh' || true)"
+mongo_probe="$(grep -m1 'mongosh' <<<"${config_only}" || true)"
 [ -n "${mongo_probe}" ] || fail "no mongosh probe found in ${COMPOSE_FILE}"
 case "${mongo_probe}" in
 *'mongosh --host '*) ok "mongo probe names a host" ;;
@@ -90,7 +92,7 @@ esac
 step "2/4 STATIC — mongo-init retries a refused dial"
 # restart:"no" means a single failed dial is final, so the retry has to be in the
 # script. Look for a bounded loop around the connect, not just the election wait.
-if config_only | grep -q 'until mongosh\|while ! mongosh\|if mongosh --host mongo'; then
+if grep -q 'until mongosh\|while ! mongosh\|if mongosh --host mongo' <<<"${config_only}"; then
   ok "mongo-init retries the connection rather than treating one refusal as final"
 else
   fail "mongo-init has no connection retry; one ECONNREFUSED ends a restart:\"no\" one-shot"

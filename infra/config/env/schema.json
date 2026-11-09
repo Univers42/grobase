@@ -1172,6 +1172,16 @@
         "vault-init",
         "webhook-dispatcher"
       ]
+    },
+    "WAF_BIND_ADDR": {
+      "category": "CONFIG",
+      "format": "ipv4",
+      "required_in": [],
+      "compose_required": true,
+      "$comment": "The one non-loopback address the QEMU_GUEST=1 overlay publishes the WAF's :8443 on. Machine-specific: empty in config.env, found at run time from the default route's source address (orchestrators/makes/00-config.mk); a multi-homed host sets it in .env.local. Required only by docker-compose.qemu-guest.yml.",
+      "consumers": [
+        "waf"
+      ]
     }
   }
 }

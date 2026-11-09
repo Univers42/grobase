@@ -140,8 +140,12 @@ live_http() {
   [ "${got}" = 000 ] && ! grep -qs '^HTTP/' "${WORK}/plain" || fail "plain HTTP on :4012 got an HTTP answer (${got})"
   got="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PLAIN_PORT}/v1/capabilities")"
   [ "${got}" = 200 ] || fail "accept mode: :4011 want 200, got ${got}"
-  docker logs "${DPR}" 2>&1 | grep 'handshake accepted' | grep -q 'TLSv1_3' || fail "DT17: no debug line for an accepted handshake"
-  ! docker logs "${DPR}" 2>&1 | grep -q 'BEGIN\|PRIVATE KEY' || fail "DT17: the router logged PEM bytes"
+  # Whole log first: a pipe into grep -q SIGPIPEs the writer under pipefail, and the negated
+  # PEM check would then pass on a log that holds a key.
+  local dpr_log
+  dpr_log="$(docker logs "${DPR}" 2>&1)"
+  grep -q 'TLSv1_3' <<<"$(grep 'handshake accepted' <<<"${dpr_log}")" || fail "DT17: no debug line for an accepted handshake"
+  ! grep -q 'BEGIN\|PRIVATE KEY' <<<"${dpr_log}" || fail "DT17: the router logged PEM bytes"
   ok "https 200 over HTTP/1.1; plain HTTP on :4012 gets none; :4011 still 200; debug lines carry no key (DT17)"
 }
 
@@ -196,7 +200,7 @@ live_tc_untrusted() {
   tc_boot 0
   got="$(relay m263_relay_untrusted)"
   [ "${got}" = 502 ] && ! has_table m263_relay_untrusted || fail "relay without the CA: want 502 and no table, got ${got}"
-  docker logs "${TCC}" 2>&1 | grep -q 'certificate signed by unknown authority' || fail "the refusal does not name the CA"
+  grep -q 'certificate signed by unknown authority' <<<"$(docker logs "${TCC}" 2>&1)" || fail "the refusal does not name the CA"
   [ "$(revoke)" = 200 ] && [ "$(evict_failures)" = 1 ] || fail "revoke without the CA: want 200 and one evict failure"
   ok "without SSL_CERT_DIR: relay 502 with no table, evict-verify refused (unknown authority)"
 }

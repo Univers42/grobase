@@ -14,6 +14,9 @@ type Config struct {
 	SourceKey string   `json:"source_key"`
 	TargetKey string   `json:"target_key"`
 	Targets   []Target `json:"targets"`
+	// Reseat maps a mount's name to the database it was declared with, for a row no key
+	// opens any more. Only a named row is rebuilt: the tool never guesses a target.
+	Reseat map[string]string `json:"reseat,omitempty"`
 }
 
 // Row is the report for one tenant_databases row: never a DSN, only what happened to it.
@@ -36,6 +39,7 @@ const copyHeader = "COPY public.tenant_databases ("
 type rewriter struct {
 	source, target *adapterregistry.Encryptor
 	targets        []Target
+	reseat         map[string]string
 	stats          Stats
 }
 
@@ -51,7 +55,7 @@ func RewriteDump(r *bufio.Reader, w io.Writer, cfg Config) (Stats, error) {
 	if err != nil {
 		return Stats{}, fmt.Errorf("target key: %w", err)
 	}
-	rw := &rewriter{source: src, target: dst, targets: cfg.Targets}
+	rw := &rewriter{source: src, target: dst, targets: cfg.Targets, reseat: cfg.Reseat}
 	err = rw.copy(r, w)
 	return rw.stats, err
 }

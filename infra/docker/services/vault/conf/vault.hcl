@@ -11,6 +11,11 @@ listener "tcp" {
   # TLS disabled for internal Docker network.
   # In production, terminate TLS at the WAF/LB layer.
   tls_disable = 1
+  # Prometheus holds no token, and a 403 here reads as a target down. Published on loopback only,
+  # and the WAF refuses /v1/sys.
+  telemetry {
+    unauthenticated_metrics_access = true
+  }
 }
 
 api_addr     = "http://0.0.0.0:8200"

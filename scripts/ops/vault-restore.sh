@@ -387,6 +387,38 @@ backup_postgres() {
 # Caveat: the first run needs the Go image and its modules from the network (docker keeps them
 # after that). With neither, the restore stops here, before any data is touched. The same
 # happens to a redis on the ACL overlay: its login is in its consumers' env, and they are down.
+# reseat_mounts — mount name to database, for rows no key opens any more. website-pg and
+# vault42-pg were sealed under a key the vault no longer holds, so no restore could open them,
+# and the API cannot replace a DSN it cannot read first. Their target is declared by their
+# contract.
+reseat_mounts() {
+  jq -cs 'map((.mounts // []) | map({(.name): .database}) | add // {}) | add' infra/config/contracts/[a-z]*.json
+}
+
+# ensure_reseated_databases — a reseated mount's database may not be in the seed: vault42's
+# never was. A missing one is made here with its contract's schema, as provision-contract.sh
+# would, so the mount opens. One already in the seed is left alone.
+ensure_reseated_databases() {
+  for _db in $(reseat_mounts | jq -r '.[]' | sort -u); do
+    _have=$(docker exec mini-baas-postgres psql -U postgres -Atc "SELECT 1 FROM pg_database WHERE datname='$_db'")
+    [ -z "$_have" ] || continue
+    note "postgres: creating $_db, which a reseated mount declares and the seed does not hold"
+    docker exec mini-baas-postgres psql -q -U postgres -c "CREATE DATABASE \"$_db\"" >/dev/null ||
+      die "could not create $_db"
+    _schema=$(jq -r --arg d "$_db" 'select(any(.mounts[]?; .database == $d)) | .schema.postgresql // empty' \
+      infra/config/contracts/[a-z]*.json | head -n1)
+    [ -z "$_schema" ] || docker exec -i mini-baas-postgres psql -q -U postgres -d "$_db" -v ON_ERROR_STOP=1 <"$_schema" >/dev/null ||
+      die "could not apply $_schema to $_db"
+  done
+}
+
+# retire_seed_tenants — the seed outlives what was removed since it was taken, and every restore
+# would bring that back. The list is data, so it lives with the other seed data.
+retire_seed_tenants() {
+  docker exec -i mini-baas-postgres psql -q -U postgres -v ON_ERROR_STOP=1 \
+    <scripts/seed/retired-tenants.sql >/dev/null || die "could not remove the retired tenants"
+}
+
 rebind_seed_mounts() {
   command -v jq >/dev/null 2>&1 || die "jq is required to rebind the seed's mounts"
   [ -r .env ] || die "no readable .env: the seed's mounts cannot be rebound"
@@ -398,7 +430,7 @@ rebind_seed_mounts() {
   # own error() texts leave the file.
   # shellcheck disable=SC2046 # one id per word, on purpose
   if ! _config=$(docker inspect $(docker ps -q) | jq -c --rawfile srcenv .env --argjson envkey true \
-    "$(rebind_config_program)" 2>"$_log"); then
+    --argjson reseat "$(reseat_mounts)" "$(rebind_config_program)" 2>"$_log"); then
     _why=$(grep -oE '(target|source env)[^"]*' "$_log" | head -n1 || true)
     rm -f "$_log"
     die "cannot build the rebind config from the running engines: ${_why:-see jq}"
@@ -432,6 +464,7 @@ restore_postgres() {
     docker exec -i mini-baas-postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -q -U "$POSTGRES_USER"' \
       >/dev/null 2>"$err" || true
   rm -f "$REBOUND"
+  ensure_reseated_databases
   real=$(grep '^ERROR:' "$err" 2>/dev/null | grep -Ev "$PG_BENIGN" || true)
   count=$(printf '%s' "$real" | grep -c . || true)
   if [ "${count:-0}" -gt 0 ]; then
@@ -449,6 +482,7 @@ restore_postgres() {
     rollback    : gzip -dc $STATE_DIR/pre-restore-postgres-*.sql.gz | docker exec -i mini-baas-postgres sh -c 'PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -q -U \"\$POSTGRES_USER\"'"
   fi
   rm -f "$err"
+  retire_seed_tenants
   note "postgres: replayed cleanly (only the unavoidable globals errors)"
 }
 

@@ -48,10 +48,11 @@ fail() {
 # setup copies the compose tree, fly's override and an empty cloud flags file,
 # and writes the sentinel .env.
 setup() {
-  mkdir -p "${TREE}/orchestrators" "${TREE}/deploy/fly" "${TREE}/infra/config/cloud"
+  mkdir -p "${TREE}/orchestrators" "${TREE}/deploy/fly" "${TREE}/infra/config/cloud" "${TREE}/infra/config/env"
   cp "${ROOT}/docker-compose.yml" "${TREE}/"
   cp -r "${ROOT}/orchestrators/compose" "${TREE}/orchestrators/"
   cp "${ROOT}/deploy/fly/compose.override.yml" "${TREE}/deploy/fly/"
+  cp "${ROOT}/infra/config/env/schema.json" "${TREE}/infra/config/env/"
   : >"${TREE}/infra/config/cloud/flags.env.cloud"
   printf 'JWT_SECRET=%s\nSERVICE_ROLE_KEY=%s\nM211_PLATFORM=%s\n' "${SENT}" "${SENT}" "${SENT}" >"${TREE}/.env"
   # Secret-bearing compose entries are ${KEY:?...}; satisfy the whole required floor

@@ -15,6 +15,8 @@ docker compose up kong
 | `KONG_DATABASE` | `off` | Disables database; uses declarative config |
 | `KONG_DECLARATIVE_CONFIG` | `/var/lib/kong/kong.yml` | Path to the declarative YAML config |
 | `KONG_DNS_ORDER` | `LAST,A,SRV` | DNS resolution order for service discovery |
+| `KONG_DNS_VALID_TTL` | `5` | Seconds a resolved name is kept, so a recreated service is found again |
+| `KONG_DNS_STALE_TTL` | `0` | Seconds an expired name may still be served |
 | `KONG_PROXY_ACCESS_LOG` | `/dev/stdout` | Access log output |
 | `KONG_PROXY_ERROR_LOG` | `/dev/stderr` | Error log output |
 | `KONG_ADMIN_ACCESS_LOG` | `/dev/stdout` | Admin API access log |

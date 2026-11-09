@@ -27,6 +27,19 @@ NETSEG         ?=
 # and mailpit SMTP 1025 on the guest loopback for an SSH-tunnelled groot
 # (orchestrators/compose/docker-compose.remote-access.yml). Loopback only.
 REMOTE_ACCESS  ?= $(shell sed -n 's/^REMOTE_ACCESS=//p' .env.local 2>/dev/null | head -1)
+# QEMU_GUEST=1 (env, or a QEMU_GUEST= line in .env.local) publishes the WAF's TLS port on
+# the guest loopback and QEMU's user-mode address, not on every interface
+# (orchestrators/compose/docker-compose.qemu-guest.yml). Only on a QEMU guest.
+QEMU_GUEST     ?= $(shell sed -n 's/^QEMU_GUEST=//p' .env.local 2>/dev/null | head -1)
+# The one non-loopback address that overlay binds: env, .env.local, else the source address
+# of the default route. Caveat: on a multi-homed host that is the default-route NIC; a port
+# forward arriving on another one needs WAF_BIND_ADDR set. Linux `ip` only; elsewhere set it.
+ifeq ($(QEMU_GUEST),1)
+ifeq ($(strip $(WAF_BIND_ADDR)),)
+WAF_BIND_ADDR  := $(or $(shell sed -n 's/^WAF_BIND_ADDR=//p' .env.local 2>/dev/null | head -1),$(shell ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p'))
+endif
+export WAF_BIND_ADDR
+endif
 # PERF=1 (env, or a PERF= line in .env.local) composes the request-path CPU headroom
 # overlay (orchestrators/compose/docker-compose.perf.yml) for a host serving real users.
 PERF           ?= $(shell sed -n 's/^PERF=//p' .env.local 2>/dev/null | head -1)
@@ -85,7 +98,16 @@ NO_CPU_OVERRIDE := orchestrators/compose/.no-cpu-limits.yml
 ifeq ($(CPU_QUOTA),false)
 $(shell sh scripts/ops/no-cpu-limits.sh $(NO_CPU_OVERRIDE))
 endif
-DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))
+# COMPOSE_OVERRIDES (env, or a COMPOSE_OVERRIDES= line in .env.local): space-separated
+# operator compose files appended LAST to DC, so a host-local pin (a flag held in shadow, a
+# service builder kept off) rides every make-driven recreate instead of living in a side -f
+# the next recreate forgets (the VM lost two that way on 2026-11-06 12:26Z). A listed file
+# that does not exist stops make: a silently skipped override is the drift this prevents.
+# Caveat: only $(DC) sees them — a script under scripts/ that builds its own
+# `docker compose -f …` does not; a path containing a space is read as two paths.
+COMPOSE_OVERRIDES ?= $(shell sed -n 's/^COMPOSE_OVERRIDES=//p' .env.local 2>/dev/null | head -1)
+$(foreach f,$(COMPOSE_OVERRIDES),$(if $(wildcard $(f)),,$(error COMPOSE_OVERRIDES lists $(f), which does not exist — fix the path or drop it)))
+DC             := docker compose -f $(COMPOSE_FILE)$(if $(filter 1,$(NETSEG)), -f orchestrators/compose/docker-compose.netseg.yml)$(if $(filter 1,$(REMOTE_ACCESS)), -f orchestrators/compose/docker-compose.remote-access.yml)$(if $(filter 1,$(QEMU_GUEST)), -f orchestrators/compose/docker-compose.qemu-guest.yml)$(if $(filter 1,$(PERF)), -f orchestrators/compose/docker-compose.perf.yml)$(if $(filter 1,$(CLOUD)), -f orchestrators/compose/docker-compose.cloud.yml --profile cloud)$(if $(filter 1,$(ENGINE_TLS)), -f orchestrators/compose/docker-compose.engine-tls.yml)$(foreach e,$(ENGINE_TLS_ENGINES), -f orchestrators/compose/docker-compose.engine-tls-$(e).yml)$(if $(and $(filter 1,$(CLOUD)),$(filter minio,$(ENGINE_TLS_ENGINES))), -f orchestrators/compose/docker-compose.cloud-minio-tls.yml)$(if $(filter 1,$(REDIS_ACL)), -f orchestrators/compose/docker-compose.redis-acl.yml)$(if $(filter false,$(CPU_QUOTA)), -f $(NO_CPU_OVERRIDE))$(foreach f,$(COMPOSE_OVERRIDES), -f $(f))
 
 # Colors
 _B := \033[0;34m
@@ -123,6 +145,9 @@ PROFILES_observability := observability
 PROFILES_ops           := ops backups
 PROFILES_studio        := studio
 PROFILES_playground    := playground
+PROFILES_secrets       := secrets
+PROFILES_mysql8        := mysql8
+PROFILES_vault42       := vault42
 # Extra database engines (mariadb/cockroachdb/mssql) — the à-la-carte "extra
 # engines" add-on / Max package. Optional; never in default editions.
 PROFILES_engines       := engines-extra
@@ -177,6 +202,8 @@ PACKAGE_basic     := go rust
 PACKAGE_essential := go rust adapter background
 PACKAGE_pro       := $(PACKAGE_essential) data storage realtime
 PACKAGE_max       := $(PACKAGE_pro) analytics observability functions engines
+# packages.json's alias. Its other one, free -> nano, has no stack: see _require-shape.
+PACKAGE_enterprise := $(PACKAGE_max)
 ADDONS ?=
 
 # Functions: plane-list -> sorted profiles -> `--profile x --profile y`
@@ -198,12 +225,33 @@ endif
 PROFILE_FLAGS := $(addprefix --profile ,$(ACTIVE_PROFILES))
 DCE           := $(DC) $(PROFILE_FLAGS)
 
+# An unknown name resolves to no profile, and compose with no profile is the seven core
+# containers: `make all PACKAGE=enterprise` printed success over them on 2026-11-04, and so
+# did any misspelling. nano and free are one binary each, which compose cannot start.
+_require-shape:
+ifndef PROFILES
+ifdef PACKAGE
+ifneq ($(filter $(PACKAGE),nano free),)
+	@echo >&2 "PACKAGE=$(PACKAGE) is one binary, not a compose stack: make nano-up"; exit 2
+else ifeq ($(filter $(PACKAGE),$(PACKAGES) enterprise),)
+	@echo >&2 "unknown PACKAGE=$(PACKAGE): use $(PACKAGES) enterprise, or make nano-up"; exit 2
+endif
+else ifeq ($(filter $(EDITION),$(EDITIONS)),)
+	@echo >&2 "unknown EDITION=$(EDITION): use $(EDITIONS)"; exit 2
+endif
+endif
+
 _require-docker:
 	@command -v docker >/dev/null 2>&1 || { echo >&2 "Docker is not installed."; exit 1; }
 
 _require-compose: _require-docker
 	@docker compose version >/dev/null 2>&1 || { echo >&2 "Docker Compose v2 plugin is required."; exit 1; }
 
+# A partial `up` leaves everything else alone: it recreates only what its named services
+# need, so removing every exited container here dropped finished one-shots for good and
+# `make health` stayed red over a working stack (mongo-keyfile, after `up SERVICE=gotrue`).
 _rm-stale:
+ifeq ($(strip $(SERVICE)),)
 	@ids=$$(docker ps -a --format '{{.ID}} {{.Names}} {{.Status}}' | awk '/ mini-baas-/ && ($$3=="Created"||$$3=="Exited") {print $$1}'); \
 	[ -z "$$ids" ] || { echo -e "$(_Y)Removing stale containers…$(_0)"; docker rm -f $$ids >/dev/null; }
+endif

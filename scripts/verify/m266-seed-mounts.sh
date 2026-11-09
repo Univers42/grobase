@@ -44,6 +44,12 @@ check "... the logins are the running engine's" \
 check "a running stack's key wins over .env's" "$(config "$stack" true .target_key)" from-container
 check "import path: no key in a container still refuses" "$(config "$engines" false .target_key)" ""
 check "two keys in use refuse, whichever path" "$(config "$split" true .target_key)" ""
+check "no reseat asked: an empty map, the import path unchanged" "$(config "$stack" false '.reseat | length')" 0
+reseats=$(awk '/^reseat_mounts\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
+eval "$reseats"
+check "contracts name their mounts' databases" "$(reseat_mounts | jq -r '."website-pg" + " " + ."vault42-pg"')" "website vault42"
+check "... and only contracts do" "$(reseat_mounts | jq -r 'has("gourmand-app-db")')" false
+check "... the smoke contract is not a real mount" "$(reseat_mounts | jq -r 'keys | map(select(startswith("_"))) | length')" 0
 
 # ── the restore ─────────────────────────────────────────────────────────────
 cat >"$T/bin/docker" <<'STUB'
@@ -68,6 +74,7 @@ block=$(awk '/^rebind_seed_mounts\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
 restore() { # <ok|fail> -> rc, in a subshell so the stubbed die stays here
   # shellcheck disable=SC2030 # that subshell is the point
   (
+    reseat_mounts() { printf '{}'; }
     cd "$T" || exit 9
     cp dotenv .env
     die() {
@@ -96,6 +103,10 @@ body=$(awk '/^restore_postgres\(\) \{/,/^}/' scripts/ops/vault-restore.sh)
 line_of() { printf '%s\n' "$body" | grep -n "$1" | head -n1 | cut -d: -f1; }
 check "rebinding precedes the destructive clear" \
   "$([ "$(line_of '^  rebind_seed_mounts')" -lt "$(line_of '^  clear_postgres_db')" ] && echo yes)" yes
+check "a reseated mount's database is made after the replay" \
+  "$([ "$(line_of '^  pg_strip_role_passwords')" -lt "$(line_of '^  ensure_reseated_databases')" ] && echo yes)" yes
+check "what was retired goes once the replay has loaded it" \
+  "$([ "$(line_of '^  pg_strip_role_passwords')" -lt "$(line_of '^  retire_seed_tenants')" ] && echo yes)" yes
 check "the replay never reads the seed as it came" "$(printf '%s\n' "$body" | grep -c 'SEED_DIR/postgres-all')" 0
 
 # ── the mounts open ─────────────────────────────────────────────────────────
@@ -146,6 +157,55 @@ sqlite_with() { # <json the schema answers with> -> rc
 }
 check "a mount with no tables fails the seed" "$(sqlite_with '{"resources":[]}')" 1
 check "... the same mount with its tables passes" "$(sqlite_with '{"resources":[{"name":"restaurant"}]}')" 0
+plane=$(awk '/^wait_query_plane\(\) \{/,/^}/' scripts/seed/osionos-extra-engines.sh)
+plane_with() { # <the answers, one per call; the last repeats> -> rc
+  # shellcheck disable=SC2030,SC2031 # each subshell is its own case
+  (
+    fail() {
+      printf 'fail: %s\n' "$*"
+      exit 1
+    }
+    sleep() { :; }
+    printf '%s\n' $1 >"$T/answers"
+    gw() {
+      head -n1 "$T/answers"
+      [ "$(wc -l <"$T/answers")" -eq 1 ] || sed -i 1d "$T/answers"
+    }
+    KONG_URL=x
+    eval "$plane"
+    wait_query_plane
+  ) >"$T/out" 2>&1
+  printf '%s' "$?"
+}
+check "a router still booting is waited for" "$(plane_with '000 502 502 200')" 0
+check "... and any answer from it counts" "$(plane_with '502 401')" 0
+check "a router that never answers fails the seed" "$(plane_with 502)" 1
+check "... naming the route" "$(grep -c 'query/v1/capabilities -> 502' "$T/out")" 1
+run_section=$(awk '/^# ── run/,0' scripts/seed/osionos-extra-engines.sh)
+check "the wait comes before any mount is opened" "$(printf '%s\n' "$run_section" | grep -n '^wait_query_plane\|^seed_sqlite' | head -n1 | cut -d: -f2)" wait_query_plane
+rows=$(awk '/^sqlite_load_rows\(\) \{/,/^}/' scripts/seed/osionos-extra-engines.sh)
+rows_with() { # <the code every insert gets> -> rc; two tables, three rows
+  # shellcheck disable=SC2030,SC2031 # each subshell is its own case
+  (
+    warn() { printf 'warn: %s\n' "$*"; }
+    sleep() { :; }
+    CODE="$1" ANON_KEY=x APP_KEY=x KONG_URL=x SQLITE_DB_ID=x
+    curl() {
+      echo x >>"$T/calls"
+      printf '%s' "$CODE"
+    }
+    : >"$T/calls"
+    eval "$rows"
+    printf 'restaurant\t{}\nmenu\t{}\ndish\t{}\n' | sqlite_load_rows
+  ) >"$T/out" 2>&1
+  printf '%s' "$?"
+}
+check "every row loaded: the load passes" "$(rows_with 201)" 0
+check "a row already there is not a failure" "$(rows_with 409)" 0
+check "a refused row fails the load" "$(rows_with 400)" 1
+check "... after trying the others" "$(grep -c '^warn: sqlite: insert' "$T/out")" 3
+check "a broken mount fails the load" "$(rows_with 502)" 1
+check "... at the first row, on bounded retries" "$(wc -l <"$T/calls")" 6
 check "migrate-mongo authenticates" "$(grep -c 'authenticationDatabase admin mini_baas --file' orchestrators/makes/50-migrate.mk)" 1
 check "... and stops at a failed file" "$(awk '/^migrate-mongo:/,/applied/' orchestrators/makes/50-migrate.mk | grep -c '@set -e')" 1
 check "after a restore only sqlite is loaded" \

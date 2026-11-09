@@ -122,7 +122,7 @@ logical() {
   [ "$(objects | grep -c '\.dump$')" = 1 ] || fail "a plaintext .dump was uploaded next to the .age"
   head="$(sh_in "mc cat baas/backups/m209/${SEALED} | head -n1")"
   [ "${head}" = age-encryption.org/v1 ] || fail "${SEALED} has no age header"
-  sh_in "mc cat baas/backups/m209/${SEALED} | grep -qa PGDMP" && fail "${SEALED} holds a pg_dump header in clear"
+  [ "$(sh_in "mc cat baas/backups/m209/${SEALED} | grep -ac PGDMP")" = 0 ] || fail "${SEALED} holds a pg_dump header in clear"
   ok "recipients set: ${SEALED} starts with the age header, no PGDMP inside, no plaintext copy"
   before="$(objects | wc -l)"
   pgb -e BACKUP_AGE_RECIPIENTS="age1notakey" -- once >"${WORK}/bad.log" 2>&1 && fail "a bad recipient still backed up"

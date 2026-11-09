@@ -36,7 +36,7 @@ amber() { printf '\033[0;33m%s\033[0m\n' "$*"; }
 
 cyan "[zap] DAST baseline against ${TARGET}"
 
-if ! curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${TARGET}" | grep -qE "^[2-5][0-9][0-9]$"; then
+if ! grep -qE "^[2-5][0-9][0-9]$" <<<"$(curl -ksS -o /dev/null -w '%{http_code}' --max-time 5 "${TARGET}")"; then
   red "[zap] target ${TARGET} unreachable — bring the stack up first"
   exit 2
 fi

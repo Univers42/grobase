@@ -30,6 +30,13 @@ services:
       # Without this GoTrue negotiates STARTTLS, so a 465 host (implicit TLS) never
       # sends its 220 banner and every signup times out on its own deadline.
       GOTRUE_SMTP_SECURE: ${SMTP_SECURE:-false}
+      # GoTrue sends inside the request, under a 10 s limit by default: a Titan send
+      # (9-20 s) came back 504 with the token rolled back and the mail already gone,
+      # so the link in it was dead (2026-11-04). Above smtpclient's 30 s session,
+      # under Kong's 60 s proxy timeout.
+      # Caveat: a relay slower than 45 s still ends that way, and because the send
+      # holds the request, /recover answers a known address later than an unknown one.
+      GOTRUE_API_MAX_REQUEST_DURATION: 45s
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${EMAIL_FROM:-noreply@mini-baas.local}

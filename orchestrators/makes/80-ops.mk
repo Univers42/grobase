@@ -78,7 +78,8 @@ _cloud-preflight:
 
 cloud-up: _require-compose _require-cloud-flags _cloud-preflight _rm-stale ## Boot the FULL managed-cloud stack locally (all cloud flags ON, mock Stripe)
 	@echo -e "$(_B)Starting CLOUD edition (all managed-cloud flags ON, mock Stripe) → prod planes + cloud profile$(_0)"
-	@eval "$$(bash scripts/ops/resolve-ports.sh 2>/dev/null || true)"; \
+	@eval "$$(docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) config --format json 2>/dev/null | \
+	  bash scripts/ops/resolve-ports.sh --compose-json 2>/dev/null || true)"; \
 	  docker compose $(CLOUD_FILES) $(CLOUD_PROFILES) up -d $(SERVICE)
 	@echo -e "$(_G)✓ Cloud edition up (infra/config/cloud/flags.env.cloud layered; stripe-mock in the cloud profile)$(_0)"
 
@@ -170,8 +171,14 @@ CTL_IMAGE         ?= docker.io/dlesieur/42ctl:latest
 VAULT_ENV_PROJECT ?= grobase
 
 vault42-up: _require-compose ## Provision the vault42 contract + run vault42-server (image) wired to grobase as its store
-	@bash scripts/provision-contract.sh infra/config/contracts/vault42.json 2>&1 | tail -6
-	@VAULT42_IMAGE=$(VAULT42_IMAGE) docker compose --profile vault42 up -d vault42
+	@# Caveat: 60 tries 5 s apart is a bound on Kong coming up after `up`, not a measurement: a boot
+	@# slower than that stops here with the provisioner's last output, and make vault42-up resumes.
+	@for try in $$(seq 60); do \
+		out=$$(bash scripts/provision-contract.sh infra/config/contracts/vault42.json 2>&1) && break; \
+		[ "$$try" -lt 60 ] || { printf '%s\n' "$$out" | tail -6 >&2; exit 1; }; \
+		sleep 5; \
+	done
+	@VAULT42_IMAGE=$(VAULT42_IMAGE) $(DC) --profile vault42 up -d --no-deps vault42
 	@echo -e "  $(_G)✓$(_0) vault42-server up on :$${VAULT42_PORT:-8443} (GrobaseStore → kong). CLI: $(_B)make ctl ARGS=\"org create --slug x --name X\"$(_0)"
 
 vault42-down: ## Stop vault42-server (the vault42 profile)

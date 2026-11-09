@@ -115,6 +115,13 @@ services:
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
       GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
       GOTRUE_SMTP_SECURE: ${SMTP_SECURE:-false}
+      # GoTrue sends inside the request, under a 10 s limit by default: a Titan send
+      # (9-20 s) came back 504 with the token rolled back and the mail already gone,
+      # so the link in it was dead (2026-11-04). Above smtpclient's 30 s session,
+      # under Kong's 60 s proxy timeout.
+      # Caveat: a relay slower than 45 s still ends that way, and because the send
+      # holds the request, /recover answers a known address later than an unknown one.
+      GOTRUE_API_MAX_REQUEST_DURATION: 45s
       GOTRUE_SMTP_USER: ${SMTP_USERNAME:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASSWORD:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_FROM_ADDRESS:-noreply@mini-baas.local}

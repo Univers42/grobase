@@ -25,7 +25,7 @@ export function isUuid(value: string): boolean {
 /** RFC 4122 §4.3 name-based UUID (version 5, SHA-1). */
 export function uuidV5(name: string, namespace: string): string {
   const ns = Buffer.from(namespace.replace(/-/g, ''), 'hex');
-  const bytes = createHash('sha1').update(ns).update(name, 'utf8').digest().subarray(0, 16);
+  const bytes = createHash('sha1').update(ns).update(name, 'utf8').digest().subarray(0, 16); // NOSONAR v5 is SHA-1 by definition, an id and not a secret
   bytes[6] = (bytes[6] & 0x0f) | 0x50;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = bytes.toString('hex');

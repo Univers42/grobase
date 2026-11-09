@@ -20,7 +20,7 @@ cockroach_static_checks() {
   step "static: cockroach secure mode is opt-in and keeps plaintext"
   grep -q 'start-single-node --insecure' <<<"${base}" || fail "the default cockroach is no longer --insecure (CR1)"
   grep -q -- '--accept-sql-without-tls' "${overlay}" || fail "the overlay drops plaintext SQL (CR2)"
-  ! grep -v '^ *#' "${overlay}" | grep -q -- '--insecure' || fail "the overlay still runs --insecure"
+  ! grep -q -- '--insecure' <<<"$(grep -v '^ *#' "${overlay}")" || fail "the overlay still runs --insecure"
   grep -q 'engine-tls-cockroach-health.sh"\]' "${overlay}" || fail "the overlay keeps the --insecure healthcheck (CR7)"
   grep -q 'mode: 0400' "${overlay}" || fail "the password secret is not mode 0400 (CR3)"
   [[ "$(grep -v '^ *#' "${overlay}" | grep -c COCKROACH_PASSWORD)" == 1 ]] ||

@@ -1,0 +1,17 @@
+# docker-compose.qemu-guest.yml — publish the WAF's TLS port on the loopback and on ONE
+# address of this machine, WAF_BIND_ADDR, instead of on every interface. For a host where
+# something else owns the port on another interface: a VM whose tailnet address serves
+# :8443 through `tailscale serve`, so a wildcard publish cannot bind.
+# Opt-in: QEMU_GUEST=1 (env, or a line in .env.local) adds this file to every compose call,
+# after the remote-access overlay (orchestrators/makes/00-config.mk). WAF_BIND_ADDR is then
+# the env or .env.local value, else the source address of this machine's default route
+# (10.0.2.15 on a QEMU user-mode guest, what a hostfwd of :8443 lands on).
+#
+# Not in the base files: an address the machine does not have makes `up` fail. Plaintext
+# :80 stays on the loopback, as the remote-access overlay has it (ADR 0002 C5).
+services:
+  waf:
+    ports: !override
+      - "127.0.0.1:${WAF_HTTP_PORT:-8880}:80"
+      - "127.0.0.1:${WAF_HTTPS_PORT:-8443}:443"
+      - "${WAF_BIND_ADDR:?QEMU_GUEST=1 needs WAF_BIND_ADDR: no default route to take it from}:${WAF_HTTPS_PORT:-8443}:443"
