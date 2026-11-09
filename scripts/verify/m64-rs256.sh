@@ -58,7 +58,13 @@ red() { printf '\033[0;31m%s\033[0m\n' "$*"; }
 step() { cyan "[M64] $*"; }
 ok() { green "  ✓ $*"; }
 fail() {
+  local c
   red "[M64] FAIL — $*"
+  for c in "${TC_ON:-}" "${TC_OFF:-}" "${SIGNER:-}" "${PG:-}"; do
+    [[ -n "${c}" ]] || continue
+    echo "----- ${c} -----" >&2
+    docker logs "${c}" 2>&1 | tail -30 >&2 || true
+  done
   exit 1
 }
 
@@ -302,9 +308,22 @@ logged() {
   return 1
 }
 # POST a bootstrap with the given bearer token; echo HTTP status, body->$BODY.
+# A reset from the docker proxy (curl 56) in the instant after boot is retried.
+# The status is echoed and the function returns 0 either way: under `set -e`,
+# curl's own exit status here aborts the gate before the assertion, with no
+# [M64] FAIL line (the Nov 4 standalone-gates run exited 56 on the HS256 POST).
 post_bootstrap() { # $1=port  $2=token
-  curl -s -o "${BODY}" -w '%{http_code}' -X POST "http://127.0.0.1:$1/v1/tenants/me/bootstrap" \
-    -H "Authorization: Bearer $2" -H 'Content-Length: 0'
+  local ec=0 out
+  out="$(curl -sS --retry 4 --retry-all-errors --retry-connrefused --retry-delay 1 \
+    --max-time 10 -o "${BODY}" -w '%{http_code}' -X POST \
+    "http://127.0.0.1:$1/v1/tenants/me/bootstrap" \
+    -H "Authorization: Bearer $2" -H 'Content-Length: 0')" || ec=$?
+  if [[ "${ec}" -ne 0 || -z "${out}" || "${out}" == "000" ]]; then
+    echo "bootstrap POST 127.0.0.1:$1 failed (curl exit ${ec})" >&2
+    printf '000'
+    return 0
+  fi
+  printf '%s' "${out}"
 }
 tok() { curl -fsS "http://127.0.0.1:${PORT_SIGNER}/token/$1"; } # mint a token by kind
 
