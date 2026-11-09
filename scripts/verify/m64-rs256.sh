@@ -313,10 +313,12 @@ logged() {
 # curl's own exit status here aborts the gate before the assertion, with no
 # [M64] FAIL line (the Nov 4 standalone-gates run exited 56 on the HS256 POST).
 post_bootstrap() { # $1=port  $2=token
-  local ec=0 out
+  local ec=0 out url
+  # Loopback only: the scratch tenant-control is published on 127.0.0.1 for this run.
+  url="http://127.0.0.1:$1/v1/tenants/me/bootstrap" # NOSONAR(S5332) grobase#67
   out="$(curl -sS --retry 4 --retry-all-errors --retry-connrefused --retry-delay 1 \
     --max-time 10 -o "${BODY}" -w '%{http_code}' -X POST \
-    "http://127.0.0.1:$1/v1/tenants/me/bootstrap" \
+    "${url}" \
     -H "Authorization: Bearer $2" -H 'Content-Length: 0')" || ec=$?
   if [[ "${ec}" -ne 0 || -z "${out}" || "${out}" == "000" ]]; then
     echo "bootstrap POST 127.0.0.1:$1 failed (curl exit ${ec})" >&2
@@ -329,7 +331,7 @@ tok() { curl -fsS "http://127.0.0.1:${PORT_SIGNER}/token/$1"; } # mint a token b
 
 # ── 3) ON arm: boot tenant-control with JWT_ALG=RS256 + JWKS_URL ───────────────
 step "3/8 boot scratch tenant-control with JWT_ALG=RS256 + JWKS_URL (ON arm)"
-boot_tc "${TC_ON}" "${PORT_ON}" "RS256" "${JWKS_INNET}"
+boot_tc "${TC_ON}" "${PORT_ON}" "RS256" "${JWKS_INNET}" # NOSONAR(S5332) grobase#67
 wait_tc "${TC_ON}" "${PORT_ON}" || fail "ON-arm tenant-control not ready (line: wait_tc TC_ON)"
 # Confirm it actually came up in RS256 mode (boot log line names the verifier).
 logged "${TC_ON}" "jwt verifier enabled" || {
