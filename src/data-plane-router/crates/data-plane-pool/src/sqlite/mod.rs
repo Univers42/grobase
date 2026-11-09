@@ -12,9 +12,9 @@
 
 //! SQLite engine adapter (R-sqlite, Phase 3b).
 //!
-//! Embedded, file-per-mount engine on `rusqlite` (sync) driven through
-//! `deadpool-sqlite`'s `interact()`, which runs each closure on a blocking
-//! thread so the async runtime is never stalled. WAL is enabled at pool open
+//! Embedded, file-per-mount engine on `rusqlite` (sync). Each read checkout
+//! runs its closure on a blocking thread so the async runtime is never
+//! stalled. WAL is enabled at pool open
 //! (1 writer + N concurrent readers) and `busy_timeout` smooths writer
 //! contention. The DSN is a file path (`sqlite:///var/lib/mini-baas/<ref>.db`),
 //! so a `db_per_tenant` mount is a distinct file; `shared_rls` mounts owner-scope
@@ -45,6 +45,7 @@ mod exec;
 mod harden;
 mod pool;
 mod query;
+mod readers;
 mod root;
 mod schema;
 mod writer;
