@@ -1,0 +1,40 @@
+# Modified by Groot: this vendored 0.8.1 copy uses rusqlite 0.41 so the
+# bundled libsqlite3-sys can receive the RUSTSEC-2026-0459 fix. Drop this patch
+# when upstream deadpool-sqlite supports rusqlite >= 0.41.
+[package]
+name = "deadpool-sqlite"
+version = "0.8.1"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Michael P. Jung <michael.jung@terreon.de>"]
+description = "Dead simple async pool for rusqlite"
+keywords = ["async", "database", "pool", "sqlite"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bikeshedder/deadpool"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["rt_tokio_1"]
+rt_tokio_1 = ["deadpool/rt_tokio_1"]
+rt_async-std_1 = ["deadpool/rt_async-std_1"]
+serde = ["deadpool/serde", "dep:serde"]
+tracing = ["deadpool-sync/tracing"]
+
+[dependencies]
+deadpool = { version = "0.12.0", default-features = false, features = [
+    "managed",
+] }
+deadpool-sync = { version = "0.1.1" }
+rusqlite = { version = "0.41", default-features = false }
+serde = { package = "serde", version = "1.0", features = [
+    "derive",
+], optional = true }
+
+[dev-dependencies]
+config = { version = "0.14", features = ["json"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+
