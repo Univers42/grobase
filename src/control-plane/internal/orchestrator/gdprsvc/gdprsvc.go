@@ -67,8 +67,9 @@ type Service struct {
 	store         repo
 	doExport      exportFn
 	doDeletion    deletionFn
-	retentionDays int   // audit_log retention; 0 = disabled (audit.go)
-	retentionErr  error // why a set AUDIT_LOG_RETENTION_DAYS was refused
+	retentionDays int    // audit_log retention; 0 = disabled (audit.go)
+	retentionErr  error  // why a set AUDIT_LOG_RETENTION_DAYS was refused
+	serviceToken  string // INTERNAL_SERVICE_TOKEN; the admin routes require it (#85)
 }
 
 // New builds the service from env, wiring the webhook seams to their default
@@ -83,6 +84,7 @@ func New(log *slog.Logger, pg *pg.Postgres) *Service {
 		doDeletion:    httpDeletion(client, os.Getenv("GDPR_DELETION_WEBHOOK_URL"), log),
 		retentionDays: days,
 		retentionErr:  err,
+		serviceToken:  os.Getenv("INTERNAL_SERVICE_TOKEN"),
 	}
 }
 

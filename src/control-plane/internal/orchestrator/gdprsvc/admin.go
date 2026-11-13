@@ -21,7 +21,7 @@ import (
 )
 
 func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
-	if !requireAdmin(w, r) {
+	if !s.requireAdmin(w, r) {
 		return
 	}
 	out, err := s.store.allRequests(r.Context(), r.URL.Query().Get("status"))
@@ -37,7 +37,7 @@ func (s *Service) adminListDeletions(w http.ResponseWriter, r *http.Request) {
 // then marks the request done. An erase error is a 5xx and the status stays as
 // it was; both steps are idempotent, so the admin retries (ADR 0022).
 func (s *Service) adminProcessDeletion(w http.ResponseWriter, r *http.Request) {
-	adminID, ok := requireAdminUser(w, r)
+	adminID, ok := s.requireAdminUser(w, r)
 	if !ok {
 		return
 	}

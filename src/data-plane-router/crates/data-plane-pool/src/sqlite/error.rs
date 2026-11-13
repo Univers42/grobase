@@ -36,11 +36,19 @@ pub(super) fn classify_sqlite_ddl_error(e: &rusqlite::Error) -> DataPlaneError {
 }
 
 /// Classify a rusqlite error into the right client/server bucket: a constraint
-/// violation (UNIQUE/PK/FK/NOT NULL/CHECK) is a 409 Conflict; everything else a
-/// 502 Backend.
+/// violation (UNIQUE/PK/FK/NOT NULL/CHECK) is a 409 Conflict; a table or column
+/// the request names but the file lacks is the caller's request not fitting the
+/// schema, a 400, as Postgres's SQLSTATE class 42 is (`postgres/convert.rs`).
+/// Everything else is a 502 Backend. A missing table answered 502 in production
+/// (osionos "Dish" → `no such table: dish`, 2026-11-04), which reads as an outage.
 pub(super) fn backend(e: rusqlite::Error) -> DataPlaneError {
     let msg = e.to_string();
     let lower = msg.to_ascii_lowercase();
+    if lower.contains("no such table") || lower.contains("no such column") {
+        return DataPlaneError::InvalidRequest {
+            message: format!("sqlite: {msg}"),
+        };
+    }
     if lower.contains("unique constraint")
         || lower.contains("constraint failed")
         || lower.contains("not null")
@@ -96,6 +104,17 @@ mod tests {
             let e = backend(rusqlite::Error::ToSqlConversionFailure(msg.into()));
             assert!(
                 matches!(e, DataPlaneError::Backend { .. }),
+                "{msg:?} → {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn backend_classifies_a_missing_table_or_column_as_invalid_request() {
+        for msg in ["no such table: dish", "no such column: ghost"] {
+            let e = backend(rusqlite::Error::ToSqlConversionFailure(msg.into()));
+            assert!(
+                matches!(e, DataPlaneError::InvalidRequest { .. }),
                 "{msg:?} → {e:?}"
             );
         }

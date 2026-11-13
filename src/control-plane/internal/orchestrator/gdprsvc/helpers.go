@@ -17,6 +17,7 @@ import (
 	"net/http"
 
 	"github.com/dlesieur/mini-baas/control-plane/internal/httpx"
+	"github.com/dlesieur/mini-baas/control-plane/internal/serviceauth"
 )
 
 /* ─────── helpers ─────── */
@@ -48,12 +49,20 @@ func requireUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return "", false
 }
 
-func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	_, ok := requireAdminUser(w, r)
+func (s *Service) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	_, ok := s.requireAdminUser(w, r)
 	return ok
 }
 
-func requireAdminUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+// requireAdminUser admits only an internal service caller. The X-Baas-Role header is
+// set by Kong for public traffic but forgeable by anything on the compose network, so
+// on its own it opened the GDPR processing route that fires the erasure webhook and
+// anonymises audit_log (#85); the service token is checked first.
+func (s *Service) requireAdminUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if !serviceauth.VerifyServiceRequest(r, s.serviceToken) {
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "service token required")
+		return "", false
+	}
 	userID, ok := requireUser(w, r)
 	if !ok {
 		return "", false

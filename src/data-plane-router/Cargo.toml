@@ -62,11 +62,11 @@ chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"
 sha2 = "0.10"
 deadpool-postgres = "0.14"
-# R-sqlite: embedded SQLite. `bundled` compiles SQLite in (no system
-# libsqlite3 — distroless-safe). 0.41 bundles SQLite >= 3.54.0
-# (RUSTSEC-2026-0459). Published deadpool-sqlite stops at rusqlite 0.40,
-# so the reader pool lives in data-plane-pool and calls rusqlite directly.
-rusqlite = { version = "0.41", features = ["bundled", "hooks", "limits"] }
+# R-sqlite: embedded SQLite engine. `bundled` compiles SQLite in (no system
+# libsqlite3 — distroless-safe); deadpool-sqlite gives an async pool that runs
+# rusqlite's sync API on a blocking thread via `interact()`.
+rusqlite = { version = "0.41", default-features = false, features = ["bundled", "cache", "hooks", "limits"] }
+deadpool-sqlite = "0.8"
 # R-mssql: Microsoft SQL Server (TDS) via the pure-Rust tiberius driver +
 # bb8 pool. `rustls` matches the workspace TLS posture; `tokio-util` provides
 # the AsyncRead/Write compat tiberius needs over a tokio TcpStream.
@@ -141,3 +141,7 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["serde", "v7"] }
+
+[patch.crates-io]
+deadpool-sqlite = { path = "vendor/deadpool-sqlite" }
+

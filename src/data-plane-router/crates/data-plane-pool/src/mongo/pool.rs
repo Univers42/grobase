@@ -46,6 +46,9 @@ const SCHEMA_SAMPLE_SIZE: i32 = 200;
 pub struct MongoPool {
     pub(super) mount_id: String,
     pub(super) tenant_id: String,
+    /// `tenant_owned` mount: the collections predate the platform and carry no
+    /// `owner_id`/`tenant_id`, so nothing is stamped or filtered.
+    pub(super) tenant_owned: bool,
     /// True for a SHARE_POOLS shared_rls pool serving many tenants: the
     /// single-owner `check_tenant` assertion is skipped AND the per-request
     /// `tenant_id`/`owner_id` stamp is sourced from the request identity (not
@@ -72,6 +75,17 @@ impl MongoPool {
         // quote_ident wraps in `"..."` for SQL; strip them for Mongo.
         let trimmed = safe.trim_matches('"').to_string();
         Ok(self.client.database(&self.db_name).collection(&trimmed))
+    }
+
+    /// The tenant stamped and filtered on: empty on a `tenant_owned` mount, which
+    /// `build_owned_doc` and `build_tenant_filter` read as "no scoping". A foreign
+    /// tenant never reaches this mount: key-to-mount resolution gates it upstream.
+    pub(super) fn scope_tenant<'a>(&self, identity: &'a RequestIdentity) -> &'a str {
+        if self.tenant_owned {
+            ""
+        } else {
+            &identity.tenant_id
+        }
     }
 
     pub(super) fn owner(identity: &RequestIdentity) -> String {
