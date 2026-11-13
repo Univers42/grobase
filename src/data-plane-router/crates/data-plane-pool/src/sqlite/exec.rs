@@ -62,7 +62,6 @@ pub(super) fn query_rows(
             col_names = row
                 .as_ref()
                 .column_names()
-                .into_iter()
                 .map(String::from)
                 .collect();
         }
