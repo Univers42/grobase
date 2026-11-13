@@ -1,3 +1,5 @@
+// Modified by Groot: the recycle sentinel uses a checked SQLite-compatible
+// integer because rusqlite 0.41 does not implement ToSql/FromSql for usize.
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(
@@ -88,11 +90,13 @@ impl managed::Manager for Manager {
             ));
         }
         let recycle_count = self.recycle_count.fetch_add(1, Ordering::Relaxed);
-        let n: usize = conn
-            .interact(move |conn| conn.query_row("SELECT $1", [recycle_count], |row| row.get(0)))
+        let expected = i64::try_from(recycle_count)
+            .map_err(|_| RecycleError::message("Recycle count exceeds SQLite INTEGER range"))?;
+        let n: i64 = conn
+            .interact(move |conn| conn.query_row("SELECT $1", [expected], |row| row.get(0)))
             .await
             .map_err(|e| RecycleError::message(format!("{}", e)))??;
-        if n == recycle_count {
+        if n == expected {
             Ok(())
         } else {
             Err(RecycleError::message("Recycle count mismatch"))
