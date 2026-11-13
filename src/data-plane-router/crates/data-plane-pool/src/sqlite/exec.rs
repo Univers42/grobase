@@ -59,11 +59,7 @@ pub(super) fn query_rows(
     let mut out = Vec::new();
     while let Some(row) = rows.next().map_err(backend)? {
         if col_names.is_empty() {
-            col_names = row
-                .as_ref()
-                .column_names()
-                .map(String::from)
-                .collect();
+            col_names = row.as_ref().column_names().map(String::from).collect();
         }
         let mut obj = JsonMap::with_capacity(col_names.len());
         for (i, name) in col_names.iter().enumerate() {
