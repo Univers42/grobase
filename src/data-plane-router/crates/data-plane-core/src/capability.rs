@@ -264,7 +264,7 @@ impl EngineCapabilities {
     /// aggregate (GROUP BY), introspection (pragma), structured single-op
     /// schema DDL (`build_sqlite_ddl`: create/drop table, add/drop column;
     /// `alter_column_type` is honestly rejected — SQLite has no ALTER COLUMN).
-    /// No LISTEN/NOTIFY streaming. `transactions:false` — the deadpool-sqlite
+    /// No LISTEN/NOTIFY streaming. `transactions:false` — the blocking
     /// `interact` model makes a connection-pinned, cross-request multi-statement
     /// TxHandle disproportionate; `begin()` honestly returns NotImplemented (a
     /// single batch is still atomic). Honest descriptor: conformance skips

@@ -22,6 +22,7 @@ ignore = [
   { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.101 via tiberius 0.12.3 (latest), no fixed 0.101; external-TLS mssql only. 0.103 line fixed at 0.103.16. Univers42/grobase#46" },
   { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile unmaintained; feature-gated external-TLS chain" },
   { id = "RUSTSEC-2026-0097", reason = "rand 0.7 unsound only with a logger calling rand::rng(); we have none" },
+  { id = "RUSTSEC-2026-0441", reason = "pin-utils 0.1.0 via aws-smithy-http, dynamodb feature only (default engines do not link it). Archived, no fixed release; we never call pin_mut!" },
 ]
 
 [licenses]

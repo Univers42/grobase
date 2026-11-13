@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-//! The [`SqliteEngineAdapter`] (GoF Adapter): opens a `deadpool-sqlite` pool
+//! The [`SqliteEngineAdapter`] (GoF Adapter): opens a reader pool
 //! for the mount's file, tunes and hardens every connection it creates
 //! ([`super::harden`]), and spawns the dedicated GROUP-COMMIT writer thread
 //! ([`super::writer::writer_loop`]).
@@ -20,13 +20,13 @@ use data_plane_core::{
     DataOperationKind, DataPlaneError, DataPlaneResult, DatabaseMount, EngineAdapter,
     EngineCapabilities, EngineHealth, EnginePool,
 };
-use deadpool_sqlite::{Config as SqliteConfig, Hook, HookError, Pool, Runtime};
 use std::sync::Arc;
 
 use crate::resolver::MountResolver;
 
-use super::harden::{harden, refuse_unsafe_path, tune};
+use super::harden::refuse_unsafe_path;
 use super::pool::SqlitePool;
+use super::readers::ReaderPool;
 use super::root::{sqlite_path, SqliteRoot};
 use super::writer::{enable_wal, writer_loop};
 
@@ -97,31 +97,9 @@ impl EngineAdapter for SqliteEngineAdapter {
     }
 }
 
-/// The reader pool. `post_create` runs on EVERY connection deadpool opens, not
-/// only the first checkout, so a second reader is as locked down as the first.
-///
-/// Caveat: deadpool-sqlite opens with `Connection::open(path)` and no flags,
-/// so a reader follows a symlink swapped in at `path` after the root check; a
-/// custom Manager is the way to pass `SQLITE_OPEN_NOFOLLOW` (the writer does).
-fn reader_pool(path: &str) -> DataPlaneResult<Pool> {
-    let failed = |e: String| DataPlaneError::Backend {
-        message: format!("sqlite pool create failed: {e}"),
-    };
-    SqliteConfig::new(path)
-        .builder(Runtime::Tokio1)
-        .map_err(|e| failed(e.to_string()))?
-        .post_create(Hook::async_fn(|conn, _| {
-            Box::pin(async move {
-                conn.interact(|conn| tune(conn).and_then(|()| harden(conn)))
-                    .await
-                    .map_err(|e| {
-                        HookError::Message(format!("sqlite connection setup: {e}").into())
-                    })?
-                    .map_err(HookError::Backend)
-            })
-        }))
-        .build()
-        .map_err(|e| failed(e.to_string()))
+/// Every checkout is tuned and hardened at open, including the second reader.
+fn reader_pool(path: &str) -> DataPlaneResult<ReaderPool> {
+    Ok(ReaderPool::open(path))
 }
 
 #[cfg(test)]

@@ -13,8 +13,8 @@
 //! The mount-scoped [`SqlitePool`] and its [`EnginePool`] surface: per-request
 //! tenant cross-check, the writer-thread submit channel, and the CRUD / raw-SQL
 //! / introspection / structured-DDL endpoints. Mutations queue to the single
-//! writer thread ([`super::writer`]); reads run parallel on the deadpool under
-//! WAL.
+//! writer thread ([`super::writer`]); reads run parallel on the reader pool
+//! under WAL.
 
 use async_trait::async_trait;
 use data_plane_core::{
@@ -23,8 +23,9 @@ use data_plane_core::{
     SchemaDdlRequest, SchemaDdlResult, SchemaDdlStatus, SchemaDescriptor, TlsPosture,
     TxBeginRequest, TxHandle,
 };
-use deadpool_sqlite::Pool;
 use rusqlite::types::Value as SqlValue;
+
+use super::readers::{Reader, ReaderPool};
 
 use super::convert::json_to_sql;
 use super::exec::{describe_schema_blocking, query_rows, run_plan};
@@ -44,7 +45,7 @@ pub struct SqlitePool {
     /// `owner_id` predicate from each request's identity carries isolation).
     /// See `crate::pools_shared`.
     pub(super) shared_pool: bool,
-    pub(super) pool: Pool,
+    pub(super) pool: ReaderPool,
     /// SQLite allows exactly ONE writer per database. N pooled connections
     /// fighting for the file lock collapse under load (measured: 48 req/s at
     /// c=64, p99 pinned at the 5 s busy_timeout); even a fair semaphore pays
@@ -92,7 +93,7 @@ impl SqlitePool {
         })?
     }
 
-    async fn checkout(&self) -> DataPlaneResult<deadpool_sqlite::Object> {
+    async fn checkout(&self) -> DataPlaneResult<Reader> {
         self.pool.get().await.map_err(|e| DataPlaneError::Backend {
             message: format!("sqlite checkout failed: {e}"),
         })

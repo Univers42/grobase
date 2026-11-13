@@ -70,7 +70,7 @@ pub(super) fn tune(conn: &Connection) -> rusqlite::Result<()> {
 
 /// Locks one connection down: defensive mode, untrusted schema, zero attached
 /// databases, and the authorizer. Call it once, right after open, on EVERY
-/// connection (deadpool `post_create`, the writer thread). The nano/pb stores
+/// connection (reader checkout, the writer thread). The nano/pb stores
 /// are one call away from the same protection.
 pub fn harden(conn: &mut Connection) -> rusqlite::Result<()> {
     lock_config(conn)?;
