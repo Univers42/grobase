@@ -125,9 +125,9 @@ pub(super) fn open_writer_conn(
     path: &str,
     flags: OpenFlags,
 ) -> Result<Connection, rusqlite::Error> {
-    let conn = Connection::open_with_flags(path, flags)?;
+    let mut conn = Connection::open_with_flags(path, flags)?;
     tune(&conn)?;
-    harden(&conn)?;
+    harden(&mut conn)?;
     Ok(conn)
 }
 
