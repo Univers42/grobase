@@ -74,14 +74,14 @@ pub(super) fn tune(conn: &Connection) -> rusqlite::Result<()> {
 /// are one call away from the same protection.
 pub fn harden(conn: &mut Connection) -> rusqlite::Result<()> {
     lock_config(conn)?;
-    conn.authorizer(Some(authorize));
+    conn.authorizer(Some(authorize))?;
     Ok(())
 }
 
 fn lock_config(conn: &Connection) -> rusqlite::Result<()> {
     conn.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
     conn.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)?;
-    conn.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0);
+    conn.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0)?;
     Ok(())
 }
 
@@ -229,7 +229,7 @@ mod tests {
 
         let mut authorized = open(&dir, |_| {});
         exec_write(&authorized, &attach, &[]).unwrap();
-        authorized.authorizer(Some(authorize));
+        authorized.authorizer(Some(authorize)).unwrap();
         for sql in [attach.as_str(), "DETACH other", &vacuum_into, "VACUUM"] {
             // "not authorized" when the statement itself is denied,
             // "authorization denied" when VACUUM's inner ATTACH is.
