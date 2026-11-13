@@ -66,7 +66,6 @@ deadpool-postgres = "0.14"
 # libsqlite3 — distroless-safe); deadpool-sqlite gives an async pool that runs
 # rusqlite's sync API on a blocking thread via `interact()`.
 rusqlite = { version = "0.41", default-features = false, features = ["bundled", "cache", "hooks", "limits"] }
-deadpool-sqlite = "0.8"
 # R-mssql: Microsoft SQL Server (TDS) via the pure-Rust tiberius driver +
 # bb8 pool. `rustls` matches the workspace TLS posture; `tokio-util` provides
 # the AsyncRead/Write compat tiberius needs over a tokio TcpStream.
@@ -141,7 +140,3 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["serde", "v7"] }
-
-[patch.crates-io]
-deadpool-sqlite = { path = "vendor/deadpool-sqlite" }
-
