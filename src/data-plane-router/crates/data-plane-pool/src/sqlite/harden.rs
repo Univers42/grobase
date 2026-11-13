@@ -72,7 +72,7 @@ pub(super) fn tune(conn: &Connection) -> rusqlite::Result<()> {
 /// databases, and the authorizer. Call it once, right after open, on EVERY
 /// connection (deadpool `post_create`, the writer thread). The nano/pb stores
 /// are one call away from the same protection.
-pub fn harden(conn: &Connection) -> rusqlite::Result<()> {
+pub fn harden(conn: &mut Connection) -> rusqlite::Result<()> {
     lock_config(conn)?;
     conn.authorizer(Some(authorize));
     Ok(())
@@ -153,10 +153,10 @@ mod tests {
         dir
     }
 
-    fn open(dir: &std::path::Path, setup: fn(&Connection)) -> Connection {
-        let conn = Connection::open(dir.join("mount.db")).unwrap();
+    fn open(dir: &std::path::Path, setup: fn(&mut Connection)) -> Connection {
+        let mut conn = Connection::open(dir.join("mount.db")).unwrap();
         tune(&conn).unwrap();
-        setup(&conn);
+        setup(&mut conn);
         conn
     }
 
@@ -227,7 +227,7 @@ mod tests {
         // Nothing can be attached, so there is nothing to detach.
         assert_refused(&limited, "DETACH other", "no such database");
 
-        let authorized = open(&dir, |_| {});
+        let mut authorized = open(&dir, |_| {});
         exec_write(&authorized, &attach, &[]).unwrap();
         authorized.authorizer(Some(authorize));
         for sql in [attach.as_str(), "DETACH other", &vacuum_into, "VACUUM"] {
