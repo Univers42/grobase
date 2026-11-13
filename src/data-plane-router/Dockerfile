@@ -22,6 +22,7 @@ WORKDIR /build
 ARG DATA_PLANE_FEATURES=""
 
 COPY Cargo.toml ./
+COPY vendor/ vendor/
 COPY crates/data-plane-core/Cargo.toml crates/data-plane-core/Cargo.toml
 COPY crates/data-plane-pool/Cargo.toml crates/data-plane-pool/Cargo.toml
 COPY crates/data-plane-server/Cargo.toml crates/data-plane-server/Cargo.toml
