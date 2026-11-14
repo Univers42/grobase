@@ -41,8 +41,8 @@ one mount could reach nano, pb and every other tenant.
 - **Root confinement is opt-in** (G2-S1b, below). Under the root a `tenant_id` from the body
   is still spoofable before G1 enforce: it confines a path, not a tenant.
 - **Symlinks and hardlinks** to a server file under another name pass the name check, and the
-  reader pool follows a symlink (deadpool-sqlite hard-codes `Connection::open`; a custom
-  Manager is the escape hatch). Both carry a `Caveat:` in the code.
+  reader pool follows a symlink (`Connection::open` takes no flags; the writer passes
+  `SQLITE_OPEN_NOFOLLOW`). Both carry a `Caveat:` in the code.
 - **nano and pb raw paths are not hardened** (U5). They open their own connections.
 - **Plain `VACUUM` is now refused** (its inner ATTACH hits the limit). No in-repo caller uses it.
 - **VM**: before the image is promoted, a read-only count of registry sqlite mounts whose DSN
@@ -68,8 +68,8 @@ one mount could reach nano, pb and every other tenant.
   created 0700 on first use (never the root), must canonicalize to `<root>/<tenant_id>`, and a
   symlinked database file is refused. Set but not an absolute existing directory: every file
   mount is refused and boot logs an error. `:memory:` always passes.
-- **Writer `SQLITE_OPEN_NOFOLLOW`** whenever the root is set (S12). The reader pool keeps
-  deadpool-sqlite's flags and follows a symlink swapped in after the check (`Caveat:` in
+- **Writer `SQLITE_OPEN_NOFOLLOW`** whenever the root is set (S12). The reader pool opens
+  with `Connection::open` and follows a symlink swapped in after the check (`Caveat:` in
   `root.rs`); hard links and the `-wal`/`-shm` sidecars are not checked.
 - **WAL bootstrap.** Found while gating this: since S1a moved the pragmas into
   `post_create`, a fresh file's writer and first reader raced to switch to WAL and the loser

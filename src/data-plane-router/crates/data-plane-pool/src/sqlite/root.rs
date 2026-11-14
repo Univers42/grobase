@@ -78,7 +78,7 @@ impl SqliteRoot {
     /// Caveat: check-then-open. A process that can write inside the tenant
     /// directory can swap in a symlink after this check; the writer's
     /// `SQLITE_OPEN_NOFOLLOW` still refuses it, the reader pool does not
-    /// (deadpool-sqlite opens with no flags). A hard link, and the `-wal` /
+    /// (`Connection::open` takes no flags). A hard link, and the `-wal` /
     /// `-shm` sidecars, are not checked at all.
     pub(super) fn confine(&self, path: &str, tenant_id: &str) -> DataPlaneResult<()> {
         let (given, canonical) = match self {

@@ -321,6 +321,7 @@ function buildSchemaService() {
     get: (_key: string, def?: string) => def,
   } as unknown as ConfigService;
   const query = {
+    isStaticMount: jest.fn(() => false),
     resolveConnection: jest.fn(async () => ({
       engine: 'postgresql',
       connection_string: 'postgres://example/db',

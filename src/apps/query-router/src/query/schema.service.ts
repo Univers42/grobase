@@ -160,6 +160,12 @@ export class SchemaService {
     if (!tenantId) {
       throw new ForbiddenException('schema DDL requires a verified tenant identity');
     }
+    // A static DATA_PLANE_MOUNTS mount matches by dbId alone and belongs to no tenant, so
+    // the data plane's identity check would compare the caller's tenant with itself (#78).
+    // Raw SQL refuses static mounts for the same reason (sqlro.service.ts).
+    if (this.query.isStaticMount(dbId)) {
+      throw new ForbiddenException('schema DDL is not allowed on a static mount');
+    }
     if (DESTRUCTIVE_DDL_OPS.has(dto.op) && dto.confirm !== true) {
       throw new BadRequestException(
         `ddl op '${dto.op}' is destructive — set "confirm": true to proceed`,

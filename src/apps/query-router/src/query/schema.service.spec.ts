@@ -49,6 +49,7 @@ describe('SchemaService', () => {
       get: (key: string, def?: string) => configOverrides[key] ?? def,
     } as unknown as ConfigService;
     const query = {
+      isStaticMount: jest.fn((_dbId: string) => false),
       resolveConnection: jest.fn(async () => ({
         engine: 'postgresql',
         connection_string: 'postgres://example/db',
@@ -190,6 +191,25 @@ describe('SchemaService', () => {
           ),
         ).rejects.toMatchObject({ status: 403 });
       }
+      expect(query.resolveConnection).not.toHaveBeenCalled();
+      expect(proxy.applySchemaDdl).not.toHaveBeenCalled();
+    });
+
+    // #78: a static DATA_PLANE_MOUNTS mount matches by dbId alone and has no owner, so
+    // the data plane's identity check compares a tenant with itself. DDL refuses it
+    // before resolving a connection, as raw SQL does (sqlro.service.ts).
+    it('refuses DDL on a static mount with 403 (no resolve, no proxy call)', async () => {
+      const { service, proxy, query } = build();
+      query.isStaticMount.mockImplementation((dbId: string) => dbId === 'static-db');
+      await expect(
+        service.applyDdl(
+          'static-db',
+          'user-1',
+          { op: 'add_column', table: 'orders', column: { name: 'x', normalized_type: 'text' } },
+          identity,
+        ),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(query.isStaticMount).toHaveBeenCalledWith('static-db');
       expect(query.resolveConnection).not.toHaveBeenCalled();
       expect(proxy.applySchemaDdl).not.toHaveBeenCalled();
     });

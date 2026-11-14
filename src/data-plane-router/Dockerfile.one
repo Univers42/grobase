@@ -18,6 +18,7 @@ ENV CARGO_BUILD_TARGET=x86_64-unknown-linux-musl \
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="-C target-feature=+crt-static"
 
 COPY Cargo.toml ./
+COPY vendor/ vendor/
 COPY crates/data-plane-core/Cargo.toml crates/data-plane-core/Cargo.toml
 COPY crates/data-plane-pool/Cargo.toml crates/data-plane-pool/Cargo.toml
 COPY crates/data-plane-server/Cargo.toml crates/data-plane-server/Cargo.toml
