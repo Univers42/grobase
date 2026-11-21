@@ -396,22 +396,27 @@ impl EnginePool for MysqlPool {
             );
         }
 
-        // Columns of every BASE TABLE on the connected database.
-        let col_rows: Vec<(String, String, String, String, Option<String>)> = conn
+        // Columns of every table and view on the connected database: for a read-mostly
+        // customer the views are the reporting layer.
+        let col_rows: Vec<(String, String, String, String, Option<String>, String)> = conn
             .query(
-                "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, c.COLUMN_DEFAULT \
+                "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, c.COLUMN_DEFAULT, t.TABLE_TYPE \
                  FROM information_schema.COLUMNS c \
                  JOIN information_schema.TABLES t \
                    ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME \
                  WHERE c.TABLE_SCHEMA = DATABASE() \
-                   AND t.TABLE_TYPE = 'BASE TABLE' \
+                   AND t.TABLE_TYPE IN ('BASE TABLE', 'VIEW') \
                    AND c.TABLE_NAME <> '_baas_migrations' \
                  ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION",
             )
             .await
             .map_err(backend)?;
         let mut tables: BTreeMap<String, Vec<ColumnSchema>> = BTreeMap::new();
-        for (table, name, column_type, is_nullable, default) in col_rows {
+        let mut views = std::collections::BTreeSet::new();
+        for (table, name, column_type, is_nullable, default, table_type) in col_rows {
+            if table_type.eq_ignore_ascii_case("view") {
+                views.insert(table.clone());
+            }
             let (normalized_type, enum_values) = normalize_mysql_type(&column_type);
             let references = fks.get(&(table.clone(), name.clone())).cloned();
             tables.entry(table).or_default().push(ColumnSchema {
@@ -431,6 +436,7 @@ impl EnginePool for MysqlPool {
             tables: tables
                 .into_iter()
                 .map(|(name, columns)| TableSchema {
+                    read_only: views.contains(&name),
                     primary_key: pks.remove(&name).unwrap_or_default(),
                     name,
                     columns,

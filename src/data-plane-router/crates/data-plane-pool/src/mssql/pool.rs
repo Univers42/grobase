@@ -189,6 +189,7 @@ impl EnginePool for MssqlPool {
             tables: tables
                 .into_iter()
                 .map(|(name, columns)| TableSchema {
+                    read_only: false,
                     primary_key: pks
                         .iter()
                         .filter(|k| k[0] == name)
