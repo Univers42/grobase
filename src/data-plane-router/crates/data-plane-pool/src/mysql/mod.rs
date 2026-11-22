@@ -148,18 +148,21 @@ mod tests {
             "{no_table:?}"
         );
         // On both DDL and query (non-DDL) paths, missing table and unknown column classify as InvalidRequest (grobase#102).
-        let query_path_col = classify_mysql_error("Unknown column 'x' in 'field list'".into(), false);
+        let query_path_col =
+            classify_mysql_error("Unknown column 'x' in 'field list'".into(), false);
         assert!(
             matches!(query_path_col, DataPlaneError::InvalidRequest { .. }),
             "{query_path_col:?}"
         );
-        let query_path_table = classify_mysql_error("Table 'ops.ghost' doesn't exist".into(), false);
+        let query_path_table =
+            classify_mysql_error("Table 'ops.ghost' doesn't exist".into(), false);
         assert!(
             matches!(query_path_table, DataPlaneError::InvalidRequest { .. }),
             "{query_path_table:?}"
         );
         // Genuine engine unreachable / connection errors remain Backend.
-        let query_path_conn = classify_mysql_error("Can't connect to MySQL server on '127.0.0.1'".into(), false);
+        let query_path_conn =
+            classify_mysql_error("Can't connect to MySQL server on '127.0.0.1'".into(), false);
         assert!(
             matches!(query_path_conn, DataPlaneError::Backend { .. }),
             "{query_path_conn:?}"

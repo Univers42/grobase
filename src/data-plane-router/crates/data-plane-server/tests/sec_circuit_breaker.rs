@@ -78,7 +78,9 @@ async fn test_circuit_breaker_with_refusing_backend() {
     }
 
     // 5. Revive backend: start listening on the port
-    let revived_listener = tokio::net::TcpListener::bind(addr).await.expect("revived backend bind");
+    let revived_listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("revived backend bind");
 
     // Wait for cooldown to expire
     tokio::time::sleep(cooldown + Duration::from_millis(20)).await;
@@ -89,7 +91,9 @@ async fn test_circuit_breaker_with_refusing_backend() {
     assert_eq!(breaker.state_of(mount_id), BreakerState::HalfOpen);
 
     // Probe connects to revived backend successfully
-    let mut client = tokio::net::TcpStream::connect(addr).await.expect("connect to revived backend");
+    let mut client = tokio::net::TcpStream::connect(addr)
+        .await
+        .expect("connect to revived backend");
     let (mut server_conn, _) = revived_listener.accept().await.expect("accept connection");
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     client.write_all(b"ping").await.unwrap();

@@ -388,9 +388,12 @@ impl ServerConfig {
             circuit_breaker_failures: read_env("DATA_PLANE_CIRCUIT_BREAKER_FAILURES", "3")
                 .parse()
                 .unwrap_or(3),
-            circuit_breaker_cooldown_ms: read_env("DATA_PLANE_CIRCUIT_BREAKER_COOLDOWN_MS", "10000")
-                .parse()
-                .unwrap_or(10000),
+            circuit_breaker_cooldown_ms: read_env(
+                "DATA_PLANE_CIRCUIT_BREAKER_COOLDOWN_MS",
+                "10000",
+            )
+            .parse()
+            .unwrap_or(10000),
             audit_reads: matches!(
                 read_env("DATA_PLANE_AUDIT_READS", "false")
                     .to_lowercase()
