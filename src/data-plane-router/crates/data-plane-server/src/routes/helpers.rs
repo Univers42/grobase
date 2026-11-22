@@ -125,6 +125,9 @@ fn error_status_code(err: &DataPlaneError) -> (StatusCode, &'static str) {
         DataPlaneError::CredentialProviderFailed { .. } => {
             (StatusCode::BAD_GATEWAY, "credential_provider_failed")
         }
+        DataPlaneError::MountUnreachable { .. } => {
+            (StatusCode::SERVICE_UNAVAILABLE, "mount_unreachable")
+        }
         DataPlaneError::Backend { .. } => (StatusCode::BAD_GATEWAY, "backend_error"),
         DataPlaneError::Conflict { .. } => (StatusCode::CONFLICT, "conflict"),
     }

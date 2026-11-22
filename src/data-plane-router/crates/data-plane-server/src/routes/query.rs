@@ -182,12 +182,31 @@ async fn run_query_inner(
     } else {
         request.mount
     };
+    let mount_id = mount_to_open.id.clone();
+    if let Err(err) = state.circuit_breaker.check(&mount_id) {
+        return query_emit::finalize_error(&err);
+    }
     let pool = match state.registry.get_or_create(mount_to_open).await {
         Ok(pool) => pool,
-        Err(err) => return query_emit::finalize_error(&err),
+        Err(err) => {
+            state.circuit_breaker.record_failure(
+                &mount_id,
+                crate::circuit_breaker::CircuitBreaker::is_connect_error(&err),
+            );
+            return query_emit::finalize_error(&err);
+        }
     };
     match pool.execute(request.operation, request.identity).await {
-        Ok(result) => query_emit::finalize_success(&state, &emit_ctx, &*pool, result).await,
-        Err(err) => query_emit::finalize_error(&err),
+        Ok(result) => {
+            state.circuit_breaker.record_success(&mount_id);
+            query_emit::finalize_success(&state, &emit_ctx, &*pool, result).await
+        }
+        Err(err) => {
+            state.circuit_breaker.record_failure(
+                &mount_id,
+                crate::circuit_breaker::CircuitBreaker::is_connect_error(&err),
+            );
+            query_emit::finalize_error(&err)
+        }
     }
 }
