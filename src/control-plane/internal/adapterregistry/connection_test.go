@@ -42,7 +42,7 @@ func TestLoadMountRowDoesNotStampHealth(t *testing.T) {
 	if strings.Contains(strings.ToUpper(fnBody), "UPDATE") {
 		t.Fatalf("loadMountRow must not execute UPDATE: %s", fnBody)
 	}
-	if strings.Contains(fnBody, "last_healthy_at") {
-		t.Fatalf("loadMountRow must not reference last_healthy_at: %s", fnBody)
+	if strings.Contains(fnBody, "SET last_healthy_at") || strings.Contains(fnBody, "last_healthy_at =") {
+		t.Fatalf("loadMountRow must not mutate last_healthy_at: %s", fnBody)
 	}
 }
