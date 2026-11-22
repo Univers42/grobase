@@ -61,11 +61,29 @@ pub(super) async fn run_describe_schema(
     if let Err(resp) = require_capability(&state, &mount.engine, "introspect", |c| c.introspect) {
         return resp;
     }
+    let mount_id = mount.id.clone();
+    if let Err(err) = state.circuit_breaker.check(&mount_id) {
+        return map_data_plane_error(&err);
+    }
     let pool = match state.registry.get_or_create(mount).await {
         Ok(pool) => pool,
-        Err(err) => return map_data_plane_error(&err),
+        Err(err) => {
+            state.circuit_breaker.record_failure(
+                &mount_id,
+                crate::circuit_breaker::CircuitBreaker::is_connect_error(&err),
+            );
+            return map_data_plane_error(&err);
+        }
     };
-    json_result(pool.describe_schema(identity).await)
+    let res = pool.describe_schema(identity).await;
+    match &res {
+        Ok(_) => state.circuit_breaker.record_success(&mount_id),
+        Err(err) => state.circuit_breaker.record_failure(
+            &mount_id,
+            crate::circuit_breaker::CircuitBreaker::is_connect_error(err),
+        ),
+    }
+    json_result(res)
 }
 
 // ── /v1/schema/ddl ────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ pub mod abac;
 pub mod auth;
 #[cfg(feature = "control-pg")]
 pub mod automations;
+pub mod circuit_breaker;
 pub mod config;
 pub mod environment;
 pub mod graph;

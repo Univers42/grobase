@@ -115,6 +115,10 @@ pub struct ServerConfig {
     /// TTL (ms) for the bypass `api-key → identity` cache; default 30 000 to
     /// match the query-router. 0 disables (verify every request).
     pub verify_cache_ttl_ms: u64,
+    /// Consecutive connect failures before per-mount circuit breaker trips (grobase#95).
+    pub circuit_breaker_failures: u32,
+    /// Cooldown period in ms for per-mount circuit breaker before probe request (grobase#95).
+    pub circuit_breaker_cooldown_ms: u64,
     /// G-ReadAudit (A6) — also audit-log successful READS, not just mutations.
     /// OFF by default (`DATA_PLANE_AUDIT_READS`) → byte-parity: the read path
     /// emits nothing extra and stays off the hot path. Flip ON to get a `read`
@@ -381,6 +385,12 @@ impl ServerConfig {
             verify_cache_ttl_ms: read_env("DATA_PLANE_VERIFY_CACHE_TTL_MS", "30000")
                 .parse()
                 .unwrap_or(30000),
+            circuit_breaker_failures: read_env("DATA_PLANE_CIRCUIT_BREAKER_FAILURES", "3")
+                .parse()
+                .unwrap_or(3),
+            circuit_breaker_cooldown_ms: read_env("DATA_PLANE_CIRCUIT_BREAKER_COOLDOWN_MS", "10000")
+                .parse()
+                .unwrap_or(10000),
             audit_reads: matches!(
                 read_env("DATA_PLANE_AUDIT_READS", "false")
                     .to_lowercase()

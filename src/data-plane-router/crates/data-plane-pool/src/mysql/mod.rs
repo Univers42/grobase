@@ -147,11 +147,22 @@ mod tests {
             matches!(no_table, DataPlaneError::InvalidRequest { .. }),
             "{no_table:?}"
         );
-        // The query (non-DDL) path keeps its existing Backend mapping.
-        let query_path = classify_mysql_error("Unknown column 'x' in 'field list'".into(), false);
+        // On both DDL and query (non-DDL) paths, missing table and unknown column classify as InvalidRequest (grobase#102).
+        let query_path_col = classify_mysql_error("Unknown column 'x' in 'field list'".into(), false);
         assert!(
-            matches!(query_path, DataPlaneError::Backend { .. }),
-            "{query_path:?}"
+            matches!(query_path_col, DataPlaneError::InvalidRequest { .. }),
+            "{query_path_col:?}"
+        );
+        let query_path_table = classify_mysql_error("Table 'ops.ghost' doesn't exist".into(), false);
+        assert!(
+            matches!(query_path_table, DataPlaneError::InvalidRequest { .. }),
+            "{query_path_table:?}"
+        );
+        // Genuine engine unreachable / connection errors remain Backend.
+        let query_path_conn = classify_mysql_error("Can't connect to MySQL server on '127.0.0.1'".into(), false);
+        assert!(
+            matches!(query_path_conn, DataPlaneError::Backend { .. }),
+            "{query_path_conn:?}"
         );
     }
 
@@ -984,12 +995,21 @@ mod tests {
                 DataPlaneError::Backend { .. }
             ));
         }
-        // "unknown column" / "doesn't exist" / "check that column/key exists"
-        // → InvalidRequest on DDL, Backend on the query path.
+        // "check that column/key exists" → InvalidRequest on DDL, Backend on the query path.
+        let msg = "Can't DROP 'ghost'; check that column/key exists";
+        assert!(matches!(
+            classify_mysql_error(msg.into(), true),
+            DataPlaneError::InvalidRequest { .. }
+        ));
+        assert!(matches!(
+            classify_mysql_error(msg.into(), false),
+            DataPlaneError::Backend { .. }
+        ));
+
+        // "unknown column" / "doesn't exist" → InvalidRequest on both DDL and query paths (grobase#102).
         for msg in [
             "Unknown column 'ghost' in 'field list'",
             "Table 'ops.ghost' doesn't exist",
-            "Can't DROP 'ghost'; check that column/key exists",
         ] {
             assert!(matches!(
                 classify_mysql_error(msg.into(), true),
@@ -997,7 +1017,7 @@ mod tests {
             ));
             assert!(matches!(
                 classify_mysql_error(msg.into(), false),
-                DataPlaneError::Backend { .. }
+                DataPlaneError::InvalidRequest { .. }
             ));
         }
     }
