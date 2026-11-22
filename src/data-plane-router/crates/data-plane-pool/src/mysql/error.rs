@@ -49,19 +49,20 @@ pub(super) fn classify_mysql_error(message: String, ddl: bool) -> DataPlaneError
     {
         return DataPlaneError::Conflict { message };
     }
+    // 1054 "Unknown column" and 1146 "Table … doesn't exist" are deterministic
+    // client/schema mistakes on both query and DDL paths (grobase#102) -> 400 InvalidRequest.
+    if lower.contains("unknown column") || lower.contains("doesn't exist") {
+        return DataPlaneError::InvalidRequest { message };
+    }
     if ddl {
         // Schema-shape mistakes are deterministic client errors — a 5xx makes
         // outbox-style clients retry a request that can never succeed.
         // 1060 "Duplicate column name" / 1050 "Table … already exists" → 409;
-        // 1054 "Unknown column" / 1091 "Can't DROP …; check that column/key
-        // exists" / 1146 "Table … doesn't exist" → 400.
+        // 1091 "Can't DROP …; check that column/key exists" → 400.
         if lower.contains("duplicate column name") || lower.contains("already exists") {
             return DataPlaneError::Conflict { message };
         }
-        if lower.contains("unknown column")
-            || lower.contains("check that column/key exists")
-            || lower.contains("doesn't exist")
-        {
+        if lower.contains("check that column/key exists") {
             return DataPlaneError::InvalidRequest { message };
         }
     }

@@ -30,6 +30,12 @@ pub enum DataPlaneError {
     #[error("mount '{mount_id}' was not found")]
     MountNotFound { mount_id: String },
 
+    /// A circuit breaker for the mount is currently open after repeated connect
+    /// failures (grobase#95). Answers 503 Service Unavailable with error code
+    /// `mount_unreachable` without waiting for backend timeout.
+    #[error("mount '{mount_id}' is unreachable")]
+    MountUnreachable { mount_id: String },
+
     #[error("transaction '{tx_id}' was not found")]
     TransactionNotFound { tx_id: String },
 

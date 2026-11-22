@@ -38,6 +38,10 @@ pub(super) use super::txregistry::TransactionRegistry;
 pub struct AppState {
     pub(super) config: Arc<ServerConfig>,
     pub(super) engines: Arc<Vec<EngineDescriptor>>,
+    /// Per-mount circuit breaker (grobase#95): trips open after repeated connect
+    /// failures so offline engines fail-fast in <50ms without consuming the full
+    /// backend timeout on every request.
+    pub(super) circuit_breaker: Arc<crate::circuit_breaker::CircuitBreaker>,
     pub(super) registry: Arc<DefaultPoolRegistry>,
     /// The DSN resolver, shared (same `Arc`) with every engine adapter so a
     /// rotation can evict its credential cache. Holding it here lets ONE handler
@@ -171,9 +175,14 @@ impl AppState {
         let spend_over = Arc::new(crate::quota::QuotaSet::new());
         let suspended = Arc::new(crate::quota::QuotaSet::new());
         let refreshers = build_honor_refreshers(&config);
+        let circuit_breaker = Arc::new(crate::circuit_breaker::CircuitBreaker::new(
+            config.circuit_breaker_failures,
+            Duration::from_millis(config.circuit_breaker_cooldown_ms),
+        ));
         Self {
             config: Arc::new(config),
             engines: Arc::new(default_engines()),
+            circuit_breaker,
             registry,
             resolver,
             transactions: Arc::new(TransactionRegistry::default()),

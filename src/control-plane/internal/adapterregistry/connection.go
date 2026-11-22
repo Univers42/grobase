@@ -131,22 +131,19 @@ type mountRow struct {
 // loadMountRow reads the mount under EXPLICIT tenant scope (not just RLS): the
 // control-plane DB role bypasses RLS, so without `AND tenant_id = $2` a mount
 // UUID would be a bearer capability — any valid tenant key + dbId would read
-// another tenant's mount. `userID` is the caller tenant (X-Tenant-Id). Also
-// stamps last_healthy_at fire-and-forget, matching the Node service.
+// another tenant's mount. `userID` is the caller tenant (X-Tenant-Id).
+// Mount loading is a read-only query and does not stamp engine health.
 func (s *Service) loadMountRow(ctx context.Context, userID, id string) (mountRow, error) {
 	var m mountRow
 	err := s.db.TenantTx(ctx, userID, func(tx pgx.Tx) error {
 		var err error
-		if m, err = scanMountRow(ctx, tx, userID, id); err != nil {
-			return err
-		}
-		_, _ = tx.Exec(ctx, `UPDATE public.tenant_databases SET last_healthy_at = now() WHERE id = $1 AND tenant_id = $2`, id, userID)
-		return nil
+		m, err = scanMountRow(ctx, tx, userID, id)
+		return err
 	})
 	return m, err
 }
 
-// scanMountRow is loadMountRow's read without the last_healthy_at stamp, under the same
+// scanMountRow executes the mount read query under the same
 // explicit tenant scope.
 func scanMountRow(ctx context.Context, tx pgx.Tx, userID, id string) (mountRow, error) {
 	var m mountRow
