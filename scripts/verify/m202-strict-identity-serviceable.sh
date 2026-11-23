@@ -87,6 +87,33 @@ stop_sidecars() {
     >/dev/null 2>&1 || true
 }
 
+# The service's own limits (128m, 0.25 cpu) are sized for one Node process and this gate runs
+# three. On CI the third never listened inside 30 s, or a probe died with "fetch failed"
+# (main runs 45246440458 and the one before it, 2026-11-23). The gate lends headroom for its
+# own two processes and gives the limits back on exit.
+# Caveat: the cause is inferred from the limits and the two symptoms, not from a captured
+# OOM record; sidecar_state prints the cgroup's oom_kill count when a sidecar fails so the
+# next failure settles it. A container with no memory limit is left as it is.
+LIMITS="$(docker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.NanoCpus}}' "${SR}" 2>/dev/null)"
+set_limits() { docker update --memory "$1" --memory-swap "$2" --cpus "$3" "${SR}" >/dev/null; }
+lend_headroom() {
+  [ "${LIMITS%% *}" -gt 0 ] 2>/dev/null || return 0
+  set_limits 512m 512m 1 || fail "could not raise ${SR}'s limits for the two sidecars (docker update)"
+}
+restore_limits() {
+  local memory swap nano_cpus
+  read -r memory swap nano_cpus <<<"${LIMITS}"
+  [ "${memory:-0}" -gt 0 ] 2>/dev/null || return 0
+  set_limits "${memory}" "${swap}" "$(awk -v n="${nano_cpus}" 'BEGIN { print (n > 0 ? n / 1e9 : 1) }')" ||
+    printf '[M202] WARN — %s keeps the raised limits; recreate it (make up)\n' "${SR}" >&2
+}
+
+# sidecar_state NAME says whether the process is alive and how often the cgroup killed for memory.
+sidecar_state() {
+  docker exec "${SR}" sh -c "pid=\$(cat /tmp/$1.pid 2>/dev/null); [ -n \"\$pid\" ] && kill -0 \"\$pid\" 2>/dev/null && echo alive || echo dead; sed -n 's/^oom_kill /oom_kill=/p' /sys/fs/cgroup/memory.events 2>/dev/null" |
+    tr '\n' ' '
+}
+
 # run_probes signs up a GoTrue user and sends every case to both the strict
 # sidecar and the compat instance, from inside the container. Prints one
 # "<case> <port> <status>" line per probe and never prints a token.
@@ -171,14 +198,19 @@ ok "${VERIFIERS} services share one issuer: ${GOTRUE_ISS}"
 
 step "2/2 live — strict accepts a real session and refuses everything else"
 stop_sidecars
-trap stop_sidecars EXIT
+cleanup() {
+  stop_sidecars
+  restore_limits
+}
+trap cleanup EXIT
+lend_headroom
 start_sidecar m202 "${STRICT_PORT}" IDENTITY_HEADER_MODE=strict ||
-  fail "the strict instance never listened on :${STRICT_PORT} (see /tmp/m202.log in ${SR})"
+  fail "the strict instance never listened on :${STRICT_PORT} ($(sidecar_state m202); see /tmp/m202.log in ${SR})"
 start_sidecar m202s "${SHADOW_PORT}" IDENTITY_HEADER_MODE=compat IDENTITY_STRICT_SHADOW=1 ||
-  fail "the shadow instance never listened on :${SHADOW_PORT} (see /tmp/m202s.log in ${SR})"
+  fail "the shadow instance never listened on :${SHADOW_PORT} ($(sidecar_state m202s); see /tmp/m202s.log in ${SR})"
 OUT="$(run_probes)"
 grep -q '^signup none' <<<"${OUT}" && fail "GoTrue signup returned no session (${OUT#signup none })"
-grep -q '^error' <<<"${OUT}" && fail "probe crashed: ${OUT#error }"
+grep -q '^error' <<<"${OUT}" && fail "probe crashed: ${OUT#error } (strict $(sidecar_state m202); shadow $(sidecar_state m202s))"
 
 case "$(status session "${STRICT_PORT}")" in
 2*) ok "real GoTrue session → $(status session "${STRICT_PORT}") in strict" ;;
