@@ -203,6 +203,83 @@ async fn fk_described(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(),
     }
 }
 
+const VIEW_BASE: &str = "conf_view_base";
+const VIEW: &str = "conf_view";
+
+/// Engine dialect for the view pair: (create base, create view, drop view,
+/// drop base). None ⇒ describe does not list views for this engine yet.
+pub(crate) fn view_sql(engine: &str) -> Option<[&'static str; 4]> {
+    match engine {
+        "postgresql" => Some([
+            "CREATE TABLE public.conf_view_base (id integer PRIMARY KEY, label text)",
+            "CREATE VIEW public.conf_view AS SELECT id, label FROM public.conf_view_base",
+            "DROP VIEW IF EXISTS public.conf_view",
+            "DROP TABLE IF EXISTS public.conf_view_base",
+        ]),
+        "mysql" | "mariadb" => Some([
+            "CREATE TABLE conf_view_base (id int PRIMARY KEY, label text) ENGINE=InnoDB",
+            "CREATE VIEW conf_view AS SELECT id, label FROM conf_view_base",
+            "DROP VIEW IF EXISTS conf_view",
+            "DROP TABLE IF EXISTS conf_view_base",
+        ]),
+        _ => None,
+    }
+}
+
+/// A SQL view is described with its columns and `read_only: true`; a base
+/// table carries no `read_only` key on the wire, so a schema without views
+/// serializes exactly as it did before the flag existed.
+pub(crate) async fn check_view_introspection(
+    pool: &dyn EnginePool,
+    id: &RequestIdentity,
+    engine: &str,
+) -> Result<(), String> {
+    let [base, view, drop_view, drop_base] =
+        view_sql(engine).ok_or(format!("no view dialect for {engine}"))?;
+    let _ = raw(pool, drop_view, id).await;
+    let _ = raw(pool, drop_base, id).await;
+    raw(pool, base, id)
+        .await
+        .map_err(|e| format!("create base table: {e}"))?;
+    let outcome = match raw(pool, view, id).await {
+        Ok(()) => view_described(pool, id).await,
+        Err(e) => Err(format!("create view: {e}")),
+    };
+    let _ = raw(pool, drop_view, id).await;
+    let _ = raw(pool, drop_base, id).await;
+    outcome
+}
+
+async fn view_described(pool: &dyn EnginePool, id: &RequestIdentity) -> Result<(), String> {
+    let schema = describe(pool, id).await?;
+    let wire = serde_json::to_value(&schema).map_err(|e| format!("serialize: {e}"))?;
+    let table = |name: &str| {
+        wire["tables"]
+            .as_array()
+            .and_then(|ts| ts.iter().find(|t| t["name"] == name))
+            .cloned()
+            .ok_or(format!("{name} not described"))
+    };
+    let base = table(VIEW_BASE)?;
+    if base.get("read_only").is_some() {
+        return Err(format!("{VIEW_BASE} carries read_only on the wire: {base}"));
+    }
+    let view = table(VIEW)?;
+    if view["read_only"] != true {
+        return Err(format!("{VIEW} is not read_only: {view}"));
+    }
+    let columns: Vec<&str> = view["columns"]
+        .as_array()
+        .map(|cs| cs.iter().filter_map(|c| c["name"].as_str()).collect())
+        .unwrap_or_default();
+    if columns != ["id", "label"] {
+        return Err(format!(
+            "{VIEW} columns read back {columns:?}, want [id, label]"
+        ));
+    }
+    Ok(())
+}
+
 fn is_refusal(e: &DataPlaneError) -> bool {
     matches!(
         e,
@@ -288,5 +365,16 @@ mod tests {
             assert!(drop_parent.contains("conf_fk_parent"), "{engine}");
         }
         assert!(fk_sql("mongodb").is_none());
+    }
+
+    #[test]
+    fn every_view_dialect_drops_view_before_base() {
+        for engine in ["postgresql", "mysql", "mariadb"] {
+            let [_, create_view, drop_view, drop_base] = view_sql(engine).expect(engine);
+            assert!(create_view.contains(VIEW_BASE), "{engine}");
+            assert!(drop_view.starts_with("DROP VIEW"), "{engine}");
+            assert!(drop_base.contains(VIEW_BASE), "{engine}");
+        }
+        assert!(view_sql("sqlite").is_none());
     }
 }

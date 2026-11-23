@@ -168,6 +168,14 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
             "fk_introspect",
             schema_checks::check_fk_introspection(&*pool, &id, &engine).await,
         );
+        if schema_checks::view_sql(&engine).is_some() {
+            report.record(
+                "view_introspect",
+                schema_checks::check_view_introspection(&*pool, &id, &engine).await,
+            );
+        } else {
+            report.skip("view_introspect", "views not listed for this engine");
+        }
     } else {
         report.skip("introspect", "descriptor: introspect=false");
     }
