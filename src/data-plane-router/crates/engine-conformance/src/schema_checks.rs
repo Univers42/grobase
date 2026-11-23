@@ -129,7 +129,7 @@ pub(crate) async fn check_ddl_round_trip(
 
 /// Engine dialect for the FK pair: (create parent, create child, drop child,
 /// drop parent). None ⇒ the engine has no FK concept to introspect.
-fn fk_sql(engine: &str) -> Option<[&'static str; 4]> {
+pub(crate) fn fk_sql(engine: &str) -> Option<[&'static str; 4]> {
     match engine {
         "postgresql" | "cockroachdb" => Some([
             "CREATE TABLE public.conf_fk_parent (id integer PRIMARY KEY)",
@@ -170,9 +170,8 @@ pub(crate) async fn check_fk_introspection(
     id: &RequestIdentity,
     engine: &str,
 ) -> Result<(), String> {
-    let Some([parent, child, drop_child, drop_parent]) = fk_sql(engine) else {
-        return Ok(());
-    };
+    let [parent, child, drop_child, drop_parent] =
+        fk_sql(engine).ok_or(format!("no FK dialect for {engine}"))?;
     let _ = raw(pool, drop_child, id).await;
     let _ = raw(pool, drop_parent, id).await;
     raw(pool, parent, id)

@@ -164,10 +164,14 @@ pub async fn run_suite(adapter: Arc<dyn EngineAdapter>, mount: DatabaseMount) ->
     }
     if caps.introspect {
         report.record("introspect", check_introspect(&*pool, &id).await);
-        report.record(
-            "fk_introspect",
-            schema_checks::check_fk_introspection(&*pool, &id, &engine).await,
-        );
+        if schema_checks::fk_sql(&engine).is_some() {
+            report.record(
+                "fk_introspect",
+                schema_checks::check_fk_introspection(&*pool, &id, &engine).await,
+            );
+        } else {
+            report.skip("fk_introspect", "no foreign keys on this engine");
+        }
         if schema_checks::view_sql(&engine).is_some() {
             report.record(
                 "view_introspect",
