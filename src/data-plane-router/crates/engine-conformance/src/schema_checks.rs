@@ -207,10 +207,11 @@ const VIEW_BASE: &str = "conf_view_base";
 const VIEW: &str = "conf_view";
 
 /// Engine dialect for the view pair: (create base, create view, drop view,
-/// drop base). None ⇒ describe does not list views for this engine yet.
+/// drop base). cockroachdb shares the Postgres describe path. None ⇒ the
+/// engine's describe skips views (sqlite, mssql) or has none (document/KV).
 pub(crate) fn view_sql(engine: &str) -> Option<[&'static str; 4]> {
     match engine {
-        "postgresql" => Some([
+        "postgresql" | "cockroachdb" => Some([
             "CREATE TABLE public.conf_view_base (id integer PRIMARY KEY, label text)",
             "CREATE VIEW public.conf_view AS SELECT id, label FROM public.conf_view_base",
             "DROP VIEW IF EXISTS public.conf_view",
@@ -369,10 +370,11 @@ mod tests {
 
     #[test]
     fn every_view_dialect_drops_view_before_base() {
-        for engine in ["postgresql", "mysql", "mariadb"] {
+        for engine in ["postgresql", "cockroachdb", "mysql", "mariadb"] {
             let [_, create_view, drop_view, drop_base] = view_sql(engine).expect(engine);
             assert!(create_view.contains(VIEW_BASE), "{engine}");
             assert!(drop_view.starts_with("DROP VIEW"), "{engine}");
+            assert!(drop_view.contains(VIEW), "{engine}");
             assert!(drop_base.contains(VIEW_BASE), "{engine}");
         }
         assert!(view_sql("sqlite").is_none());
