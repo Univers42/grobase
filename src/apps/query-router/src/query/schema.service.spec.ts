@@ -102,6 +102,26 @@ describe('SchemaService', () => {
     });
   });
 
+  it('passes a view read_only flag through and adds none to a base table', async () => {
+    const { service, proxy } = build();
+    const view: RustSchemaDescriptor['tables'][number] = {
+      name: 'order_totals',
+      primary_key: [],
+      columns: descriptor().tables[0].columns,
+      read_only: true,
+    };
+    proxy.describeSchema.mockResolvedValueOnce({
+      engine: 'postgresql',
+      tables: [...descriptor().tables, view],
+    });
+
+    const result = await service.describe('db-1', 'user-1', { tenantId: 't-1' } as never);
+    const wire = JSON.parse(JSON.stringify(result)) as { tables: Record<string, unknown>[] };
+
+    expect(wire.tables[0]).not.toHaveProperty('read_only');
+    expect(wire.tables[1]).toMatchObject({ name: 'order_totals', read_only: true });
+  });
+
   it('serves a second call within the TTL from cache (single upstream fetch)', async () => {
     const { service, proxy } = build();
     const first = await service.describe('db-1', 'user-1', { tenantId: 't-1' } as never);

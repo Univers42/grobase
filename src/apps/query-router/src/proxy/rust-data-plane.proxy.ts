@@ -140,6 +140,8 @@ export interface RustTableSchema {
   name: string;
   primary_key: string[];
   columns: RustColumnSchema[];
+  /** `true` for a SQL view; absent (never `false`) on a base table. */
+  read_only?: true;
 }
 
 /** The full `POST /v1/schema` payload — `data_plane_core::SchemaDescriptor`. */
